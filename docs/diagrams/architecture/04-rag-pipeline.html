@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Policy RAG: indexing and cited answers</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper: #f5f5f5; --color-ink: #2d3142; --color-muted: #4f5d75; --color-accent: #eb6c36;
+      --font-sans: 'Geist', system-ui, sans-serif;
+      --font-serif: 'Instrument Serif', 'Noto Serif KR', serif;
+      --font-mono: 'Geist Mono', ui-monospace, monospace;
+    }
+    body { font-family: var(--font-sans); background: var(--color-paper); color: var(--color-ink); padding: 3rem 2rem; }
+    .frame { width: max-content; max-width: 100%; margin: 0 auto; }
+    .eyebrow { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-muted); margin-bottom: 0.5rem; }
+    h1 { font-family: var(--font-serif); font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem); font-weight: 400; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 1.5rem; }
+    .scroll { overflow-x: auto; }
+    svg { width: 100%; min-width: 900px; max-width: 1280px; display: block; }
+    .explain { margin-top: 1.5rem; max-width: 72ch; font-size: 0.9rem; line-height: 1.55; color: var(--color-ink); }
+    .explain p + p { margin-top: 0.6rem; }
+    .explain .eyebrow { margin-bottom: 0.4rem; }
+    .colophon { margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid rgba(45,49,66,0.12); font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.08em; color: var(--color-muted); }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Data flow · RAG pipeline</p>
+    <h1>Policy RAG: indexing and cited answers</h1>
+    <div class="scroll">
+<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="hr-rag-pipeline-title hr-rag-pipeline-desc">
+<title id="hr-rag-pipeline-title">Policy RAG: indexing and cited answers</title>
+<desc id="hr-rag-pipeline-desc">Two flows: offline indexing turns policy markdown into chunks, local embeddings and a SQLite index; online queries run hybrid keyword and vector search, merge the two rankings, apply a confidence gate, then either say nothing was found or hand the sections to Claude, which cites them as text.</desc>
+<defs>
+<marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+<marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+<marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#f5f5f5"/>
+<rect x="32" y="108" width="1216" height="144" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+<rect x="44" y="112" width="132" height="12" rx="2" fill="#f5f5f5"/>
+<text x="50" y="121" fill="rgba(45,49,66,0.45)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">OFFLINE INDEXING</text>
+<rect x="32" y="388" width="1216" height="252" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+<rect x="44" y="392" width="104" height="12" rx="2" fill="#f5f5f5"/>
+<text x="50" y="401" fill="rgba(45,49,66,0.45)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">ONLINE QUERY</text>
+<path d="M240,176 H296" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M488,176 H544" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M736,176 H792" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M888,208 V304 Q888,312 880,312 H400 Q392,312 392,320 V424" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+<path d="M240,456 H296" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M488,456 H544" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M736,456 H792" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M984,456 H1040" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M888,496 V548" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+<rect x="252" y="156" width="36" height="12" rx="2" fill="#f5f5f5"/>
+<text x="270" y="165" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PARSE</text>
+<rect x="500" y="156" width="36" height="12" rx="2" fill="#f5f5f5"/>
+<text x="518" y="165" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">EMBED</text>
+<rect x="748" y="156" width="36" height="12" rx="2" fill="#f5f5f5"/>
+<text x="766" y="165" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">WRITE</text>
+<rect x="608" y="292" width="64" height="12" rx="2" fill="#f5f5f5"/>
+<text x="640" y="301" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">READ INDEX</text>
+<rect x="252" y="436" width="32" height="12" rx="2" fill="#f5f5f5"/>
+<text x="268" y="445" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">TEXT</text>
+<rect x="492" y="436" width="48" height="12" rx="2" fill="#f5f5f5"/>
+<text x="516" y="445" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">2 LISTS</text>
+<rect x="748" y="436" width="36" height="12" rx="2" fill="#f5f5f5"/>
+<text x="766" y="445" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">TOP 5</text>
+<rect x="984" y="436" width="56" height="12" rx="2" fill="#f5f5f5"/>
+<text x="1012" y="445" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SECTIONS</text>
+<rect x="896" y="516" width="64" height="12" rx="2" fill="#f5f5f5"/>
+<text x="928" y="525" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">BELOW 0.50</text>
+<rect x="48" y="144" width="192" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="48" y="144" width="192" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+<rect x="56" y="150" width="32" height="12" rx="2" fill="transparent" stroke="#7a8399" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="72" y="159" fill="#7a8399" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DATA</text>
+<text x="144" y="182" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Policy files</text>
+<text x="144" y="198" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">8 markdown docs + front matter</text>
+<rect x="296" y="144" width="192" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="296" y="144" width="192" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="304" y="150" width="32" height="12" rx="2" fill="transparent" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="320" y="159" fill="#2d3142" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">STEP</text>
+<text x="392" y="182" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Chunker</text>
+<text x="392" y="198" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">one chunk per ## section</text>
+<rect x="544" y="144" width="192" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="544" y="144" width="192" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="552" y="150" width="32" height="12" rx="2" fill="transparent" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="568" y="159" fill="#2d3142" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">STEP</text>
+<text x="640" y="182" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Embeddings</text>
+<text x="640" y="198" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">bge-small-en-v1.5 · local</text>
+<rect x="792" y="144" width="192" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="792" y="144" width="192" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+<rect x="800" y="150" width="36" height="12" rx="2" fill="transparent" stroke="#4f5d75" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="818" y="159" fill="#4f5d75" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">STORE</text>
+<text x="888" y="182" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">SQLite index</text>
+<text x="888" y="198" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">FTS5 + sqlite-vec (384-d)</text>
+<rect x="48" y="424" width="192" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="48" y="424" width="192" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+<rect x="56" y="430" width="20" height="12" rx="2" fill="transparent" stroke="#7a8399" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="66" y="439" fill="#7a8399" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">IN</text>
+<text x="144" y="462" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Question</text>
+<text x="144" y="478" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">from the search_policy tool</text>
+<rect x="296" y="424" width="192" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="296" y="424" width="192" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="304" y="430" width="32" height="12" rx="2" fill="transparent" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="320" y="439" fill="#2d3142" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">STEP</text>
+<text x="392" y="462" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Hybrid search</text>
+<text x="392" y="478" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">FTS5 top 50 + vectors top 50</text>
+<rect x="544" y="424" width="192" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="544" y="424" width="192" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="552" y="430" width="32" height="12" rx="2" fill="transparent" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="568" y="439" fill="#2d3142" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">STEP</text>
+<text x="640" y="462" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Fuse (RRF)</text>
+<text x="640" y="478" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">merge two lists · top 5</text>
+<rect x="792" y="416" width="192" height="80" rx="6" fill="#f5f5f5"/>
+<rect x="792" y="416" width="192" height="80" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+<rect x="800" y="422" width="32" height="12" rx="2" fill="transparent" stroke="#eb6c36" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="816" y="431" fill="#eb6c36" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">GATE</text>
+<text x="888" y="454" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Confidence tiers</text>
+<text x="888" y="470" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">0.655+ confident</text>
+<text x="888" y="482" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">0.50 to 0.655 weak match</text>
+<rect x="1040" y="424" width="192" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="1040" y="424" width="192" height="64" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+<rect x="1048" y="430" width="28" height="12" rx="2" fill="transparent" stroke="#4f5d75" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="1062" y="439" fill="rgba(45,49,66,0.30)" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">LLM</text>
+<text x="1136" y="462" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Claude answers</text>
+<text x="1136" y="478" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">citations checked by verifier</text>
+<rect x="792" y="548" width="192" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="792" y="548" width="192" height="64" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+<rect x="800" y="554" width="48" height="12" rx="2" fill="transparent" stroke="#4f5d75" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="824" y="563" fill="rgba(45,49,66,0.20)" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">DECLINE</text>
+<text x="888" y="586" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Not found</text>
+<text x="888" y="602" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">say so + HR contact</text>
+<line x1="40" y1="668" x2="1240" y2="668" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+<text x="40" y="692" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+<rect x="112" y="682" width="20" height="12" rx="3" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+<text x="140" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Confidence gate</text>
+<rect x="244" y="682" width="20" height="12" rx="3" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+<text x="272" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Index</text>
+<rect x="328" y="682" width="20" height="12" rx="3" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+<text x="356" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">LLM</text>
+<rect x="400" y="682" width="20" height="12" rx="3" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+<text x="428" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Input</text>
+<rect x="484" y="682" width="20" height="12" rx="3" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="512" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Not-found path</text>
+<line x1="612" y1="688" x2="636" y2="688" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<text x="644" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Data flow</text>
+<line x1="720" y1="688" x2="744" y2="688" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+<text x="752" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Optional</text>
+</svg>
+    </div>
+    <div class="explain">
+      <p class="eyebrow">In plain words</p>
+      <p>Offline, the policy files are split by section heading, each section becomes one chunk with its policy ID, version, effective date and clause ids, and each chunk is embedded locally with bge-small. Text, keyword index and vectors live in the same SQLite file.</p>
+      <p>Online, a question searches keywords and vectors in parallel, takes the top 50 of each, and merges them by reciprocal rank fusion into the top five. There is no reranker, because with about 50 sections it was not needed. The best vector similarity then sets one of three tiers: confident (0.655 or more), weak match (0.50 to 0.655, up to three sections, flagged), or nothing (below 0.50), in which case the agent says it could not find the answer and gives the HR contact.</p>
+      <p>The model writes citations such as POL-02 §5.4 as plain text, and the verifier later checks that each citation was really retrieved in that turn.</p>
+    </div>
+    <p class="colophon">HR Chat Agent · sample policies are illustrative, not Ideas2IT's actual policy · source: docs/ARCHITECTURE.md (as built)</p>
+  </div>
+</body>
+</html>

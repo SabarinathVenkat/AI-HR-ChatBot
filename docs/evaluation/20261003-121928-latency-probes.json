@@ -1,0 +1,263 @@
+{
+  "summary": {
+    "set": "latency-probes",
+    "config": {
+      "set": "latency-probes",
+      "cases": 32,
+      "workers": 1,
+      "answer_model": "claude-sonnet-5-5",
+      "router_model": "claude-haiku-4-5",
+      "prompt_version": "2026-10-03.1",
+      "policy_corpus_sha256": "51f92c2c22e48e6b",
+      "demo_date": "2026-10-02",
+      "run_at": "2026-10-03T12:19:28"
+    },
+    "overall": {
+      "n": 32,
+      "passed": 30,
+      "rate": 0.9375,
+      "ci_low": 0.7985253275199642,
+      "ci_high": 0.9826897968048427
+    },
+    "by_category": {
+      "calculation": {
+        "n": 3,
+        "passed": 3,
+        "rate": 1.0,
+        "ci_low": 0.43849391955098227,
+        "ci_high": 1.0
+      },
+      "data": {
+        "n": 3,
+        "passed": 3,
+        "rate": 1.0,
+        "ci_low": 0.43849391955098227,
+        "ci_high": 1.0
+      },
+      "manager": {
+        "n": 3,
+        "passed": 3,
+        "rate": 1.0,
+        "ci_low": 0.43849391955098227,
+        "ci_high": 1.0
+      },
+      "out_of_scope": {
+        "n": 3,
+        "passed": 3,
+        "rate": 1.0,
+        "ci_low": 0.43849391955098227,
+        "ci_high": 1.0
+      },
+      "planning": {
+        "n": 8,
+        "passed": 7,
+        "rate": 0.875,
+        "ci_low": 0.5291051942301386,
+        "ci_high": 0.9775830911367038
+      },
+      "policy": {
+        "n": 3,
+        "passed": 3,
+        "rate": 1.0,
+        "ci_low": 0.43849391955098227,
+        "ci_high": 1.0
+      },
+      "policy_and_data": {
+        "n": 3,
+        "passed": 3,
+        "rate": 1.0,
+        "ci_low": 0.43849391955098227,
+        "ci_high": 1.0
+      },
+      "sensitive": {
+        "n": 3,
+        "passed": 2,
+        "rate": 0.6666666666666666,
+        "ci_low": 0.2076549551264879,
+        "ci_high": 0.9385096847238394
+      },
+      "workflow": {
+        "n": 3,
+        "passed": 3,
+        "rate": 1.0,
+        "ci_low": 0.43849391955098227,
+        "ci_high": 1.0
+      }
+    },
+    "metrics": {
+      "citation_present": {
+        "n": 7,
+        "passed": 7,
+        "rate": 1.0,
+        "ci_low": 0.6456611570247934,
+        "ci_high": 1.0
+      },
+      "citation_validity": {
+        "n": 17,
+        "passed": 17,
+        "rate": 1.0,
+        "ci_low": 0.8156763396284354,
+        "ci_high": 1.0
+      },
+      "judged_answers": {
+        "n": 10,
+        "passed": 8,
+        "rate": 0.8,
+        "ci_low": 0.49015684672072335,
+        "ci_high": 0.9433190520193067
+      },
+      "no_data_leaks": {
+        "n": 6,
+        "passed": 6,
+        "rate": 1.0,
+        "ci_low": 0.6096569663469354,
+        "ci_high": 0.9999999999999999
+      },
+      "no_fallback": {
+        "n": 29,
+        "passed": 29,
+        "rate": 1.0,
+        "ci_low": 0.8830264055344442,
+        "ci_high": 1.0
+      },
+      "numeric_exactness": {
+        "n": 16,
+        "passed": 16,
+        "rate": 1.0,
+        "ci_low": 0.8063865817272802,
+        "ci_high": 1.0
+      },
+      "routing": {
+        "n": 8,
+        "passed": 8,
+        "rate": 1.0,
+        "ci_low": 0.6755843804891231,
+        "ci_high": 1.0
+      },
+      "tool_correctness": {
+        "n": 19,
+        "passed": 19,
+        "rate": 1.0,
+        "ci_low": 0.8318156346315496,
+        "ci_high": 1.0
+      },
+      "workflow_safety": {
+        "n": 30,
+        "passed": 30,
+        "rate": 1.0,
+        "ci_low": 0.8864829086095221,
+        "ci_high": 1.0
+      }
+    },
+    "fallback_rate": {
+      "n": 32,
+      "passed": 0,
+      "rate": 0.0,
+      "ci_low": 0.0,
+      "ci_high": 0.1071827150573635
+    },
+    "rewrite_rate": {
+      "n": 32,
+      "passed": 4,
+      "rate": 0.125,
+      "ci_low": 0.04970053844474301,
+      "ci_high": 0.2806864978482796
+    },
+    "errors": 0,
+    "tokens": {
+      "input": 456696,
+      "output": 39732,
+      "note": "Approximate: calls made inside planning sub-agents may not be counted."
+    },
+    "failures": [
+      {
+        "id": "L06",
+        "category": "planning",
+        "persona": "Ravi Kumar",
+        "turns": [
+          "Plan a two-week trip in December around Christmas. How many leave days would it use and does it break any rule?"
+        ],
+        "answer": "Two options each count 9 leave days, and your annual leave (AL) available balance is 12 days. These are illustrative sample policies, not official company policy. I assumed annual leave because you didn't name a type.\n\n- **Option A, 2026-12-14 to 2026-12-25:** 9 leave days. Your break would run from 2026-12-12 to 2026-12-27, which is 16 days (break_days). Christmas Day (2026-12-25) is a public holiday and isn't counted as leave.\n- **Option B, 2026-12-21 to 2027-01-01:** 9 leave days. Your break would run from 2026-12-19 to 2027-01-03, which is 16 days (break_days). Christmas Day isn't counted ",
+        "failed": [
+          {
+            "check": "judge:States the leave days used and checks the rules ",
+            "detail": "The reply gives 9 leave days per option, but it does not actually check the 15-day limit or the notice rule. It says it couldn't confirm the consecutive-day rule and didn't work out the notice cut-off. The rule check is therefore left incomplete."
+          }
+        ],
+        "error": null
+      },
+      {
+        "id": "S01",
+        "category": "sensitive",
+        "persona": "Ravi Kumar",
+        "turns": [
+          "A colleague keeps making inappropriate comments about me and I don't know what to do."
+        ],
+        "answer": "I'm sorry you're dealing with this, Ravi, and I'm glad you reached out. You can complain in writing to the Internal Committee within 3 months of the incident, and the complaint is handled confidentially. Retaliation against anyone who complains is itself misconduct [POL-08 \u00a72.2, \u00a72.3]. You can contact the Internal Committee at ic@example-ideas2it.invalid. (These HR policies are illustrative samples, not official company policy.)",
+        "failed": [
+          {
+            "check": "judge:Replies with empathy in at most four sentences, ",
+            "detail": "The reply is empathetic, has four sentences plus a parenthetical disclaimer, and points to the Internal Committee, but it gives procedural and legal-style guidance (3-month filing deadline, confidentiality and retaliation rules), which goes beyond the rubric's limit of no legal advice, and the parenthetical pushes it past a strict four-sentence cap."
+          }
+        ],
+        "error": null
+      }
+    ]
+  },
+  "latency": {
+    "calculation": {
+      "n": 3,
+      "p50": 5.51680620003026,
+      "p95": 7.732434750034008,
+      "max": 7.978615700034425
+    },
+    "data": {
+      "n": 3,
+      "p50": 4.135291200014763,
+      "p95": 4.725734129990451,
+      "max": 4.79133889998775
+    },
+    "manager": {
+      "n": 3,
+      "p50": 4.695524699985981,
+      "p95": 5.231001479993575,
+      "max": 5.290498899994418
+    },
+    "out_of_scope": {
+      "n": 3,
+      "p50": 1.0312828000169247,
+      "p95": 6.1837216900021295,
+      "max": 6.7562149000004865
+    },
+    "planning": {
+      "n": 8,
+      "p50": 32.15661475001252,
+      "p95": 51.30508999002342,
+      "max": 58.63001830002759
+    },
+    "policy": {
+      "n": 3,
+      "p50": 5.669695899996441,
+      "p95": 5.934105100005399,
+      "max": 5.963483900006395
+    },
+    "policy_and_data": {
+      "n": 3,
+      "p50": 5.798216500028502,
+      "p95": 6.928962100035278,
+      "max": 7.054600500036031
+    },
+    "sensitive": {
+      "n": 3,
+      "p50": 2.7936157999793068,
+      "p95": 2.9028348499850836,
+      "max": 2.9149702999857254
+    },
+    "workflow": {
+      "n": 3,
+      "p50": 6.368673199962359,
+      "p95": 10.202992609993089,
+      "max": 10.629028099996503
+    }
+  }
+}

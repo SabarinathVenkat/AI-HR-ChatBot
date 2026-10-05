@@ -1,0 +1,27 @@
+[project]
+name = "hr-chat-agent"
+version = "0.1.0"
+description = "HR Chat Agent: LangGraph core with a Deep Agents planning path"
+requires-python = ">=3.11"
+# Pinned runtime dependencies live in requirements.txt (full resolved set: requirements.lock).
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest", "hypothesis", "freezegun"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["docs/diagrams", "models_cache", "eval/reports"]
+
+[tool.ruff.lint]
+# Rules that catch real mistakes: errors, pyflakes, warnings, bugbear.
+select = ["E", "F", "W", "B"]
+ignore = [
+    "E501",  # long lines: not worth churn
+    "B008",  # FastAPI's Depends() in argument defaults is the framework's idiom
+]

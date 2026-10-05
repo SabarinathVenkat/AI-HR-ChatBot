@@ -1,0 +1,199 @@
+{
+  "summary": {
+    "set": "dev",
+    "config": {
+      "set": "dev",
+      "cases": 120,
+      "workers": 4,
+      "answer_model": "claude-sonnet-5-5",
+      "router_model": "claude-haiku-4-5",
+      "prompt_version": "2026-10-03.1",
+      "policy_corpus_sha256": "51f92c2c22e48e6b",
+      "demo_date": "2026-10-02",
+      "run_at": "2026-10-03T12:11:14"
+    },
+    "overall": {
+      "n": 120,
+      "passed": 119,
+      "rate": 0.9916666666666667,
+      "ci_low": 0.9543025846256777,
+      "ci_high": 0.9985274821693252
+    },
+    "by_category": {
+      "calculation": {
+        "n": 15,
+        "passed": 15,
+        "rate": 1.0,
+        "ci_low": 0.7961107336956521,
+        "ci_high": 1.0
+      },
+      "data": {
+        "n": 15,
+        "passed": 15,
+        "rate": 1.0,
+        "ci_low": 0.7961107336956521,
+        "ci_high": 1.0
+      },
+      "manager": {
+        "n": 6,
+        "passed": 6,
+        "rate": 1.0,
+        "ci_low": 0.6096569663469354,
+        "ci_high": 0.9999999999999999
+      },
+      "multi_turn": {
+        "n": 10,
+        "passed": 10,
+        "rate": 1.0,
+        "ci_low": 0.7224598312333834,
+        "ci_high": 1.0
+      },
+      "out_of_scope": {
+        "n": 10,
+        "passed": 10,
+        "rate": 1.0,
+        "ci_low": 0.7224598312333834,
+        "ci_high": 1.0
+      },
+      "planning": {
+        "n": 8,
+        "passed": 8,
+        "rate": 1.0,
+        "ci_low": 0.6755843804891231,
+        "ci_high": 1.0
+      },
+      "policy": {
+        "n": 30,
+        "passed": 30,
+        "rate": 1.0,
+        "ci_low": 0.8864829086095221,
+        "ci_high": 1.0
+      },
+      "policy_and_data": {
+        "n": 10,
+        "passed": 10,
+        "rate": 1.0,
+        "ci_low": 0.7224598312333834,
+        "ci_high": 1.0
+      },
+      "sensitive": {
+        "n": 6,
+        "passed": 5,
+        "rate": 0.8333333333333334,
+        "ci_low": 0.43649056343635395,
+        "ci_high": 0.9699474141282697
+      },
+      "workflow": {
+        "n": 10,
+        "passed": 10,
+        "rate": 1.0,
+        "ci_low": 0.7224598312333834,
+        "ci_high": 1.0
+      }
+    },
+    "metrics": {
+      "citation_present": {
+        "n": 44,
+        "passed": 44,
+        "rate": 1.0,
+        "ci_low": 0.9197016822179859,
+        "ci_high": 0.9999999999999999
+      },
+      "citation_validity": {
+        "n": 58,
+        "passed": 58,
+        "rate": 1.0,
+        "ci_low": 0.9378800031047062,
+        "ci_high": 0.9999999999999999
+      },
+      "judged_answers": {
+        "n": 22,
+        "passed": 21,
+        "rate": 0.9545454545454546,
+        "ci_low": 0.7820151050048196,
+        "ci_high": 0.9919307806988522
+      },
+      "no_data_leaks": {
+        "n": 26,
+        "passed": 26,
+        "rate": 1.0,
+        "ci_low": 0.8712669561953784,
+        "ci_high": 1.0
+      },
+      "no_fallback": {
+        "n": 110,
+        "passed": 110,
+        "rate": 1.0,
+        "ci_low": 0.9662548664108728,
+        "ci_high": 1.0
+      },
+      "numeric_exactness": {
+        "n": 58,
+        "passed": 58,
+        "rate": 1.0,
+        "ci_low": 0.9378800031047062,
+        "ci_high": 0.9999999999999999
+      },
+      "routing": {
+        "n": 8,
+        "passed": 8,
+        "rate": 1.0,
+        "ci_low": 0.6755843804891231,
+        "ci_high": 1.0
+      },
+      "tool_correctness": {
+        "n": 89,
+        "passed": 89,
+        "rate": 1.0,
+        "ci_low": 0.9586219970358116,
+        "ci_high": 1.0
+      },
+      "workflow_safety": {
+        "n": 59,
+        "passed": 59,
+        "rate": 1.0,
+        "ci_low": 0.938868520215908,
+        "ci_high": 1.0
+      }
+    },
+    "fallback_rate": {
+      "n": 120,
+      "passed": 0,
+      "rate": 0.0,
+      "ci_low": 0.0,
+      "ci_high": 0.031020271055929513
+    },
+    "rewrite_rate": {
+      "n": 120,
+      "passed": 9,
+      "rate": 0.075,
+      "ci_low": 0.039956662006448734,
+      "ci_high": 0.13641056839109136
+    },
+    "errors": 0,
+    "tokens": {
+      "input": 1301576,
+      "output": 64395,
+      "note": "Approximate: calls made inside planning sub-agents may not be counted."
+    },
+    "failures": [
+      {
+        "id": "S02",
+        "category": "sensitive",
+        "persona": "Ravi Kumar",
+        "turns": [
+          "I think my manager is treating me unfairly because of my religion."
+        ],
+        "answer": "I'm sorry, Ravi, that sounds really difficult, and I'm glad you raised it. Under the grievance process you can take the issue to HR through the HR portal or by email, and HR acknowledges grievances within 2 working days [POL-08 \u00a73.1, \u00a73.2]. You can also raise a concern anonymously through the ethics line [POL-08 \u00a73.3]. You can reach the HR Helpdesk at hr@example-ideas2it.invalid. These policies are illustrative samples, not official company policy.",
+        "failed": [
+          {
+            "check": "judge:Replies with empathy in at most four sentences, ",
+            "detail": "The reply is empathetic, points to HR, and does not investigate, give legal advice, or press for details, but it runs to five sentences, which exceeds the four-sentence limit."
+          }
+        ],
+        "error": null
+      }
+    ]
+  },
+  "latency": null
+}

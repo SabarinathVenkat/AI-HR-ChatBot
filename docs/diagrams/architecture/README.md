@@ -1,0 +1,77 @@
+# Architecture Diagrams
+
+Six diagrams of the HR Chat Agent **as built**, drawn from `docs/ARCHITECTURE.md` (regenerated on
+2026-10-04; the earlier versions were drawn from the design-time documents and showed Chainlit, a
+reranker and `interrupt()`). Each `.html` is self-contained (inline SVG, Google Fonts link only) and has a
+matching transparent `.png` (2x) in `png/`. Style: the skill's default skin (white-smoke paper, jet-black ink,
+one tangerine accent).
+
+| File | PNG | Shows | Nodes |
+|---|---|---|---|
+| `architecture-full-zoned.html` | `png/architecture-full-zoned.png` | Whole system in 9 layer zones | 24 |
+| `01-overview.html` | `png/01-overview.png` | System overview for slides | 9 |
+| `02-agent-graph.html` | `png/02-agent-graph.png` | LangGraph nodes, router, five routes, verify, rewrite and fallback | 12 |
+| `03-deep-agents-path.html` | `png/03-deep-agents-path.png` | Planner, two sub-agents, read-only tools, blocked tools, fallback to the tool loop | 9 |
+| `04-rag-pipeline.html` | `png/04-rag-pipeline.png` | Offline indexing and online retrieval with confidence tiers | 10 |
+| `05-security-and-data.html` | `png/05-security-and-data.png` | Identity injection, tools, domain rules, repositories, audit | 8 |
+
+Use the overview and the four detail diagrams in the deck. Use the zoned diagram in the architecture
+document, where there is room to zoom.
+
+## Plain-text explanation (accessible summary)
+
+Employees, managers and HR admins use a custom web app. Every request passes the FastAPI gateway: JWT login
+(argon2 password hashes, 60 minute tokens, lockout after 5 failures in 10 minutes), a 30-per-minute rate limit
+and strict security headers. The gateway attaches the verified employee ID.
+
+The LangGraph agent first runs an input guardrail (length check and prompt-injection flag). A Haiku-tier router
+labels the intent with a confidence, and plain code picks one of five routes: clarify or decline with a fixed
+reply, a plain model reply for small talk, a sensitive-topic route that always runs the same two tools, the
+Deep Agents planner, or the tool loop used for everything else. In the tool loop Claude Sonnet calls up to five
+of the ten tools its role allows and drafts a cited answer. Every drafted answer goes to the verifier, which
+checks numbers, dates, citations and names against the tool results. A failed draft is rewritten up to twice,
+then replaced by a deterministic template built from the tool output.
+
+Submitting leave is not part of the graph. The model can only prepare a draft; the employee confirms it through a
+separate endpoint, so nothing is written until they click.
+
+The Deep Agents path handles multi-step planning requests. A planner delegates to two sub-agents (policy
+specialist and leave calculator) that use read-only tools within 12 tool calls, 3 sub-agent runs and 22 seconds.
+The prepare-leave tool and the library's file and shell tools are refused there. The planner's answer returns
+through the same verifier, and if planning fails the request falls back to the normal tool loop.
+
+Ten tools receive identity from a server-side `ToolContext`, never from the model. They call pure domain rules
+(calendar, accrual, eligibility R1 to R10) and parameterized repositories filtered by employee or manager ID.
+Policy questions use hybrid search (FTS5 plus vectors from bge-small), reciprocal-rank fusion with no reranker,
+and three confidence tiers (confident, weak match, nothing found). Everything is stored in one SQLite file: HR
+tables, drafts, policy chunks, the audit log and conversation checkpoints. A per-request trace id and the audit log
+support diagnosis, and an evaluation suite (120 development, 30 held-out and 30 red-team cases) measures accuracy.
+
+## What was simplified or left out (honest ledger)
+
+- **Zoned diagram:** it uses 9 zones, one per layer. The skill suggests 2 to 4 zones for a `faithful` diagram, so
+  treat it as a layered view rather than a swimlane. It has 24 nodes and 27 connectors, at the skill's 24-node
+  ceiling.
+- **Zoned diagram, edges not drawn:** the planner's own model calls, the deep-path answer returning to the
+  verifier, and the web app's confirm click reaching the confirm endpoint are described in the text, not drawn, to
+  avoid crossing other connectors. The planner is drawn in `03-deep-agents-path.html`.
+- **Merged nodes:** the five routes are one node ("route choice") in the zoned view and separate nodes in
+  `02-agent-graph.html`. The audit log and the conversation checkpoints share one store node. Evaluation and CI share
+  one node.
+- **Not shown:** the `/health` endpoint, the `/policy/section` endpoint behind citation chips, and the manager
+  approval endpoints.
+- **Observability is minimal as built:** a trace id, the audit log and plain logs. OpenTelemetry and Langfuse were
+  designed but not built, so they are not drawn. The CI workflow exists but has not yet run on GitHub.
+
+## Regenerating
+
+The diagrams are generated by a small script so the layout rules (4px grid, rounded orthogonal connectors,
+label gaps, fanned attach points, hop arcs on crossings) are enforced and checked in code.
+
+```
+python src/build.py            # writes the six .html files and prints geometry warnings (0 expected)
+python src/render.py png *.html   # needs: pip install playwright; playwright install chromium
+```
+
+Run both from this folder (`docs/diagrams/architecture`). Edit the diagram definitions in `src/d01_overview.py`
+to `src/d06_full_zoned.py`, and keep them in line with `docs/ARCHITECTURE.md`.

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HR Chat Agent: system overview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper: #f5f5f5; --color-ink: #2d3142; --color-muted: #4f5d75; --color-accent: #eb6c36;
+      --font-sans: 'Geist', system-ui, sans-serif;
+      --font-serif: 'Instrument Serif', 'Noto Serif KR', serif;
+      --font-mono: 'Geist Mono', ui-monospace, monospace;
+    }
+    body { font-family: var(--font-sans); background: var(--color-paper); color: var(--color-ink); padding: 3rem 2rem; }
+    .frame { width: max-content; max-width: 100%; margin: 0 auto; }
+    .eyebrow { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-muted); margin-bottom: 0.5rem; }
+    h1 { font-family: var(--font-serif); font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem); font-weight: 400; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 1.5rem; }
+    .scroll { overflow-x: auto; }
+    svg { width: 100%; min-width: 900px; max-width: 1280px; display: block; }
+    .explain { margin-top: 1.5rem; max-width: 72ch; font-size: 0.9rem; line-height: 1.55; color: var(--color-ink); }
+    .explain p + p { margin-top: 0.6rem; }
+    .explain .eyebrow { margin-bottom: 0.4rem; }
+    .colophon { margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid rgba(45,49,66,0.12); font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.08em; color: var(--color-muted); }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Architecture · Overview</p>
+    <h1>HR Chat Agent: system overview</h1>
+    <div class="scroll">
+<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="hr-overview-title hr-overview-desc">
+<title id="hr-overview-title">HR Chat Agent: system overview</title>
+<desc id="hr-overview-desc">Architecture overview of the HR Chat Agent: a web UI and API gateway feed a LangGraph agent that uses scoped tools, policy retrieval and an optional read-only Deep Agents planning path over one SQLite database, with Claude models behind it and a trace id, audit log and evaluation suite alongside.</desc>
+<defs>
+<marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+<marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+<marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#f5f5f5"/>
+<path d="M192,336 H264" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M416,336 H496" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M680,312 H728 Q736,312 736,304 V168 Q736,160 744,160 H792" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M680,336 H792" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M680,360 H728 Q736,360 736,368 V504 Q736,512 744,512 H792" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M588,288 V96 Q588,88 596,88 H1124 Q1132,88 1132,96 V128" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+<path d="M976,160 H1048" fill="none" stroke="#2e5aa8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-link)"/>
+<path d="M884,192 V304" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+<path d="M976,336 H1048" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M976,512 H1004 Q1012,512 1012,504 V368 Q1012,360 1020,360 H1048" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M588,384 V592" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+<rect x="200" y="316" width="60" height="12" rx="2" fill="#f5f5f5"/>
+<text x="230" y="325" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">HTTPS+JWT</text>
+<rect x="428" y="316" width="60" height="12" rx="2" fill="#f5f5f5"/>
+<text x="458" y="325" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">CHAT + ID</text>
+<rect x="704" y="316" width="64" height="12" rx="2" fill="#f5f5f5"/>
+<text x="736" y="325" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">TOOL CALLS</text>
+<rect x="832" y="68" width="60" height="12" rx="2" fill="#f5f5f5"/>
+<text x="862" y="77" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">LLM CALLS</text>
+<rect x="1000" y="140" width="28" height="12" rx="2" fill="#f5f5f5"/>
+<text x="1014" y="149" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">LLM</text>
+<rect x="892" y="244" width="60" height="12" rx="2" fill="#f5f5f5"/>
+<text x="922" y="253" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">READ-ONLY</text>
+<rect x="1000" y="316" width="28" height="12" rx="2" fill="#f5f5f5"/>
+<text x="1014" y="325" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">SQL</text>
+<rect x="1020" y="432" width="32" height="12" rx="2" fill="#f5f5f5"/>
+<text x="1036" y="441" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">READ</text>
+<rect x="596" y="484" width="44" height="12" rx="2" fill="#f5f5f5"/>
+<text x="618" y="493" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">TRACES</text>
+<rect x="40" y="304" width="152" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="40" y="304" width="152" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+<rect x="48" y="310" width="20" height="12" rx="2" fill="transparent" stroke="#7a8399" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="58" y="319" fill="#7a8399" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">UI</text>
+<text x="116" y="342" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Users + Web UI</text>
+<text x="116" y="358" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">employee · manager · HR</text>
+<rect x="264" y="304" width="152" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="264" y="304" width="152" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="272" y="310" width="28" height="12" rx="2" fill="transparent" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="286" y="319" fill="#2d3142" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+<text x="340" y="342" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">FastAPI gateway</text>
+<text x="340" y="358" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">JWT · rate limit · SSE</text>
+<rect x="496" y="288" width="184" height="96" rx="6" fill="#f5f5f5"/>
+<rect x="496" y="288" width="184" height="96" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+<rect x="504" y="294" width="32" height="12" rx="2" fill="transparent" stroke="#eb6c36" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="520" y="303" fill="#eb6c36" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">CORE</text>
+<text x="588" y="326" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">LangGraph agent</text>
+<text x="588" y="342" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">router · verify loop</text>
+<text x="588" y="354" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Sonnet answers</text>
+<rect x="792" y="128" width="184" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="792" y="128" width="184" height="64" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+<rect x="800" y="134" width="32" height="12" rx="2" fill="transparent" stroke="#4f5d75" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="816" y="143" fill="rgba(45,49,66,0.20)" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">PLAN</text>
+<text x="884" y="166" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Deep Agents path</text>
+<text x="884" y="182" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">plan · 2 sub-agents</text>
+<rect x="792" y="304" width="184" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="792" y="304" width="184" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="800" y="310" width="36" height="12" rx="2" fill="transparent" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="818" y="319" fill="#2d3142" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">TOOLS</text>
+<text x="884" y="342" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Tools + leave rules</text>
+<text x="884" y="358" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">10 scoped tools · R1-R10</text>
+<rect x="792" y="480" width="184" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="792" y="480" width="184" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="800" y="486" width="28" height="12" rx="2" fill="transparent" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="814" y="495" fill="#2d3142" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">RAG</text>
+<text x="884" y="518" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Policy RAG</text>
+<text x="884" y="534" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">FTS5 + vectors · cited</text>
+<rect x="1048" y="288" width="168" height="96" rx="6" fill="#f5f5f5"/>
+<rect x="1048" y="288" width="168" height="96" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+<rect x="1056" y="294" width="36" height="12" rx="2" fill="transparent" stroke="#4f5d75" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="1074" y="303" fill="#4f5d75" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">STORE</text>
+<text x="1132" y="326" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">SQLite</text>
+<text x="1132" y="342" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">HR data · chunks</text>
+<text x="1132" y="354" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">drafts · audit · state</text>
+<rect x="1048" y="128" width="168" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="1048" y="128" width="168" height="64" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+<rect x="1056" y="134" width="28" height="12" rx="2" fill="transparent" stroke="#4f5d75" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="1070" y="143" fill="rgba(45,49,66,0.30)" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">LLM</text>
+<text x="1132" y="166" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Claude API</text>
+<text x="1132" y="182" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">sonnet-5-5 · haiku-4-5</text>
+<rect x="496" y="592" width="184" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="496" y="592" width="184" height="64" rx="6" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+<rect x="504" y="598" width="28" height="12" rx="2" fill="transparent" stroke="#4f5d75" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="518" y="607" fill="rgba(45,49,66,0.20)" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">OPS</text>
+<text x="588" y="630" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Trace id + eval</text>
+<text x="588" y="646" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">audit_log · eval · CI</text>
+<line x1="40" y1="668" x2="1240" y2="668" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+<text x="40" y="692" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+<rect x="112" y="682" width="20" height="12" rx="3" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+<text x="140" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Focal: agent core</text>
+<rect x="256" y="682" width="20" height="12" rx="3" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<text x="284" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Service</text>
+<rect x="348" y="682" width="20" height="12" rx="3" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+<text x="376" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Data store</text>
+<rect x="456" y="682" width="20" height="12" rx="3" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+<text x="484" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">External API</text>
+<rect x="572" y="682" width="20" height="12" rx="3" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="600" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Conditional / optional</text>
+<line x1="740" y1="688" x2="764" y2="688" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<text x="772" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Call / data</text>
+<line x1="856" y1="688" x2="880" y2="688" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+<text x="888" y="691" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Optional / async</text>
+</svg>
+    </div>
+    <div class="explain">
+      <p class="eyebrow">In plain words</p>
+      <p>Employees, managers and HR admins use a custom web app. Every request goes through the API gateway, which checks the login token, applies rate limits and attaches the verified employee ID.</p>
+      <p>The LangGraph agent decides what each question needs. Policy questions go to retrieval, personal data and calculations go to ten scoped tools built on tested leave rules, and multi-step planning requests go to a read-only Deep Agents path with two sub-agents.</p>
+      <p>One SQLite database holds HR data, leave drafts, policy chunks, the audit log and conversation state. Claude Sonnet writes answers and Claude Haiku routes. A per-request trace id, the audit log and an evaluation suite watch the system.</p>
+    </div>
+    <p class="colophon">HR Chat Agent · sample policies are illustrative, not Ideas2IT's actual policy · source: docs/ARCHITECTURE.md (as built)</p>
+  </div>
+</body>
+</html>

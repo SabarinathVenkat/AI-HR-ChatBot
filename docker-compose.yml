@@ -1,0 +1,13 @@
+services:
+  hr-chat:
+    build: .
+    image: hr-chat-agent
+    env_file: .env          # JWT_SECRET and ANTHROPIC_API_KEY are required (see .env.example)
+    ports:
+      - "${HOST_PORT:-8000}:8000"   # set HOST_PORT=8010 if port 8000 is already taken
+    volumes:
+      - hr_data:/data
+    restart: unless-stopped
+
+volumes:
+  hr_data:

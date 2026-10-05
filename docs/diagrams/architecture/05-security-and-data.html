@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Identity, tools, domain rules and data: the trust boundary</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper: #f5f5f5; --color-ink: #2d3142; --color-muted: #4f5d75; --color-accent: #eb6c36;
+      --font-sans: 'Geist', system-ui, sans-serif;
+      --font-serif: 'Instrument Serif', 'Noto Serif KR', serif;
+      --font-mono: 'Geist Mono', ui-monospace, monospace;
+    }
+    body { font-family: var(--font-sans); background: var(--color-paper); color: var(--color-ink); padding: 3rem 2rem; }
+    .frame { width: max-content; max-width: 100%; margin: 0 auto; }
+    .eyebrow { font-family: var(--font-mono); font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-muted); margin-bottom: 0.5rem; }
+    h1 { font-family: var(--font-serif); font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem); font-weight: 400; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 1.5rem; }
+    .scroll { overflow-x: auto; }
+    svg { width: 100%; min-width: 900px; max-width: 1120px; display: block; }
+    .explain { margin-top: 1.5rem; max-width: 72ch; font-size: 0.9rem; line-height: 1.55; color: var(--color-ink); }
+    .explain p + p { margin-top: 0.6rem; }
+    .explain .eyebrow { margin-bottom: 0.4rem; }
+    .colophon { margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid rgba(45,49,66,0.12); font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.08em; color: var(--color-muted); }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Architecture · Security and data</p>
+    <h1>Identity, tools, domain rules and data: the trust boundary</h1>
+    <div class="scroll">
+<svg viewBox="0 0 1120 680" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="hr-security-data-title hr-security-data-desc">
+<title id="hr-security-data-title">Identity, tools, domain rules and data: the trust boundary</title>
+<desc id="hr-security-data-desc">How identity and data are protected: the model proposes a tool call without any identity, the server injects the verified employee ID from the token, tools call pure domain rules and parameterized repositories, and every call is written to an audit log.</desc>
+<defs>
+<marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+<marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+<marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#f5f5f5"/>
+<rect x="288" y="104" width="752" height="508" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+<rect x="300" y="108" width="156" height="12" rx="2" fill="#f5f5f5"/>
+<text x="306" y="117" fill="rgba(45,49,66,0.45)" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">TRUSTED SERVER SIDE</text>
+<path d="M240,168 H320" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+<path d="M240,360 H320" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M416,328 V200" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M512,156 H576" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M512,180 H536 Q544,180 544,188 V352 Q544,360 552,360 H576" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M776,360 H832" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<path d="M676,392 V488" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+<rect x="252" y="148" width="60" height="12" rx="2" fill="#f5f5f5"/>
+<text x="282" y="157" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ARGS ONLY</text>
+<rect x="252" y="340" width="56" height="12" rx="2" fill="#f5f5f5"/>
+<text x="280" y="349" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">VERIFIED</text>
+<rect x="424" y="260" width="60" height="12" rx="2" fill="#f5f5f5"/>
+<text x="454" y="269" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">ID + ROLE</text>
+<rect x="528" y="136" width="36" height="12" rx="2" fill="#f5f5f5"/>
+<text x="546" y="145" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">RULES</text>
+<rect x="552" y="264" width="36" height="12" rx="2" fill="#f5f5f5"/>
+<text x="570" y="273" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">QUERY</text>
+<rect x="784" y="340" width="44" height="12" rx="2" fill="#f5f5f5"/>
+<text x="806" y="349" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">PARAMS</text>
+<rect x="684" y="436" width="64" height="12" rx="2" fill="#f5f5f5"/>
+<text x="716" y="445" fill="#7a8399" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">EVERY CALL</text>
+<rect x="48" y="136" width="192" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="48" y="136" width="192" height="64" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+<rect x="56" y="142" width="28" height="12" rx="2" fill="transparent" stroke="#4f5d75" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="70" y="151" fill="rgba(45,49,66,0.30)" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">LLM</text>
+<text x="144" y="174" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Claude tool call</text>
+<text x="144" y="190" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">args only: dates, leave type</text>
+<rect x="48" y="328" width="192" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="48" y="328" width="192" height="64" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+<rect x="56" y="334" width="32" height="12" rx="2" fill="transparent" stroke="#7a8399" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="72" y="343" fill="#7a8399" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">AUTH</text>
+<text x="144" y="366" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">JWT claims</text>
+<text x="144" y="382" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">sub = employee_id · role</text>
+<rect x="320" y="136" width="192" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="320" y="136" width="192" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="328" y="142" width="36" height="12" rx="2" fill="transparent" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="346" y="151" fill="#2d3142" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">TOOLS</text>
+<text x="416" y="174" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Ten tools</text>
+<text x="416" y="190" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">role-filtered · no identity</text>
+<rect x="320" y="328" width="192" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="320" y="328" width="192" height="64" rx="6" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="4,4"/>
+<rect x="328" y="334" width="36" height="12" rx="2" fill="transparent" stroke="#4f5d75" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="346" y="343" fill="rgba(235,108,54,0.50)" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">GUARD</text>
+<text x="416" y="366" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">ToolContext</text>
+<text x="416" y="382" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">injected server-side</text>
+<rect x="576" y="124" width="200" height="96" rx="6" fill="#f5f5f5"/>
+<rect x="576" y="124" width="200" height="96" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+<rect x="584" y="130" width="36" height="12" rx="2" fill="transparent" stroke="#eb6c36" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="602" y="139" fill="#eb6c36" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">RULES</text>
+<text x="676" y="162" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Domain layer</text>
+<text x="676" y="178" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">calendar · accrual</text>
+<text x="676" y="190" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">eligibility R1-R10</text>
+<text x="676" y="202" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">pure · no I/O · no clock</text>
+<rect x="576" y="328" width="200" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="576" y="328" width="200" height="64" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+<rect x="584" y="334" width="28" height="12" rx="2" fill="transparent" stroke="#2d3142" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="598" y="343" fill="#2d3142" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">SQL</text>
+<text x="676" y="366" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Repositories</text>
+<text x="676" y="382" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">WHERE employee_id / manager_id</text>
+<rect x="832" y="328" width="184" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="832" y="328" width="184" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+<rect x="840" y="334" width="36" height="12" rx="2" fill="transparent" stroke="#4f5d75" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="858" y="343" fill="#4f5d75" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">STORE</text>
+<text x="924" y="366" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">HR tables</text>
+<text x="924" y="382" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">balances · requests · drafts</text>
+<rect x="576" y="488" width="200" height="64" rx="6" fill="#f5f5f5"/>
+<rect x="576" y="488" width="200" height="64" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+<rect x="584" y="494" width="36" height="12" rx="2" fill="transparent" stroke="#4f5d75" stroke-opacity="0.45" stroke-width="0.8"/>
+<text x="602" y="503" fill="#4f5d75" fill-opacity="0.85" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">STORE</text>
+<text x="676" y="526" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">audit_log</text>
+<text x="676" y="542" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">user · inputs · outputs · trace</text>
+<line x1="40" y1="628" x2="1080" y2="628" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+<text x="40" y="652" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">LEGEND</text>
+<rect x="112" y="642" width="20" height="12" rx="3" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+<text x="140" y="651" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Pure domain rules</text>
+<rect x="256" y="642" width="20" height="12" rx="3" fill="rgba(235,108,54,0.05)" stroke="rgba(235,108,54,0.50)" stroke-width="1" stroke-dasharray="4,4"/>
+<text x="284" y="651" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Trust enforcement</text>
+<rect x="400" y="642" width="20" height="12" rx="3" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+<text x="428" y="651" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Data store</text>
+<rect x="508" y="642" width="20" height="12" rx="3" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+<text x="536" y="651" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Untrusted model</text>
+<rect x="640" y="642" width="20" height="12" rx="3" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+<text x="668" y="651" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Verified input</text>
+<line x1="768" y1="648" x2="792" y2="648" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+<text x="800" y="651" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Call / data</text>
+<line x1="884" y1="648" x2="908" y2="648" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+<text x="916" y="651" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">Audit write</text>
+</svg>
+    </div>
+    <div class="explain">
+      <p class="eyebrow">In plain words</p>
+      <p>The model is treated as untrusted. It can suggest a tool and its arguments, such as dates or a leave type, but the tool schemas contain no employee ID or role, and unknown arguments are rejected. The server adds identity from the verified login token, and offers each role only its own tools. The model can prepare a leave draft but cannot submit it: only the employee's confirmation does.</p>
+      <p>Tools call two things: pure domain rules (working days, accrual, eligibility R1 to R10) that never touch the database or the clock, and repositories that run parameterized SQL filtered by employee or manager ID. A manager can only ever see direct reports because the filter is in the query itself.</p>
+      <p>Every tool call and every write is recorded in an audit log with the user, inputs, outputs and trace ID.</p>
+    </div>
+    <p class="colophon">HR Chat Agent · sample policies are illustrative, not Ideas2IT's actual policy · source: docs/ARCHITECTURE.md (as built)</p>
+  </div>
+</body>
+</html>

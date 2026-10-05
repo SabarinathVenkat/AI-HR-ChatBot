@@ -1,0 +1,22 @@
+# Runtime dependencies, pinned to the versions the project was built and tested with (Python 3.12).
+# requirements.lock lists the full resolved set, including transitive dependencies.
+fastapi==0.142.2
+uvicorn==0.54.0
+starlette==1.7.0
+pydantic==2.13.5
+PyJWT==2.15.1
+argon2-cffi==25.1.0
+python-dotenv==1.2.4
+
+# Agent: LangGraph core, Deep Agents planning path, Claude
+anthropic==1.11.0
+langchain==1.4.3
+langchain-core==1.6.6
+langchain-anthropic==1.7.5
+langgraph==1.2.12
+langgraph-checkpoint-sqlite==3.1.1
+deepagents==0.7.21
+
+# Policy search: local embeddings (ONNX, no torch) and the pite vector extension
+fastembed==0.8.1
+sqlite-vec==0.1.9

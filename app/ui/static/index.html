@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HR Assistant</title>
+  <meta name="description" content="Ask HR questions, check leave balances and apply for leave.">
+  <meta name="theme-color" content="#0a1730">
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#composer-input">Skip to the message box</a>
+
+  <!-- Icons: one inline sprite, referenced with <use>. Inline SVG is allowed by the page's security policy. -->
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  </svg>
+
+  <!-- Sign in -->
+  <section id="login-screen" class="screen" hidden>
+    <div class="login-shell">
+      <aside class="login-hero">
+        <div class="brand brand-light">
+          <img class="brand-logo" src="/img/logo.svg" alt="" width="40" height="40">
+          <span class="brand-name">HR Assistant</span>
+        </div>
+
+        <div class="hero-copy">
+          <h1>Your HR questions, answered in seconds.</h1>
+          <p class="lead">One place to check your leave, understand company policy and apply for time off, with every answer checked against the facts.</p>
+          <ul class="feature-list">
+            <li><span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg></span>
+              <span><strong>Your leave, live</strong> Balances, requests and approvals from your own records.</span></li>
+            <li><span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg></span>
+              <span><strong>Policy with citations</strong> Every rule links to the clause it came from.</span></li>
+            <li><span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg></span>
+              <span><strong>You stay in control</strong> Nothing is submitted until you confirm it.</span></li>
+          </ul>
+        </div>
+
+        <img class="hero-art" src="/img/hero.svg" alt="" width="560" height="440">
+        <p class="hero-foot">Sample data and sample policies for demonstration only.</p>
+      </aside>
+
+      <div class="login-panel">
+        <div class="login-card">
+          <h2 class="login-title">Sign in</h2>
+          <p class="lede">Use your work email to continue.</p>
+          <form id="login-form" autocomplete="on">
+            <label for="login-email">Work email</label>
+            <input id="login-email" name="email" type="email" required autocomplete="username">
+            <label for="login-password">Password</label>
+            <input id="login-password" name="password" type="password" required autocomplete="current-password">
+            <p id="login-error" class="form-error" role="alert" hidden></p>
+            <button id="login-submit" class="btn primary" type="submit">Sign in</button>
+          </form>
+          <div id="demo-box" class="demo-box" hidden>
+            <h2>Demo accounts</h2>
+            <p class="muted">Pick a person to fill in the sign-in form. Password for all: <code id="demo-password"></code></p>
+            <ul id="demo-list" class="demo-list"></ul>
+          </div>
+          <p class="fine-print">Sample data and sample policies for demonstration only.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Chat -->
+  <section id="chat-screen" class="screen" hidden>
+    <div class="app-shell">
+      <aside class="rail" aria-label="Account">
+        <div class="brand brand-light">
+          <img class="brand-logo" src="/img/logo.svg" alt="" width="36" height="36">
+          <span class="brand-name">HR Assistant</span>
+        </div>
+
+        <button id="new-chat" class="btn rail-new" type="button"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>New chat</button>
+
+        <ul class="rail-topics">
+          <li><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>Leave balances and requests</li>
+          <li><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Policy answers with citations</li>
+          <li><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>Holidays and day counts</li>
+          <li><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>You confirm before anything is sent</li>
+        </ul>
+
+        <div class="rail-user">
+          <span id="avatar" class="avatar" aria-hidden="true"></span>
+          <span id="who" class="who"></span>
+          <button id="sign-out" class="btn rail-out" type="button"><svg class="icon" aria-hidden="true"><use href="#i-logout"/></svg>Sign out</button>
+        </div>
+      </aside>
+
+      <div class="main-col">
+        <header class="chat-head">
+          <h2>Ask HR</h2>
+          <p>Answers come from the HR policies and your own leave records.</p>
+        </header>
+        <div class="banner" role="note">
+          Sample policies for demonstration. They are illustrative, not an official company policy.
+        </div>
+
+        <div class="layout">
+          <main class="conversation" aria-label="Conversation">
+            <div id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+            <div id="starters" class="starters" aria-label="Suggested questions"></div>
+            <form id="composer" class="composer" autocomplete="off">
+              <label for="composer-input" class="sr-only">Message</label>
+              <textarea id="composer-input" rows="1" maxlength="4000" placeholder="Ask about leave or policies…"></textarea>
+              <button id="send" class="btn primary" type="submit"><svg class="icon" aria-hidden="true"><use href="#i-send"/></svg>Send</button>
+            </form>
+            <p class="composer-hint">Enter to send, Shift+Enter for a new line.</p>
+          </main>
+
+          <aside class="panel" aria-label="My leave">
+            <section class="panel-section">
+              <h2>My balances</h2>
+              <div id="balances" class="balances"><p class="muted">Loading…</p></div>
+            </section>
+            <section class="panel-section">
+              <h2>My requests</h2>
+              <ul id="requests" class="request-list"><li class="muted">Loading…</li></ul>
+            </section>
+            <section id="approvals-section" class="panel-section" hidden>
+              <h2>Waiting for my approval</h2>
+              <ul id="approvals" class="request-list"></ul>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <dialog id="policy-dialog" class="policy-dialog" aria-labelledby="policy-title">
+    <form method="dialog">
+      <h2 id="policy-title"></h2>
+      <p id="policy-meta" class="muted"></p>
+      <pre id="policy-text" class="policy-text"></pre>
+      <button class="btn primary" value="close">Close</button>
+    </form>
+  </dialog>
+
+  <script src="/app.js"></script>
+</body>
+</html>
