@@ -51,7 +51,7 @@ def build():
     # ---- tier 1
     us = d.node("us", 64, 84, 216, 64, "Employee · Manager · HR", "role comes from the JWT claim", "USER", "input")
     ui = d.node("ui", 352, 84, 216, 64, "Web UI (custom)", "chat · citations · steps · confirm", "UI")
-    an = d.node("an", 928, 84, 216, 64, "Anthropic API", "sonnet-5-5 · haiku-4-5", "LLM", "external")
+    an = d.node("an", 928, 84, 216, 64, "Anthropic API", "sonnet-5-5 · haiku-5-5", "LLM", "external")
     # ---- tier 2
     gd = d.node("gd", 64, 256, 216, 64, "Rate limit + headers", "30/min · CSP · nosniff", "GUARD")
     jw = d.node("jw", 352, 256, 216, 64, "JWT auth", "argon2 · 60 min · lockout 5/10", "AUTH")

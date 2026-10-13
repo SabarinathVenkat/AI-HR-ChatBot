@@ -189,9 +189,9 @@ Golden question set across categories (policy, data, calculation, workflow, sens
 | sqlite-vec | 0.1.9 |
 | fastembed | 0.8.1 (onnxruntime, no torch) |
 
-**Models:** answers and planning `claude-sonnet-5-5`. Routing `claude-haiku-4-5`
-(snapshot `claude-haiku-4-5-20251001`). Haiku 4.5 retirement is announced for no sooner than
-2026-10-15, so the router model is configurable with an automatic fallback to Sonnet.
+**Models:** answers and planning `claude-sonnet-5-5`. Routing `claude-haiku-5-5`
+(released 2026-10-07; retirement not sooner than 2027-10-07). The router model is configurable with
+an automatic fallback to Sonnet.
 
 **Citations:** use native `search_result` content blocks with `citations.enabled` (GA, no beta
 header). The verifier still checks that cited sources were in the retrieved set. Native citations

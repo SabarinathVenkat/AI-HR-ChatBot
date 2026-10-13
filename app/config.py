@@ -16,7 +16,7 @@ class Settings:
     lockout_duration_minutes: int = 15
     chat_rate_limit_per_minute: int = 30
     answer_model: str = "claude-sonnet-5-5"
-    router_model: str = "claude-haiku-4-5"
+    router_model: str = "claude-haiku-5-5"
     demo_mode: bool = False  # lists demo accounts on the login page; never enable in production
 
     def __post_init__(self) -> None:
@@ -33,6 +33,6 @@ class Settings:
             token_ttl_minutes=int(os.environ.get("TOKEN_TTL_MINUTES", "60")),
             db_path=os.environ.get("DB_PATH", "hr_chat.db"),
             answer_model=os.environ.get("ANSWER_MODEL", "claude-sonnet-5-5"),
-            router_model=os.environ.get("ROUTER_MODEL", "claude-haiku-4-5"),
+            router_model=os.environ.get("ROUTER_MODEL", "claude-haiku-5-5"),
             demo_mode=os.environ.get("DEMO_DATA", "true").lower() != "false",
         )

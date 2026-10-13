@@ -16,7 +16,7 @@ if not os.environ.get("ANTHROPIC_API_KEY"):
 import anthropic  # noqa: E402
 
 client = anthropic.Anthropic()
-MODELS = ["claude-haiku-4-5", "claude-sonnet-5-5"]
+MODELS = ["claude-haiku-5-5", "claude-sonnet-5-5"]
 
 
 def timed(label, **kwargs):

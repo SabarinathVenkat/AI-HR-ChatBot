@@ -79,7 +79,7 @@ Set in `.env` (see [`.env.example`](.env.example)).
 | `ANTHROPIC_API_KEY` | required | Your key |
 | `JWT_SECRET` | required | Signs login tokens; at least 32 characters |
 | `DB_PATH` | `hr_chat.db` | SQLite file (`/data/hr_chat.db` in Docker) |
-| `ANSWER_MODEL` / `ROUTER_MODEL` | `claude-sonnet-5-5` / `claude-haiku-4-5` | Haiku 4.5 retires no sooner than 2026-10-15; switch `ROUTER_MODEL` to Sonnet then. This one setting also picks the model for the planning sub-agents, so they move to Sonnet too (slower; not yet measured) |
+| `ANSWER_MODEL` / `ROUTER_MODEL` | `claude-sonnet-5-5` / `claude-haiku-5-5` | Haiku 5.5 retires no sooner than 2027-10-07. This one setting also picks the model for the planning sub-agents, so changing it moves them too |
 | `DEMO_DATA` | `true` | Seeds the fictional company and shows demo accounts. **Set `false` for anything real.** |
 | `FIXED_DATE` | unset | Pins "today" for demos |
 
@@ -88,7 +88,7 @@ Set in `.env` (see [`.env.example`](.env.example)).
 ```bash
 pip install -r requirements-dev.txt
 playwright install chromium        # once, for the browser tests
-pytest                             # 446 tests, no API calls
+pytest                             # 451 tests, no API calls
 ruff check .                       # lint
 pip-audit -r requirements.txt      # known-vulnerability check
 ```

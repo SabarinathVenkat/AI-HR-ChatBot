@@ -26,7 +26,7 @@ each group. Tick items off here as they are finished.
 | 7 | **Planning latency misses its target** | Median 32 s, p95 51 s, against under 30 s. Ideas: fewer model round trips, parallel sub-agents, a hard time stop, smaller answers. |
 | 8 | **Observability** | Only a per-request trace id and an `audit_log` table exist. No tracing, metrics or JSON logs (OpenTelemetry to Langfuse was designed, not built). |
 | 9 | **Retry with backoff on model calls** | Only the router falls back (Haiku to Sonnet). A transient API error currently becomes an error message. |
-| 10 | **Prompt caching** | Not enabled; would cut latency and cost for the stable system prompt and tool list. |
+| 10 | **Prompt caching** | Active only on the Deep Agents planning path (the library adds Anthropic caching middleware). The plain agent loop and the router send no cache markers, so the stable system prompt and tool list are re-billed on every call there. |
 | 11 | **Cancel a leave request through chat** | Cancelling works through the UI and API only. |
 | 12 | **Conversation summary and long-term memory** | Only the last 10 turns are remembered. |
 | 13 | **Load test** | Latency was measured one request at a time. Lockout and rate limits are in memory, per process. |
@@ -36,7 +36,7 @@ each group. Tick items off here as they are finished.
 
 | # | Item | When |
 |---|---|---|
-| 15 | ~~**Haiku 4.5 retirement**~~ **Done 2026-10-04 (local `.env`)** | `ROUTER_MODEL=claude-sonnet-5-5` is set in the local `.env`; the code default is still Haiku, so any other deployment must set it before **2026-10-15**. A live check confirmed the Sonnet router classifies correctly. **Side effect:** the same setting drives the planning sub-agents (`app/agent/factory.py`), so they now run on Sonnet too. The evaluation numbers (`docs/EVALUATION.md`) and the deck describe the Haiku configuration; planning latency on Sonnet sub-agents is unmeasured, and a separate `SUBAGENT_MODEL` setting may be worth adding. |
+| 15 | ~~**Haiku 4.5 retirement**~~ **Done 2026-10-13: moved to Haiku 5.5** | Default `ROUTER_MODEL` and the local `.env` are now `claude-haiku-5-5` (released 2026-10-07, retirement not sooner than 2027-10-07). A live probe classified four test questions correctly within the 300-token router cap. The same setting drives the planning sub-agents. Evaluation reports from 2026-10-13 describe this configuration; `docs/EVALUATION.md` still describes the earlier Haiku 4.5 run. |
 
 ## Before any real use
 

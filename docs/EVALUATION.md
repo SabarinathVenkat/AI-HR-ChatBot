@@ -232,3 +232,20 @@ but the evaluation could not have caught a rare failure of this kind.
   only affects drafts that were previously blank.
 - **Lesson:** a watched end-to-end run found something that 180 scored cases did not. Rare failures need more
   runs, or a check for "the user received a non-empty answer" in every scored case.
+
+## 10. Router moved to Haiku 5.5 (2026-10-13)
+
+Haiku 5.5 (`claude-haiku-5-5`, released 2026-10-07) replaced Haiku 4.5 as the router and planning sub-agent
+model. Sonnet 5.5 still answers. Sections 1 to 8 describe the earlier Haiku 4.5 run; this section records the
+re-run after the change.
+
+| Set | Result | Notes |
+|---|---|---|
+| Development (120) | 119/120 | The one failure was planning case L04 ("find me a long weekend in October or November"). It took 32.5 s and the answer said the holiday and day-count lookups came back empty. Cause not investigated. |
+| Red-team (30) | 30/30 | |
+
+- **Not re-run:** the held-out set (it is meant to be run once) and the latency probes. The medians in section 5 are
+  for Haiku 4.5.
+- **Also not re-measured:** the empty-draft fix from section 9 was already in place for this run.
+- **Before the switch:** the real router class classified four test questions correctly on Haiku 5.5 within its
+  300-token cap, so adaptive thinking did not truncate the structured output.

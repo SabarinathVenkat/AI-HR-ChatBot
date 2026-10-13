@@ -38,7 +38,7 @@ def build():
     tl = d.node("tl", 792, 304, 184, 64, "Tools + leave rules", "10 scoped tools · R1-R10", "TOOLS")
     rg = d.node("rg", 792, 480, 184, 64, "Policy RAG", "FTS5 + vectors · cited", "RAG")
     db = d.node("db", 1048, 288, 168, 96, "SQLite", ["HR data · chunks", "drafts · audit · state"], "STORE", "store")
-    cl = d.node("cl", 1048, 128, 168, 64, "Claude API", "sonnet-5-5 · haiku-4-5", "LLM", "external")
+    cl = d.node("cl", 1048, 128, 168, 64, "Claude API", "sonnet-5-5 · haiku-5-5", "LLM", "external")
     ob = d.node("ob", 496, 592, 184, 64, "Trace id + eval", "audit_log · eval · CI", "OPS", "optional")
 
     d.conn([ui.right(), gw.left()], "ui", "gw", "HTTPS+JWT")

@@ -8,7 +8,7 @@ this file is correct (section 11 lists every difference and why). Evaluation num
 ## 1. What it is
 
 An authenticated HR assistant for employees, built on **LangGraph** with a **Deep Agents** planning
-path and **Claude** (Sonnet 5.5 for answers, Haiku 4.5 for routing and planning sub-agents).
+path and **Claude** (Sonnet 5.5 for answers, Haiku 5.5 for routing and planning sub-agents).
 Employees ask in plain language. The agent answers policy questions from a policy library, reads
 personal data (leave balance, requests, holidays) through tools, calculates leave, and can prepare a
 leave request that only the employee can confirm.
@@ -173,7 +173,7 @@ history in the same file. SQLite in WAL mode; moving to Postgres is a documented
 |---|---|---|
 | **LangGraph** | Explicit graph, conditional routing, checkpointed history, streaming, visible in traces | Some overhead over a plain loop |
 | **Deep Agents** for planning only | Planning, delegation and context isolation suit multi-step requests | Slow (about 30 s); restricted heavily because its defaults include file and shell tools |
-| **Claude Sonnet 5.5 / Haiku 4.5** | Strong tool use; a cheap fast router and sub-agents | Haiku 4.5 has an announced retirement date, so the router falls back to Sonnet |
+| **Claude Sonnet 5.5 / Haiku 5.5** | Strong tool use; a cheap fast router and sub-agents | A small model can be retired or fail, so the router falls back to Sonnet |
 | **SQLite + FTS5 + sqlite-vec** | Zero setup for reviewers; one file; hybrid search with no extra service | Single writer; in-memory lockout and rate limit are per process |
 | **Local bge-small embeddings** | No second API key, works offline | Slightly lower quality than hosted models |
 | **Custom web UI instead of Chainlit** | Chainlit adds about 100 packages including vendor telemetry; custom UI allows strict CSP and exact control of confirm and citation UX | More code to own |

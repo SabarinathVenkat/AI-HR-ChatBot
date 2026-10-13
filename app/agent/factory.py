@@ -15,7 +15,7 @@ ANSWER_MAX_TOKENS = 4096
 class FallbackRouter:
     """Use the small router model, and switch to the answer model if it is unavailable.
 
-    Haiku 4.5 has an announced retirement date, so a router failure must not take chat down.
+    A small model can be retired or have an outage, so a router failure must not take chat down.
     """
 
     def __init__(self, primary: Router, secondary: Router) -> None:
