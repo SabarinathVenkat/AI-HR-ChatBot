@@ -88,7 +88,7 @@ Set in `.env` (see [`.env.example`](.env.example)).
 ```bash
 pip install -r requirements-dev.txt
 playwright install chromium        # once, for the browser tests
-pytest                             # 451 tests, no API calls
+pytest                             # 454 tests, no API calls
 ruff check .                       # lint
 pip-audit -r requirements.txt      # known-vulnerability check
 ```

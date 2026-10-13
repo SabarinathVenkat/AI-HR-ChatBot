@@ -25,7 +25,7 @@ each group. Tick items off here as they are finished.
 |---|---|---|
 | 7 | **Planning latency misses its target** | Median 32 s, p95 51 s, against under 30 s. Ideas: fewer model round trips, parallel sub-agents, a hard time stop, smaller answers. |
 | 8 | **Observability** | Only a per-request trace id and an `audit_log` table exist. No tracing, metrics or JSON logs (OpenTelemetry to Langfuse was designed, not built). |
-| 9 | **Retry with backoff on model calls** | Only the router falls back (Haiku to Sonnet). A transient API error currently becomes an error message. |
+| 9 | **Retry with backoff on model calls** (partly done 2026-10-13) | The Anthropic client already retried twice with backoff by default. Added explicit timeouts (answer 60 s, router 15 s, sub-agents 30 s) and an explicit retry count in `app/agent/factory.py` (`build_models`), with tests. Still open: only the router falls back to another model; the answer model and sub-agents have none, so a long provider outage still ends in an error message. |
 | 10 | **Prompt caching** | Active only on the Deep Agents planning path (the library adds Anthropic caching middleware). The plain agent loop and the router send no cache markers, so the stable system prompt and tool list are re-billed on every call there. |
 | 11 | **Cancel a leave request through chat** | Cancelling works through the UI and API only. |
 | 12 | **Conversation summary and long-term memory** | Only the last 10 turns are remembered. |
