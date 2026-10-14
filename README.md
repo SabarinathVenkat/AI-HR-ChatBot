@@ -88,7 +88,7 @@ Set in `.env` (see [`.env.example`](.env.example)).
 ```bash
 pip install -r requirements-dev.txt
 playwright install chromium        # once, for the browser tests
-pytest                             # 454 tests, no API calls
+pytest                             # 463 tests, no API calls
 ruff check .                       # lint
 pip-audit -r requirements.txt      # known-vulnerability check
 ```
@@ -129,4 +129,4 @@ Stated plainly; the full list is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.m
 - Login lockout and rate limits are in memory, per process.
 - No tracing or metrics beyond a per-request trace id and an audit table.
 - The CI workflow is validated for syntax but has not run on GitHub.
-- Numbers written as words ("sixty days") are not checked by the verifier.
+- The verifier checks numbers written as words only when a unit of time follows ("sixty days", "twenty-five working days"); other forms ("four and a half", "a dozen") are not checked.

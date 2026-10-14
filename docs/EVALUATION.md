@@ -199,7 +199,7 @@ Please weigh the numbers accordingly.
    Retrieval quality on a real, long, messy policy library is unmeasured.
 6. **Accuracy is measured, not guaranteed.** Numbers in answers come from tested code and are verified, but
    the system can still decline a question it could answer, misroute, or phrase something poorly. The
-   verifier does not check numbers written as words ("sixty days").
+   verifier checked digits only. Since 2026-10-14 it also checks number words followed by a unit of time ("sixty days"); the 2026-10-14 dev run scored 120/120, but the other results in this document predate that change.
 7. **Token counts are approximate**; calls made inside planning sub-agents may not be counted. No cost
    figures are given because I did not verify current prices.
 8. **No load test.** Concurrency was only used to run evaluations faster (4 workers); latency was

@@ -30,7 +30,7 @@ each group. Tick items off here as they are finished.
 | 11 | **Cancel a leave request through chat** | Cancelling works through the UI and API only. |
 | 12 | **Conversation summary and long-term memory** | Only the last 10 turns are remembered. |
 | 13 | **Load test** | Latency was measured one request at a time. Lockout and rate limits are in memory, per process. |
-| 14 | **Verifier does not check numbers written as words** ("sixty days") | Documented limitation. |
+| 14 | ~~**Verifier does not check numbers written as words**~~ **Done 2026-10-14 (for number words followed by a unit of time)** | "sixty days", "twenty-five working days" are now checked like digits; tests were written first. Still not checked: "four and a half", "a dozen", dates in words. |
 
 ## Date-driven
 

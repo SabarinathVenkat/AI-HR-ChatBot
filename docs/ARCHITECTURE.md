@@ -91,7 +91,7 @@ Notes:
    citation must have been retrieved; a policy answer using confident results must cite; no other
    employee's name may appear; sensitive replies are capped at 4 sentences. Failures trigger up to
    two rewrites that name the exact problems, then a **deterministic fallback** built only from tool
-   output (which itself passes the verifier). Numbers written as words are not checked.
+   output (which itself passes the verifier). Number words followed by a unit of time ("sixty days") are checked like digits.
 4. **Writes need the employee.** The model can call `prepare_leave_request`, which checks all rules
    and stores a **draft** (expires in 30 minutes) but submits nothing and never shows the model the
    draft id. Only `POST /leave/drafts/{id}/confirm` or a bare "yes" sent to `/chat` (handled without
@@ -206,7 +206,7 @@ history in the same file. SQLite in WAL mode; moving to Postgres is a documented
   `[Public]` come from its website; everything else is sample content written for the demo.
 - **Demo mode** exposes demo accounts and a shared password on the login page. It must be off in
   production (`DEMO_DATA=false`).
-- **Numbers written as words** ("sixty days") are not checked by the verifier.
+- **Numbers written as words** are checked only when a unit of time follows ("sixty days"); "four and a half" or "a dozen" are not.
 - **The architecture diagrams** in `docs/diagrams/architecture/` were regenerated from this document
   on 2026-10-04. Keep them in step with it when the design changes (see their README).
 

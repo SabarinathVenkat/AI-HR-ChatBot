@@ -2,7 +2,8 @@
 
 Every number and date in the draft must appear in the tool output (or the user's own message) of
 the current turn, every policy citation must have been retrieved, a policy answer must cite, and
-no other employee's name may appear. Numbers written as words ("sixty") are not checked.
+no other employee's name may appear. Numbers written as words ("sixty days") are checked like digits,
+but only when a unit of time follows, so ordinary English ("one of the options") is left alone.
 """
 import re
 from collections.abc import Iterator
@@ -20,6 +21,19 @@ ISO_DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 DAY_MONTH = re.compile(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?({MONTHS})\b\.?")
 MONTH_DAY = re.compile(rf"\b({MONTHS})\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?\b")
 NUMBER = re.compile(r"(?<![A-Za-z0-9_.\-])\d+(?:,\d{3})*(?:\.\d+)?")
+WORD_VALUES = {
+    **{w: i for i, w in enumerate(
+        "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
+        "sixteen seventeen eighteen nineteen".split())},
+    **{w: 20 + 10 * i for i, w in enumerate("twenty thirty forty fifty sixty seventy eighty ninety".split())},
+}
+_WORD = "|".join([*WORD_VALUES, "hundred"])
+# A run of number words ("twenty-five", "one hundred and twenty") followed by a unit of time.
+NUMBER_WORDS = re.compile(
+    rf"\b((?:{_WORD})(?:(?:[\s-]+and)?[\s-]+(?:{_WORD}))*)\s+(?:(?:working|calendar|business)\s+)?"
+    r"(?:days?|weeks?|months?|years?|hours?)\b",
+    re.IGNORECASE,
+)
 DRAFT_LIST_MARKER = re.compile(r"(?m)^\s*(?:[-*]\s+)?\d+[.)]\s+")
 EVIDENCE_CLAUSE_MARKER = re.compile(r"(?m)^\s*#*\s*\d+(?:\.\d+)+\s+|^\s*#*\s*\d+\.\s+")
 
@@ -74,6 +88,17 @@ def _walk(value: Any) -> Iterator[tuple[str, Any]]:
         yield "text", value
 
 
+def _word_value(phrase: str) -> int:
+    """"twenty-five" -> 25, "one hundred and twenty" -> 120."""
+    total = 0
+    for word in re.split(r"[\s-]+", phrase.lower()):
+        if word == "hundred":
+            total = max(total, 1) * 100
+        elif word in WORD_VALUES:
+            total += WORD_VALUES[word]
+    return total
+
+
 def _numbers_in(text: str) -> set[Decimal]:
     """Numbers that are figures: not citations, dates or list/clause numbering."""
     text = CITATION.sub(" ", text)
@@ -81,7 +106,9 @@ def _numbers_in(text: str) -> set[Decimal]:
     text = ISO_DATE.sub(" ", text)
     text = DAY_MONTH.sub(" ", text)
     text = MONTH_DAY.sub(" ", text)
-    return {Decimal(m.replace(",", "")).normalize() for m in NUMBER.findall(text)}
+    found = {Decimal(m.replace(",", "")).normalize() for m in NUMBER.findall(text)}
+    found |= {Decimal(_word_value(m.group(1))).normalize() for m in NUMBER_WORDS.finditer(text)}
+    return found
 
 
 def _month_days_in(text: str) -> set[tuple[int, int]]:

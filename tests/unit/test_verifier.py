@@ -264,3 +264,60 @@ def test_an_email_in_the_middle_of_a_sentence_does_not_split_it():
     draft = "Write to ic@example-ideas2it.invalid for help. They will respond soon."
 
     assert verify_answer(draft, Evidence(calls=(), user_message="", today=TODAY), max_sentences=2).ok
+
+
+# --- Numbers written as words ("twelve days") must be checked like digits -----------------------
+
+def test_a_wrong_number_written_as_a_word_is_caught():
+    result = check("You have nine days of annual leave left.", BALANCE)
+
+    assert codes(result) == {"number_not_in_evidence"}
+    assert [p.detail for p in result.problems] == ["9"]
+
+
+def test_a_correct_number_written_as_a_word_passes():
+    assert check("You have twelve days of annual leave left.", BALANCE).ok
+
+
+def test_number_words_are_found_regardless_of_capitals():
+    assert check("Twelve days are available.", BALANCE).ok
+    assert codes(check("Nine days are available.", BALANCE)) == {"number_not_in_evidence"}
+
+
+def test_a_wrong_policy_figure_in_words_is_caught_and_a_right_one_passes():
+    assert check("The notice period is sixty days [POL-05 §3.1].", POLICY).ok
+    result = check("The notice period is seventy days [POL-05 §3.1].", POLICY)
+    assert [p.detail for p in result.problems] == ["70"]
+
+
+def test_compound_numbers_are_read_whole():
+    # "twenty-five" is 25, not 20 and 5 (5.0 is in the evidence, so splitting it would hide the error)
+    for phrase in ("twenty-five days", "twenty five days"):
+        result = check(f"That is {phrase} of leave.", ELIGIBILITY)
+        assert [p.detail for p in result.problems] == ["25"], phrase
+
+
+def test_hundreds_are_read_whole():
+    for phrase in ("one hundred and twenty days", "one hundred twenty days"):
+        result = check(f"You would need {phrase}.", ELIGIBILITY)
+        assert [p.detail for p in result.problems] == ["120"], phrase
+
+
+def test_a_number_word_the_user_wrote_counts_as_evidence():
+    assert check("For 5 days you would need approval.", user="I need five days off").ok
+
+
+def test_number_words_without_a_unit_are_ordinary_english_and_ignored():
+    for sentence in (
+        "One of the options is annual leave.",
+        "No one else can see this.",
+        "Please confirm one more time.",
+        "Here are two things I can help with.",
+        "I can help with one thing at a time.",
+    ):
+        assert check(sentence, BALANCE).ok, sentence
+
+
+def test_digits_are_still_checked_as_before():
+    assert codes(check("You have 9 days left.", BALANCE)) == {"number_not_in_evidence"}
+    assert check("You have 12 days left.", BALANCE).ok
