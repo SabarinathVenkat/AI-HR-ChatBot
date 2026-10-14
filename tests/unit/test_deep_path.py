@@ -101,6 +101,7 @@ def test_sub_agents_only_see_their_own_tools(db):
     ("edit_file", {"file_path": "/x.txt", "old_string": "a", "new_string": "b"}),
     ("delete", {"file_path": "/x.txt"}),
     ("prepare_leave_request", {"leave_type": "AL", "start_date": "2026-12-21", "end_date": "2026-12-23"}),
+    ("prepare_cancel_request", {"request_id": 2}),
 ])
 def test_forbidden_tools_are_refused_even_if_the_model_calls_them(db, name, args):
     result, model = run(db, [call(name, args), AIMessage("Understood, I cannot do that.")])

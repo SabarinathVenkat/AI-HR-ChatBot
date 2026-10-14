@@ -177,6 +177,50 @@ def prepare_leave_request(ctx: ToolContext, args: PrepareLeaveRequestArgs) -> di
     }
 
 
+class PrepareCancelRequestArgs(ToolArgs):
+    request_id: int = Field(ge=1, description="The id of the request, from get_leave_history.")
+
+
+@tool(
+    "prepare_cancel_request",
+    "Prepare the cancellation of one of the signed-in employee's own leave requests (pending, or "
+    "approved and not yet started). Find the id with get_leave_history first; only requests with "
+    "can_cancel true qualify. It stores a draft for the employee to confirm. It does NOT cancel "
+    "anything. After calling it, say which request would be cancelled and tell the employee to "
+    "reply yes to cancel it, or no to keep it.",
+    PrepareCancelRequestArgs,
+)
+def prepare_cancel_request(ctx: ToolContext, args: PrepareCancelRequestArgs) -> dict:
+    prepared = svc.prepare_cancel(ctx, args.request_id, now=ctx.now)
+    if prepared.outcome == "not_found":
+        return {
+            "draft_created": False,
+            "next_step": "No request with that id was found among the employee's own requests. "
+            "Use get_leave_history to find the right one.",
+        }
+    details = {
+        "leave_type": prepared.leave_type,
+        "start_date": prepared.start.isoformat(),
+        "end_date": prepared.end.isoformat(),
+        "days": prepared.days,
+        "status": prepared.status,
+    }
+    if prepared.outcome == "not_cancellable":
+        return {
+            "draft_created": False,
+            **details,
+            "next_step": "This request cannot be cancelled: it has already started, or it was "
+            "rejected or cancelled. Tell the employee, and suggest contacting HR if they need a change.",
+        }
+    # The draft id is deliberately not returned: only the employee's reply can act on it.
+    return {
+        "draft_created": True,
+        **details,
+        "next_step": "The request has not been cancelled. Tell the employee to reply yes to cancel "
+        "it, or no to keep it.",
+    }
+
+
 class GetHolidaysArgs(ToolArgs):
     year: int | None = None
     month: int | None = Field(default=None, ge=1, le=12)

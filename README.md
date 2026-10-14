@@ -88,7 +88,7 @@ Set in `.env` (see [`.env.example`](.env.example)).
 ```bash
 pip install -r requirements-dev.txt
 playwright install chromium        # once, for the browser tests
-pytest                             # 463 tests, no API calls
+pytest                             # 491 tests, no API calls
 ruff check .                       # lint
 pip-audit -r requirements.txt      # known-vulnerability check
 ```
@@ -110,7 +110,7 @@ Reports are written to `eval/reports/`.
 app/domain/      leave rules: calendar, accrual, eligibility (pure, no I/O)
 app/db/          schema, repositories, demo data
 app/services/    leave workflow: prepare, confirm, cancel
-app/tools/       the 10 tools the agent can call
+app/tools/       the 11 tools the agent can call
 app/rag/         policy chunking, embeddings, hybrid search
 app/agent/       LangGraph agent, router, verifier, planning path
 app/api/         FastAPI routes, auth, rate limits

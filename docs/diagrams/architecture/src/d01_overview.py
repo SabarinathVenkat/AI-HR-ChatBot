@@ -35,7 +35,7 @@ def build():
     gw = d.node("gw", 264, 304, 152, 64, "FastAPI gateway", "JWT · rate limit · SSE", "API")
     ag = d.node("ag", 496, 288, 184, 96, "LangGraph agent", ["router · verify loop", "Sonnet answers"], "CORE", "focal")
     da = d.node("da", 792, 128, 184, 64, "Deep Agents path", "plan · 2 sub-agents", "PLAN", "optional")
-    tl = d.node("tl", 792, 304, 184, 64, "Tools + leave rules", "10 scoped tools · R1-R10", "TOOLS")
+    tl = d.node("tl", 792, 304, 184, 64, "Tools + leave rules", "11 scoped tools · R1-R10", "TOOLS")
     rg = d.node("rg", 792, 480, 184, 64, "Policy RAG", "FTS5 + vectors · cited", "RAG")
     db = d.node("db", 1048, 288, 168, 96, "SQLite", ["HR data · chunks", "drafts · audit · state"], "STORE", "store")
     cl = d.node("cl", 1048, 128, 168, 64, "Claude API", "sonnet-5-5 · haiku-5-5", "LLM", "external")

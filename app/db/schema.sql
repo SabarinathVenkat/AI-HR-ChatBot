@@ -74,6 +74,17 @@ CREATE TABLE IF NOT EXISTS leave_drafts (
 );
 CREATE INDEX IF NOT EXISTS idx_leave_drafts_employee ON leave_drafts(employee_id, status);
 
+-- A cancellation waiting for the employee's "yes". Nothing changes on the request until it is confirmed.
+CREATE TABLE IF NOT EXISTS cancel_drafts (
+    id          TEXT PRIMARY KEY,
+    employee_id INTEGER NOT NULL REFERENCES employees(id),
+    request_id  INTEGER NOT NULL REFERENCES leave_requests(id),
+    status      TEXT NOT NULL CHECK (status IN ('awaiting_confirmation', 'confirmed', 'cancelled', 'expired')),
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cancel_drafts_employee ON cancel_drafts(employee_id, status);
+
 CREATE TABLE IF NOT EXISTS holidays (
     date     TEXT NOT NULL,
     name     TEXT NOT NULL,

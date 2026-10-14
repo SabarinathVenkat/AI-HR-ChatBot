@@ -226,3 +226,52 @@ def test_planning_steps_include_the_delegations(make_chat):
     tools = [d["tool"] for n, d in events if n == "step"]
     assert tools == ["delegate_to_leave_calculator", "calculate_leave_days"]
     assert dict(events)["route"]["intent"] == "complex_plan"
+
+
+def prepare_cancel_script():
+    return [tool_call("prepare_cancel_request", {"request_id": 2}),
+            AIMessage("I can cancel your AL request for 21 to 23 December. It has not been cancelled yet: "
+                      "reply yes to confirm.")]
+
+
+def test_a_prepared_cancellation_waits_for_a_reply_and_shows_no_leave_confirm_card(make_chat, api_db):
+    client, _ = make_chat(prepare_cancel_script(), intent="leave_request")
+
+    events = parse_events(chat(client, "Ravi Kumar", "Cancel my December leave").text)
+
+    assert "confirm_required" not in [n for n, _ in events]
+    assert api_db.execute("SELECT status FROM leave_requests WHERE id = 2").fetchone()[0] == "approved"
+
+
+def test_replying_yes_confirms_the_cancellation_without_calling_the_model(make_chat, api_db):
+    client, model = make_chat(prepare_cancel_script(), intent="leave_request")
+    chat(client, "Ravi Kumar", "Cancel my December leave")
+    calls_before = len(model.seen)
+
+    events = parse_events(chat(client, "Ravi Kumar", "yes").text)
+
+    assert len(model.seen) == calls_before
+    text = "".join(d["text"] for n, d in events if n == "token")
+    assert "cancelled" in text.lower()
+    assert api_db.execute("SELECT status FROM leave_requests WHERE id = 2").fetchone()[0] == "cancelled"
+
+
+def test_replying_no_keeps_the_request(make_chat, api_db):
+    client, _ = make_chat(prepare_cancel_script(), intent="leave_request")
+    chat(client, "Ravi Kumar", "Cancel my December leave")
+
+    events = parse_events(chat(client, "Ravi Kumar", "no").text)
+
+    text = "".join(d["text"] for n, d in events if n == "token")
+    assert "nothing was cancelled" in text.lower()
+    assert api_db.execute("SELECT status FROM leave_requests WHERE id = 2").fetchone()[0] == "approved"
+    assert api_db.execute("SELECT count(*) FROM cancel_drafts WHERE status = 'awaiting_confirmation'").fetchone()[0] == 0
+
+
+def test_another_employees_yes_cannot_confirm_my_cancellation(make_chat, api_db):
+    client, _ = make_chat(prepare_cancel_script() + [AIMessage("Glad to help.")], intent="leave_request")
+    chat(client, "Ravi Kumar", "Cancel my December leave")
+
+    chat(client, "Divya Menon", "yes")
+
+    assert api_db.execute("SELECT status FROM leave_requests WHERE id = 2").fetchone()[0] == "approved"

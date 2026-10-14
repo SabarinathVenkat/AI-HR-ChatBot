@@ -492,3 +492,51 @@ def test_a_confident_match_is_not_flagged_weak(policy_db):
     result = call_tool(search_ctx(policy_db), "search_policy", {"query": "notice period after confirmation"})
 
     assert result["confident"] is True and not result.get("weak_match")
+
+
+# --- prepare_cancel_request: a draft only, like prepare_leave_request --------------------------
+
+def test_prepare_cancel_request_stores_a_draft_but_cancels_nothing(db):
+    result = call_tool(ctx_for(db, 4), "prepare_cancel_request", {"request_id": 2})
+
+    assert result["draft_created"] is True
+    assert (result["leave_type"], result["start_date"], result["end_date"], result["days"]) == (
+        "AL", "2026-12-21", "2026-12-23", 3)
+    assert "draft_id" not in json.dumps(result)  # the model never needs, or sees, the draft id
+    assert db.execute("SELECT status FROM leave_requests WHERE id = 2").fetchone()[0] == "approved"
+    assert db.execute("SELECT count(*) FROM cancel_drafts WHERE status = 'awaiting_confirmation'").fetchone()[0] == 1
+
+
+def test_prepare_cancel_request_tells_the_model_it_has_not_been_cancelled(db):
+    result = call_tool(ctx_for(db, 4), "prepare_cancel_request", {"request_id": 2})
+
+    assert "not been cancelled" in result["next_step"]
+
+
+def test_prepare_cancel_request_for_someone_elses_request_reveals_nothing(db):
+    result = call_tool(ctx_for(db, 5), "prepare_cancel_request", {"request_id": 2})
+
+    assert result["draft_created"] is False and "Ravi" not in json.dumps(result)
+    assert db.execute("SELECT count(*) FROM cancel_drafts").fetchone()[0] == 0
+
+
+def test_prepare_cancel_request_for_a_request_that_cannot_be_cancelled_says_so(db):
+    db.execute("UPDATE leave_requests SET start_date = '2026-10-01', end_date = '2026-10-03' WHERE id = 2")
+    db.commit()
+
+    result = call_tool(ctx_for(db, 4), "prepare_cancel_request", {"request_id": 2})
+
+    assert result["draft_created"] is False
+    assert "cannot be cancelled" in result["next_step"]
+
+
+def test_prepare_cancel_request_does_not_accept_an_employee_id(db):
+    result = call_tool(ctx_for(db, 4), "prepare_cancel_request", {"request_id": 2, "employee_id": 5})
+
+    assert "error" in json.dumps(result).lower()
+    assert db.execute("SELECT count(*) FROM cancel_drafts").fetchone()[0] == 0
+
+
+def test_every_role_can_prepare_a_cancellation_of_their_own_request():
+    for role in ("employee", "manager", "hr_admin"):
+        assert "prepare_cancel_request" in {t.name for t in tools_for_role(role)}

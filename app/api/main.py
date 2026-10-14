@@ -370,6 +370,20 @@ CONFIRM_WORDS = frozenset({"yes", "y", "confirm", "yes please", "confirm it", "g
 CANCEL_WORDS = frozenset({"no", "n", "cancel", "no thanks", "cancel it", "never mind"})
 
 
+def _reply_to_cancellation(ctx: ToolContext, draft: dict, declined: bool, when: datetime) -> str:
+    """The employee answered yes or no to "cancel this request?". No model is involved."""
+    what = f"{draft['leave_type']} request from {draft['start_date']} to {draft['end_date']}"
+    if declined:
+        leave_service.cancel_cancel_draft(ctx, draft["draft_id"])
+        return f"Okay, nothing was cancelled. Your {what} stays as it is."
+    outcome = leave_service.confirm_cancel_draft(ctx, draft["draft_id"], when)
+    if outcome == "ok":
+        return f"Done. Your {what} has been cancelled."
+    if outcome == "expired":
+        return "That cancellation expired. Ask me again and I'll prepare it."
+    return "That request can no longer be cancelled, so I changed nothing."
+
+
 def _reply_to_confirmation(ctx: ToolContext, message: str, when: datetime):
     """Handle a bare 'yes' or 'no' while a draft is waiting. No model is involved."""
     word = message.strip().lower().rstrip(".! ")
@@ -377,8 +391,11 @@ def _reply_to_confirmation(ctx: ToolContext, message: str, when: datetime):
         return None
     draft = repo.get_open_draft(ctx.conn, ctx.employee_id)
     if draft is None:
-        return None
-    if word in CANCEL_WORDS:
+        cancellation = repo.get_open_cancel_draft(ctx.conn, ctx.employee_id)
+        if cancellation is None:
+            return None
+        text = _reply_to_cancellation(ctx, cancellation, word in CANCEL_WORDS, when)
+    elif word in CANCEL_WORDS:
         leave_service.cancel_draft(ctx, draft["draft_id"])
         text = "Okay, I've cancelled that request. Nothing was submitted."
     else:

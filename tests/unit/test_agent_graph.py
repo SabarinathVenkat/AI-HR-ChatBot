@@ -403,6 +403,16 @@ def test_the_prompt_tells_the_model_it_cannot_submit_leave():
     assert "prepare_leave_request" in text and "never say" in text.lower()
 
 
+def test_the_prompt_tells_the_model_how_to_cancel_and_that_it_cannot_cancel_directly():
+    from app.agent.prompts import system_prompt
+
+    text = system_prompt("Ravi Kumar", "employee", TODAY)
+
+    assert "prepare_cancel_request" in text
+    assert "never say" in text.lower() and "cancelled" in text.lower()
+    assert "Cancel option next to the request" not in text  # the old chat-less instruction is gone
+
+
 # --- the Deep Agents planning path -------------------------------------------------------------
 
 def plan_script(*steps):

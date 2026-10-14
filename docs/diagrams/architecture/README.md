@@ -28,7 +28,7 @@ The LangGraph agent first runs an input guardrail (length check and prompt-injec
 labels the intent with a confidence, and plain code picks one of five routes: clarify or decline with a fixed
 reply, a plain model reply for small talk, a sensitive-topic route that always runs the same two tools, the
 Deep Agents planner, or the tool loop used for everything else. In the tool loop Claude Sonnet calls up to five
-of the ten tools its role allows and drafts a cited answer. Every drafted answer goes to the verifier, which
+of the eleven tools its role allows and drafts a cited answer. Every drafted answer goes to the verifier, which
 checks numbers, dates, citations and names against the tool results. A failed draft is rewritten up to twice,
 then replaced by a deterministic template built from the tool output.
 
@@ -40,7 +40,7 @@ specialist and leave calculator) that use read-only tools within 12 tool calls, 
 The prepare-leave tool and the library's file and shell tools are refused there. The planner's answer returns
 through the same verifier, and if planning fails the request falls back to the normal tool loop.
 
-Ten tools receive identity from a server-side `ToolContext`, never from the model. They call pure domain rules
+Eleven tools receive identity from a server-side `ToolContext`, never from the model. They call pure domain rules
 (calendar, accrual, eligibility R1 to R10) and parameterized repositories filtered by employee or manager ID.
 Policy questions use hybrid search (FTS5 plus vectors from bge-small), reciprocal-rank fusion with no reranker,
 and three confidence tiers (confident, weak match, nothing found). Everything is stored in one SQLite file: HR

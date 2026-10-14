@@ -97,6 +97,11 @@ def prepare_request(
             " WHERE employee_id = ? AND status = 'awaiting_confirmation'",
             (ctx.employee_id,),
         )
+        conn.execute(  # only one confirmation is open at a time, so a "yes" is never ambiguous
+            "UPDATE cancel_drafts SET status = 'cancelled'"
+            " WHERE employee_id = ? AND status = 'awaiting_confirmation'",
+            (ctx.employee_id,),
+        )
         conn.execute(
             "INSERT INTO leave_drafts (id, employee_id, leave_type, start_date, end_date, start_half,"
             " end_half, days_counted, lop_days, reason, status, created_at, expires_at)"
@@ -181,6 +186,13 @@ def cancel_draft(ctx: ToolContext, draft_id: str) -> bool:
     return updated > 0
 
 
+def _cancellable(row, today: date) -> bool:
+    """A pending request, or an approved one that has not started."""
+    if row["status"] == "pending":
+        return True
+    return row["status"] == "approved" and date.fromisoformat(row["start_date"]) > today
+
+
 def cancel_request(ctx: ToolContext, request_id: int) -> str:
     """Cancel the employee's own pending request, or an approved one that has not started."""
     conn = ctx.conn
@@ -190,7 +202,7 @@ def cancel_request(ctx: ToolContext, request_id: int) -> str:
     if row is None:
         return "not_found"
     approved_and_upcoming = row["status"] == "approved" and date.fromisoformat(row["start_date"]) > ctx.today
-    if row["status"] != "pending" and not approved_and_upcoming:
+    if not _cancellable(row, ctx.today):
         return "not_cancellable"
     try:
         conn.execute(
@@ -209,3 +221,79 @@ def cancel_request(ctx: ToolContext, request_id: int) -> str:
         raise
     audit.record(ctx, "leave_cancelled", "leave_cancel", {"request_id": request_id})
     return "ok"
+
+
+@dataclass(frozen=True)
+class CancelPrepareResult:
+    outcome: str  # ok | not_found | not_cancellable
+    draft_id: str | None = None
+    leave_type: str | None = None
+    start: date | None = None
+    end: date | None = None
+    days: float | None = None
+    status: str | None = None
+
+
+def prepare_cancel(ctx: ToolContext, request_id: int, now: datetime | None = None) -> CancelPrepareResult:
+    """Store a cancellation draft for the employee's own request. Nothing is cancelled yet."""
+    conn = ctx.conn
+    row = conn.execute(
+        "SELECT * FROM leave_requests WHERE id = ? AND employee_id = ?", (request_id, ctx.employee_id)
+    ).fetchone()
+    if row is None:
+        return CancelPrepareResult("not_found")  # another person's request looks the same as a missing one
+    details = dict(
+        leave_type=row["leave_type"], start=date.fromisoformat(row["start_date"]),
+        end=date.fromisoformat(row["end_date"]), days=row["days_counted"], status=row["status"],
+    )
+    if not _cancellable(row, ctx.today):
+        return CancelPrepareResult("not_cancellable", **details)
+    now = now or datetime.now().astimezone()
+    draft_id = uuid.uuid4().hex
+    # One confirmation is open at a time, so a bare "yes" always means the latest thing asked.
+    conn.execute(
+        "UPDATE leave_drafts SET status = 'cancelled' WHERE employee_id = ? AND status = 'awaiting_confirmation'",
+        (ctx.employee_id,),
+    )
+    conn.execute(
+        "UPDATE cancel_drafts SET status = 'cancelled' WHERE employee_id = ? AND status = 'awaiting_confirmation'",
+        (ctx.employee_id,),
+    )
+    conn.execute(
+        "INSERT INTO cancel_drafts (id, employee_id, request_id, status, created_at, expires_at)"
+        " VALUES (?,?,?, 'awaiting_confirmation', ?, ?)",
+        (draft_id, ctx.employee_id, request_id, now.isoformat(), (now + DRAFT_LIFETIME).isoformat()),
+    )
+    conn.commit()
+    return CancelPrepareResult("ok", draft_id, **details)
+
+
+def confirm_cancel_draft(ctx: ToolContext, draft_id: str, now: datetime) -> str:
+    """ok | expired | not_found | not_cancellable. The request is re-checked, never trusted from the draft."""
+    conn = ctx.conn
+    draft = conn.execute(
+        "SELECT * FROM cancel_drafts WHERE id = ? AND employee_id = ?", (draft_id, ctx.employee_id)
+    ).fetchone()
+    if draft is None or draft["status"] in ("cancelled", "confirmed"):
+        return "not_found"
+    if draft["status"] == "expired" or datetime.fromisoformat(draft["expires_at"]) <= now:
+        conn.execute("UPDATE cancel_drafts SET status = 'expired' WHERE id = ?", (draft_id,))
+        conn.commit()
+        return "expired"
+    outcome = cancel_request(ctx, draft["request_id"])
+    conn.execute(
+        "UPDATE cancel_drafts SET status = ? WHERE id = ?",
+        ("confirmed" if outcome == "ok" else "cancelled", draft_id),
+    )
+    conn.commit()
+    return "ok" if outcome == "ok" else "not_cancellable"
+
+
+def cancel_cancel_draft(ctx: ToolContext, draft_id: str) -> bool:
+    updated = ctx.conn.execute(
+        "UPDATE cancel_drafts SET status = 'cancelled'"
+        " WHERE id = ? AND employee_id = ? AND status = 'awaiting_confirmation'",
+        (draft_id, ctx.employee_id),
+    ).rowcount
+    ctx.conn.commit()
+    return updated > 0

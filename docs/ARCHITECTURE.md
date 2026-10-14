@@ -30,7 +30,7 @@ Browser (custom web app)  ──HTTPS──►  FastAPI  ──►  LangGraph ag
   login · chat · citation chips        auth, rate limit,      │  route → tool loop / planning path
   steps · confirm card · my leave      CSP, SSE stream        │  → verify → rewrite → fallback
                                               │               ▼
-                                              │        Tools (10, identity injected by the server)
+                                              │        Tools (11, identity injected by the server)
                                               │          │            │
                                               ▼          ▼            ▼
                                         SQLite file:  domain rules   policy search
@@ -47,7 +47,7 @@ Layers and dependency direction: `api → agent → tools → services/domain �
 |---|---|
 | `app/domain/` | `calendar.py` working days and breaks; `accrual.py` accrual, pro-rating, carry-forward caps; `eligibility.py` rules R1 to R10 |
 | `app/db/` | `schema.sql`, connections (WAL, sqlite-vec loaded), `repositories.py` (parameterized SQL; manager scoping is in the query), `seed.py` demo company |
-| `app/services/leave.py` | The leave workflow: prepare draft, confirm, cancel draft, cancel request |
+| `app/services/leave.py` | The leave workflow: prepare draft, confirm, cancel draft, cancel request, and the same prepare/confirm/decline steps for a cancellation |
 | `app/tools/` | Tool registry (pydantic args, `extra="forbid"`), `ToolContext`, audit-on-every-call; leave, manager, policy and info tools |
 | `app/rag/` | Chunker, embeddings (fastembed `bge-small-en-v1.5`), indexer, hybrid search |
 | `app/agent/` | `graph.py` the LangGraph agent; `router.py`; `verifier.py`; `fallback.py`; `guardrail.py`; `prompts.py`; `deep_path.py` planning path; `factory.py` live wiring |
@@ -96,8 +96,11 @@ Notes:
    and stores a **draft** (expires in 30 minutes) but submits nothing and never shows the model the
    draft id. Only `POST /leave/drafts/{id}/confirm` or a bare "yes" sent to `/chat` (handled without
    the model) creates a request. Confirmation re-checks eligibility, and is idempotent.
+   Cancelling through chat works the same way: `prepare_cancel_request` stores a cancellation draft
+   (table `cancel_drafts`, 30-minute expiry), and only the employee's bare "yes" cancels the request, with
+   the same re-check as the Cancel button. Only one confirmation is open at a time.
 5. **Planning path is read-only.** `DeepPathGuard` allowlists tools and refuses others when they
-   are *called*: no `prepare_leave_request`, and the library's file and shell tools are refused.
+   are *called*: no `prepare_leave_request` or `prepare_cancel_request`, and the library's file and shell tools are refused.
    Budgets are shared by the main agent and sub-agents: 12 tool calls, 3 sub-agent runs, 22 seconds
    (after which the model must answer with what it has), recursion limit 60. Database access is
    serialized because tools run in parallel threads.
@@ -128,7 +131,7 @@ Notes:
 - **Citations** are plain `[POL-02 §5.4]` text written by the model and enforced by the verifier
   (Anthropic's native citation blocks were verified to work but not used).
 
-## 7. Tools (10)
+## 7. Tools (11)
 
 | Tool | Roles | Purpose |
 |---|---|---|
@@ -137,6 +140,7 @@ Notes:
 | `calculate_leave_days` | all | Working days, excluded days, the working dates, and the whole break (`break_start`, `break_end`, `break_days`) |
 | `check_leave_eligibility` | all | Days counted, balance after, loss-of-pay days, result of each rule R1 to R10 with its policy reference |
 | `prepare_leave_request` | all (not on the planning path) | Check rules and store a draft for confirmation. Submits nothing. |
+| `prepare_cancel_request` | all (not on the planning path) | Store a cancellation draft for one of the employee's own requests (pending, or approved and not started). Cancels nothing. |
 | `get_holidays` | all | Company holidays by year or month |
 | `search_policy` | all | Policy sections with citations; confident or weak-match flag |
 | `get_hr_contact` | all | Contact for a topic, with a general fallback |
@@ -163,7 +167,7 @@ can still be rejected.
 ## 9. Data model
 
 `employees`, `leave_types`, `leave_balances`, `leave_requests` (idempotency key), `leave_drafts`
-(30-minute expiry), `holidays`, `floating_holiday_choices`, `audit_log`, `policy_chunks` (with
+and `cancel_drafts` (30-minute expiry), `holidays`, `floating_holiday_choices`, `audit_log`, `policy_chunks` (with
 `clause_ids`), `policy_fts` (FTS5), `policy_vec` (vec0). LangGraph checkpoints hold conversation
 history in the same file. SQLite in WAL mode; moving to Postgres is a documented migration.
 
@@ -199,7 +203,7 @@ history in the same file. SQLite in WAL mode; moving to Postgres is a documented
 
 - **Not built:** Docker packaging, CI, a README, pinned runtime dependencies (`pyproject.toml`
   lists none), tracing and metrics beyond the trace id, model-call retry with backoff (only the
-  router falls back), prompt caching, a groundedness model check, load tests, cancel-through-chat.
+  router falls back), prompt caching, a groundedness model check, load tests.
 - **In-memory state:** lockout and rate limits reset on restart and do not span processes.
 - **Latency:** planning requests exceed the 30 s target.
 - **Policies are illustrative.** Ideas2IT has not published its HR policies. Only items marked

@@ -20,7 +20,7 @@ def build():
         "HR Chat Agent: full system architecture by layer",
         "Architecture · Full zoned view",
         "Layered architecture of the HR Chat Agent as built: web client, API gateway, LangGraph agent with verifier, "
-        "a read-only Deep Agents planning path, ten tools and domain rules, policy retrieval, SQLite data stores, "
+        "a read-only Deep Agents planning path, eleven tools and domain rules, policy retrieval, SQLite data stores, "
         "Anthropic models, and trace id, evaluation and CI.",
         [
             "Read it top to bottom. Employees, managers and HR admins use the web app, and every request passes JWT login, a rate "
@@ -66,7 +66,7 @@ def build():
     # ---- tier 4
     pl = d.node("pl", 64, 720, 184, 64, "Deep planner", "todo · 12 calls · 22 s", "PLAN", "optional")
     sb = d.node("sb", 280, 720, 184, 64, "2 sub-agents", "policy · leave calculator", "SUB", "optional")
-    tl = d.node("tl", 528, 720, 216, 64, "10 tools + ToolContext", "identity injected server-side", "TOOLS")
+    tl = d.node("tl", 528, 720, 216, 64, "11 tools + ToolContext", "identity injected server-side", "TOOLS")
     dm = d.node("dm", 528, 840, 200, 64, "Domain layer", "calendar · accrual · R1-R10 · pure", "RULES")
     rp = d.node("rp", 776, 840, 200, 64, "Repositories", "parameterized SQL · scoped", "SQL")
     ix = d.node("ix", 1040, 720, 184, 64, "Index pipeline", "chunk · bge-small · FTS5+vec", "RAG")

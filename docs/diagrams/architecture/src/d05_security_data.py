@@ -34,7 +34,7 @@ def build():
     d.zone(288, 104, 752, 508, "TRUSTED SERVER SIDE")
     llm = d.node("llm", 48, 136, 192, 64, "Claude tool call", "args only: dates, leave type", "LLM", "external")
     jwt = d.node("jwt", 48, 328, 192, 64, "JWT claims", "sub = employee_id · role", "AUTH", "input")
-    tl = d.node("tl", 320, 136, 192, 64, "Ten tools", "role-filtered · no identity", "TOOLS")
+    tl = d.node("tl", 320, 136, 192, 64, "Eleven tools", "role-filtered · no identity", "TOOLS")
     tc = d.node("tc", 320, 328, 192, 64, "ToolContext", "injected server-side", "GUARD", "security")
     dm = d.node("dm", 576, 124, 200, 96, "Domain layer", ["calendar · accrual", "eligibility R1-R10", "pure · no I/O · no clock"], "RULES", "focal")
     rp = d.node("rp", 576, 328, 200, 64, "Repositories", "WHERE employee_id / manager_id", "SQL")

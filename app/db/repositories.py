@@ -236,6 +236,30 @@ def get_open_draft(conn: sqlite3.Connection, employee_id: int) -> dict | None:
     }
 
 
+def get_open_cancel_draft(conn: sqlite3.Connection, employee_id: int) -> dict | None:
+    """The employee's cancellation that is waiting for confirmation, if any."""
+    row = conn.execute(
+        """
+        SELECT d.id, d.request_id, d.expires_at, r.leave_type, r.start_date, r.end_date, r.days_counted
+        FROM cancel_drafts d JOIN leave_requests r ON r.id = d.request_id
+        WHERE d.employee_id = ? AND d.status = 'awaiting_confirmation'
+        ORDER BY d.created_at DESC LIMIT 1
+        """,
+        (employee_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return {
+        "draft_id": row["id"],
+        "request_id": row["request_id"],
+        "leave_type": row["leave_type"],
+        "start_date": row["start_date"],
+        "end_date": row["end_date"],
+        "days": row["days_counted"],
+        "expires_at": row["expires_at"],
+    }
+
+
 def list_other_employee_names(conn: sqlite3.Connection, employee_id: int) -> frozenset[str]:
     """Names of everyone except this employee, for the answer verifier."""
     rows = conn.execute("SELECT name FROM employees WHERE id != ?", (employee_id,)).fetchall()
