@@ -16,3 +16,6 @@ docs/video/*
 !docs/video/hr_chat_demo.mp4
 .claude/scheduled_tasks.lock
 docs/learning/
+
+# Office creates these lock files while a document is open
+~$*
