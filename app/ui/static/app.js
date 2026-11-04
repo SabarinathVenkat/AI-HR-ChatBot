@@ -7,10 +7,13 @@
   const $ = (id) => document.getElementById(id);
   const TOKEN_KEY = "hr_token";
   const THREAD_KEY = "hr_thread";
+  const MODE_KEY = "hr_mode";
 
   const state = {
     token: sessionStorage.getItem(TOKEN_KEY),
     threadId: sessionStorage.getItem(THREAD_KEY),
+    mode: sessionStorage.getItem(MODE_KEY) === "rmg" ? "rmg" : "hr", // which assistant answers: HR or RMG
+    rmgAvailable: false,
     user: null,
     busy: false,
   };
@@ -24,7 +27,36 @@
     policy_question: "Policy question", data_question: "Your leave data", policy_and_data: "Policy and your data",
     calculation: "Day calculation", leave_request: "Leave request", manager_action: "Manager question",
     complex_plan: "Planning", sensitive: "Sensitive topic", chitchat: "Chat", out_of_scope: "Outside HR",
-    confirmation: "Confirmation",
+    confirmation: "Confirmation", rmg: "Resource management",
+  };
+  /* The two assistants share one page. Everything that differs between them is here. */
+  const MODES = {
+    hr: {
+      title: "Ask HR",
+      sub: "Answers come from the HR policies and your own leave records.",
+      banner: "Sample policies for demonstration. They are illustrative, not an official company policy.",
+      placeholder: "Ask about leave or policies…",
+      greeting: (first) => `Hi ${first}! I can check your leave balance, tell you whether dates work, apply for leave, and answer questions about HR policies. What would you like to do?`,
+    },
+    rmg: {
+      title: "Resource management",
+      sub: "Team availability from leave records and company holidays.",
+      banner: "Early version: projects, allocations and skills are not connected yet, so answers cover availability from leave and holidays only.",
+      placeholder: "Ask about team availability or holidays…",
+      greeting: (first, role) => role === "manager"
+        ? `Hi ${first}! I can show who in your team is out on leave, list company holidays, and count working days for a date range. What would you like to know?`
+        : `Hi ${first}! I can list company holidays and count working days for a date range. Team availability is available to managers. What would you like to know?`,
+    },
+  };
+  const RMG_STARTERS = {
+    employee: [
+      "Which holidays are in October?",
+      "How many working days are there from 2 November to 13 November?",
+    ],
+    manager: [
+      "Who in my team is on leave next week?",
+      "Is anyone in my team out between 2 and 6 November?",
+    ],
   };
   const STARTERS = {
     employee: [
@@ -378,7 +410,7 @@
       const response = await api("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, thread_id: state.threadId || undefined }),
+        body: JSON.stringify({ message: text, thread_id: state.threadId || undefined, mode: state.mode }),
       });
       if (response.status === 429) {
         const wait = response.headers.get("Retry-After") || "a few";
@@ -473,7 +505,10 @@
   /* ---------- screens ---------- */
   function renderStarters() {
     const role = state.user.role;
-    const list = [...STARTERS.employee, ...(role === "manager" ? STARTERS.manager : [])];
+    const isManager = role === "manager";
+    const list = state.mode === "rmg"
+      ? [...(isManager ? RMG_STARTERS.manager : []), ...RMG_STARTERS.employee]
+      : [...STARTERS.employee, ...(isManager ? STARTERS.manager : [])];
     $("starters").replaceChildren(...list.map((text) => h("button", { type: "button", text, on: { click: () => send(text) } })));
     $("starters").hidden = false;
   }
@@ -481,7 +516,7 @@
   function greet() {
     const first = state.user.name.split(" ")[0];
     messagesEl().replaceChildren();
-    addAssistant(`Hi ${first}! I can check your leave balance, tell you whether dates work, apply for leave, and answer questions about HR policies. What would you like to do?`);
+    addAssistant(MODES[state.mode].greeting(first, state.user.role));
     renderStarters();
   }
 
@@ -491,6 +526,43 @@
     greet();
   }
 
+  /* Show the header, banner, placeholder and toggle for the current assistant. */
+  function applyMode() {
+    const mode = MODES[state.mode];
+    $("chat-title").textContent = mode.title;
+    $("chat-sub").textContent = mode.sub;
+    $("banner").textContent = mode.banner;
+    $("composer-input").placeholder = mode.placeholder;
+    document.querySelector(".chat-head").dataset.mode = state.mode;
+    for (const button of document.querySelectorAll(".mode-btn")) {
+      button.setAttribute("aria-pressed", String(button.dataset.mode === state.mode));
+    }
+  }
+
+  /* Switching assistants starts a fresh conversation with the other one. */
+  function setMode(mode) {
+    if (mode === state.mode || state.busy) return;
+    state.mode = mode;
+    sessionStorage.setItem(MODE_KEY, mode);
+    applyMode();
+    newChat();
+    $("composer-input").focus();
+  }
+
+  async function loadFeatures() {
+    try {
+      const response = await api("/features");
+      state.rmgAvailable = response.ok && (await response.json()).rmg === true;
+    } catch {
+      state.rmgAvailable = false;
+    }
+    if (!state.rmgAvailable && state.mode === "rmg") {
+      state.mode = "hr";
+      sessionStorage.removeItem(MODE_KEY);
+    }
+    $("mode-toggle").hidden = !state.rmgAvailable;
+  }
+
   async function enterChat() {
     const response = await api("/me");
     if (!response.ok) throw new Error("not ok");
@@ -498,6 +570,8 @@
     $("who").textContent = `${state.user.name} · ${ROLE_LABELS[state.user.role] || state.user.role}`;
     $("avatar").textContent = initials(state.user.name);
     $("approvals-section").hidden = state.user.role !== "manager";
+    await loadFeatures();
+    applyMode();
     showScreen("chat");
     greet();
     refreshPanel();
@@ -510,6 +584,8 @@
     state.threadId = null;
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(THREAD_KEY);
+    sessionStorage.removeItem(MODE_KEY);
+    state.mode = "hr";
     showScreen("login");
     setLoginError(message || "");
     loadDemoAccounts();
@@ -581,6 +657,9 @@
     $("login-form").addEventListener("submit", onLogin);
     $("sign-out").addEventListener("click", () => signOut(""));
     $("new-chat").addEventListener("click", newChat);
+    for (const button of document.querySelectorAll(".mode-btn")) {
+      button.addEventListener("click", () => setMode(button.dataset.mode));
+    }
     $("composer").addEventListener("submit", (event) => {
       event.preventDefault();
       const input = $("composer-input");

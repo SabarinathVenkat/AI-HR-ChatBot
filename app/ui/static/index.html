@@ -100,10 +100,16 @@
 
       <div class="main-col">
         <header class="chat-head">
-          <h2>Ask HR</h2>
-          <p>Answers come from the HR policies and your own leave records.</p>
+          <div class="chat-head-text">
+            <h2 id="chat-title">Ask HR</h2>
+            <p id="chat-sub">Answers come from the HR policies and your own leave records.</p>
+          </div>
+          <div id="mode-toggle" class="mode-toggle" role="group" aria-label="Assistant" hidden>
+            <button id="mode-hr" class="mode-btn" type="button" data-mode="hr" aria-pressed="true">HR</button>
+            <button id="mode-rmg" class="mode-btn" type="button" data-mode="rmg" aria-pressed="false">RMG</button>
+          </div>
         </header>
-        <div class="banner" role="note">
+        <div id="banner" class="banner" role="note">
           Sample policies for demonstration. They are illustrative, not an official company policy.
         </div>
 

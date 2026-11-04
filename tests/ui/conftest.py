@@ -17,6 +17,7 @@ from app.bootstrap import bootstrap
 from app.config import Settings
 from app.db.connection import connect
 from app.rag.search import Retrieval
+from app.rmg.agent import build_rmg_agent
 from tests.integration.conftest import SECRET, FakeClock, clock  # noqa: F401
 from tests.support import BagOfWordsEmbedder, FixedRouter, ScriptedChatModel
 
@@ -24,11 +25,13 @@ POLICIES = Path(__file__).resolve().parents[2] / "data" / "policies"
 
 
 class LiveServer:
-    def __init__(self, url: str, model: ScriptedChatModel, router: FixedRouter, clock: FakeClock) -> None:  # noqa: F811
+    def __init__(self, url: str, model: ScriptedChatModel, router: FixedRouter, clock: FakeClock,  # noqa: F811
+                 rmg_model: ScriptedChatModel | None = None) -> None:
         self.url = url
         self.model = model
         self.router = router
         self.clock = clock
+        self.rmg_model = rmg_model
 
 
 def _free_port() -> int:
@@ -47,16 +50,18 @@ def start_server(tmp_path, clock):  # noqa: F811 (clock is a fixture imported ab
     db_path = tmp_path / "ui.db"
     bootstrap(db_path, BagOfWordsEmbedder())
 
-    def start(responses, intent="chitchat", rate_limit=30) -> LiveServer:
+    def start(responses, intent="chitchat", rate_limit=30, rmg_responses=None) -> LiveServer:
         model = ScriptedChatModel(responses=list(responses))
         router = FixedRouter(RouteDecision(intent=intent))
         agent = build_agent(AgentDeps(model, router), MemorySaver())
+        rmg_model = ScriptedChatModel(responses=list(rmg_responses)) if rmg_responses is not None else None
         app = create_app(
             Settings(jwt_secret=SECRET, demo_mode=True, chat_rate_limit_per_minute=rate_limit),
             connection=lambda: closing(connect(str(db_path))),
             clock=clock,
             agent=agent,
             retrieval=Retrieval(BagOfWordsEmbedder(), 0.2),
+            rmg_agent=build_rmg_agent(rmg_model, MemorySaver()) if rmg_model else None,
         )
         port = _free_port()
         server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
@@ -67,7 +72,7 @@ def start_server(tmp_path, clock):  # noqa: F811 (clock is a fixture imported ab
             time.sleep(0.02)
         assert server.started, "test server did not start"
         started.append((server, thread))
-        return LiveServer(f"http://127.0.0.1:{port}", model, router, clock)
+        return LiveServer(f"http://127.0.0.1:{port}", model, router, clock, rmg_model)
 
     yield start
     for server, thread in started:

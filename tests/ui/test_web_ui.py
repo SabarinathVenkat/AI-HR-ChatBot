@@ -295,3 +295,75 @@ def test_the_layout_fits_a_phone_without_sideways_scrolling(browser, start_serve
     assert overflow <= 0
     expect(page.locator("#composer-input")).to_be_visible()
     context.close()
+
+
+# --- the RMG toggle: the same app, a second assistant ------------------------------------------
+
+def test_the_rmg_toggle_is_hidden_when_resource_management_is_not_available(page, start_server):
+    server = start_server([])
+    sign_in(page, server, "Arjun Rao")
+
+    expect(page.locator("#mode-toggle")).to_be_hidden()
+
+
+def test_the_toggle_switches_to_resource_management_and_back(page, start_server):
+    server = start_server([], rmg_responses=[])
+    sign_in(page, server, "Arjun Rao")
+
+    expect(page.locator("#mode-toggle")).to_be_visible()
+    expect(page.locator("#mode-hr")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator("#chat-title")).to_have_text("Ask HR")
+
+    page.locator("#mode-rmg").click()
+
+    expect(page.locator("#mode-rmg")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator("#mode-hr")).to_have_attribute("aria-pressed", "false")
+    expect(page.locator("#chat-title")).to_have_text("Resource management")
+    expect(page.locator(".banner")).to_contain_text("not connected yet")
+    expect(page.locator(".msg.assistant").first).to_contain_text("who in your team is out on leave")
+    expect(page.locator("#composer-input")).to_have_attribute("placeholder", re.compile("availability"))
+
+    page.locator("#mode-hr").click()
+
+    expect(page.locator("#chat-title")).to_have_text("Ask HR")
+    expect(page.locator(".banner")).to_contain_text("Sample policies")
+    expect(page.locator(".msg.assistant").first).to_contain_text("leave balance")
+    assert page.console_errors == []
+
+
+def test_a_question_in_rmg_mode_is_answered_by_the_rmg_assistant(page, start_server):
+    server = start_server([], rmg_responses=[AIMessage("Nobody is out.")])
+    sign_in(page, server, "Arjun Rao")
+    page.locator("#mode-rmg").click()
+
+    ask(page, "Who is out next week?")
+
+    expect(page.locator(".msg.assistant").last.locator(".bubble")).to_contain_text("Nobody is out.")
+    expect(page.locator(".msg.assistant").last.locator(".meta")).to_contain_text("Resource management")
+    assert len(server.rmg_model.seen) == 1 and server.model.seen == []
+
+
+def test_rmg_mode_offers_its_own_starters_by_role(page, start_server):
+    server = start_server([], rmg_responses=[])
+    sign_in(page, server, "Arjun Rao")
+    page.locator("#mode-rmg").click()
+
+    expect(page.locator("#starters button").first).to_have_text("Who in my team is on leave next week?")
+
+    page.get_by_role("button", name="Sign out").click()
+    sign_in(page, server, "Ravi Kumar")
+    page.locator("#mode-rmg").click()
+
+    expect(page.locator("#starters")).not_to_contain_text("Who in my team")
+    expect(page.locator("#starters")).to_contain_text("holidays")
+
+
+def test_the_chosen_assistant_survives_a_page_reload(page, start_server):
+    server = start_server([], rmg_responses=[])
+    sign_in(page, server, "Arjun Rao")
+    page.locator("#mode-rmg").click()
+
+    page.reload()
+
+    expect(page.locator("#chat-title")).to_have_text("Resource management")
+    expect(page.locator("#mode-rmg")).to_have_attribute("aria-pressed", "true")
