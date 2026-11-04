@@ -56,6 +56,7 @@ class LoginBody(BaseModel):
 class ChatBody(BaseModel):
     message: str = Field(max_length=20000)
     thread_id: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    mode: Literal["hr", "rmg"] = "hr"  # which assistant answers: HR (default) or resource management
 
 
 class DecisionBody(BaseModel):
@@ -80,6 +81,7 @@ def create_app(
     clock: Clock | None = None,
     agent=None,
     retrieval: Retrieval | None = None,
+    rmg_agent=None,
 ) -> FastAPI:
     now: Clock = clock or (lambda: datetime.now(timezone.utc))
     app = FastAPI(title="HR Chat Agent", version="0.1.0")
@@ -165,6 +167,11 @@ def create_app(
             "status": employee.status,
             "department": employee.department,
         }
+
+    @app.get("/features")
+    def features(employee: repo.Employee = Depends(current_employee)):
+        """What this deployment offers, so the web app can show or hide the RMG toggle."""
+        return {"rmg": rmg_agent is not None}
 
     def tool_context(employee: repo.Employee, conn: sqlite3.Connection, request: Request):
         return ToolContext(
@@ -321,16 +328,20 @@ def create_app(
         request: Request,
         employee: repo.Employee = Depends(current_employee),
     ):
-        if agent is None:
-            raise HTTPException(503, "Chat is not available right now.")
+        rmg = body.mode == "rmg"
+        chosen = rmg_agent if rmg else agent
+        if chosen is None:
+            raise HTTPException(503, "Resource management is not available right now." if rmg
+                                else "Chat is not available right now.")
         if wait := chat_limiter.retry_after(str(employee.id), now()):
             raise HTTPException(
                 429, "You are sending messages too quickly. Please wait a moment.",
                 headers={"Retry-After": str(wait)},
             )
         public_thread = body.thread_id or uuid.uuid4().hex
-        # Thread ids are namespaced by employee, so guessing another person's id reaches nothing.
-        thread_key = f"{employee.id}:{public_thread}"
+        # Thread ids are namespaced by employee, so guessing another person's id reaches nothing. They are
+        # also namespaced by assistant, so the HR and RMG conversations never mix. HR keeps its original key.
+        thread_key = f"{employee.id}:rmg:{public_thread}" if rmg else f"{employee.id}:{public_thread}"
         trace_id = request.state.trace_id
 
         def events():
@@ -341,8 +352,10 @@ def create_app(
                     today=now().date(), retrieval=retrieval, now=now(),
                 )
                 try:
-                    stream = _reply_to_confirmation(ctx, body.message, now()) or stream_turn(
-                        agent, ctx, thread_key, body.message
+                    # A bare "yes" or "no" confirms an HR draft. Resource management has no drafts, so its
+                    # messages always go to its own agent.
+                    stream = (None if rmg else _reply_to_confirmation(ctx, body.message, now())) or stream_turn(
+                        chosen, ctx, thread_key, body.message
                     )
                     for name, data in stream:
                         if name == "done":

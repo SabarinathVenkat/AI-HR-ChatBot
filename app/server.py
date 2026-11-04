@@ -20,6 +20,7 @@ from app.config import Settings
 from app.db.connection import connect
 from app.rag.embeddings import FastEmbedder
 from app.rag.search import Retrieval
+from app.rmg.factory import build_live_rmg_agent
 
 log = logging.getLogger("hr_chat")
 
@@ -41,14 +42,20 @@ def create_production_app(settings: Settings | None = None) -> FastAPI:
     embedder.embed(["warm up"])  # load the model now, so the first question is not slow
 
     checkpoints = sqlite3.connect(settings.db_path, check_same_thread=False)
-    agent = build_live_agent(settings, SqliteSaver(checkpoints))
-    log.info("HR chat agent ready (models: %s / %s)", settings.answer_model, settings.router_model)
+    saver = SqliteSaver(checkpoints)  # one saver for both assistants: they share the connection and its lock
+    agent = build_live_agent(settings, saver)
+    # The RMG toggle in the web app. RMG_ENABLED=false removes it from this deployment.
+    rmg_on = os.environ.get("RMG_ENABLED", "true").lower() != "false"
+    rmg_agent = build_live_rmg_agent(settings, saver) if rmg_on else None
+    log.info("HR chat agent ready (models: %s / %s); resource management %s",
+             settings.answer_model, settings.router_model, "on" if rmg_on else "off")
     return create_app(
         settings,
         connection=lambda: closing(connect(settings.db_path)),
         clock=_clock_from_env(),
         agent=agent,
         retrieval=Retrieval(embedder),
+        rmg_agent=rmg_agent,
     )
 
 
