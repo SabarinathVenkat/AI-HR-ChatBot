@@ -213,9 +213,15 @@ def invoke_structured(make_model: ModelFactory, schema: type[BaseModel], doc: So
 
     Shared by every extraction (resume, job description) so they all fail in the same loud, safe way.
     """
-    structured = make_model(output_budget(doc)).with_structured_output(schema, method="json_schema", include_raw=True)
+    return structured_call(make_model(output_budget(doc)), schema, build_messages(doc, instructions))
+
+
+def structured_call(model, schema: type[BaseModel], messages: list):
+    """One model call that must return `schema`. Fails loudly (ExtractionError) if the reply was cut off, could not
+    be parsed, or the call itself failed; nothing from the failure is put in the message."""
+    structured = model.with_structured_output(schema, method="json_schema", include_raw=True)
     try:
-        reply = structured.invoke(build_messages(doc, instructions))
+        reply = structured.invoke(messages)
     except Exception:
         raise ExtractionError("model_error") from None  # details (keys, status codes) stay out of the message
     if getattr(reply["raw"], "response_metadata", {}).get("stop_reason") == "max_tokens":
