@@ -27,6 +27,7 @@ MESSAGES = {
     "truncated": "The resume was too long to read completely. Please upload a shorter version.",
     "incomplete": "Some of the resume could not be read. Please try again, or upload it in another format.",
     "invalid": "The resume could not be understood. Please check the file and try again.",
+    "no_roles": "No role requirements could be found in that job description.",
     "model_error": "The resume reader is unavailable right now. Please try again in a moment.",
 }
 
@@ -129,14 +130,14 @@ def wrap_untrusted(text: str) -> str:
     return f"<document>\n{_CLOSING_FENCE.sub('[/document]', text)}\n</document>"
 
 
-def build_messages(doc: SourceDocument) -> list[HumanMessage]:
+def build_messages(doc: SourceDocument, instructions: str = INSTRUCTIONS) -> list[HumanMessage]:
     if doc.kind == "pdf" and doc.pdf_bytes:  # sent as the PDF itself: handles scans and multiple columns
         data = base64.b64encode(doc.pdf_bytes).decode("ascii")
         return [HumanMessage(content=[
-            {"type": "text", "text": INSTRUCTIONS + "\n\nThe attached PDF is the untrusted document."},
+            {"type": "text", "text": instructions + "\n\nThe attached PDF is the untrusted document."},
             {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": data}},
         ])]
-    return [HumanMessage(content=INSTRUCTIONS + "\n\n" + wrap_untrusted(doc.text))]
+    return [HumanMessage(content=instructions + "\n\n" + wrap_untrusted(doc.text))]
 
 
 # --- how much the model may write ----------------------------------------------------------------------
@@ -207,22 +208,29 @@ def anthropic_factory() -> ModelFactory:
     return make
 
 
+def invoke_structured(make_model: ModelFactory, schema: type[BaseModel], doc: SourceDocument, instructions: str):
+    """Ask the model to fill `schema` from the document and return the parsed object, or raise ExtractionError.
+
+    Shared by every extraction (resume, job description) so they all fail in the same loud, safe way.
+    """
+    structured = make_model(output_budget(doc)).with_structured_output(schema, method="json_schema", include_raw=True)
+    try:
+        reply = structured.invoke(build_messages(doc, instructions))
+    except Exception:
+        raise ExtractionError("model_error") from None  # details (keys, status codes) stay out of the message
+    if getattr(reply["raw"], "response_metadata", {}).get("stop_reason") == "max_tokens":
+        raise ExtractionError("truncated")  # even if it parsed: a cut-off reply can parse and still miss content
+    if reply.get("parsing_error") or reply.get("parsed") is None:
+        raise ExtractionError("invalid")
+    return reply["parsed"]
+
+
 class LLMResumeExtractor:
     def __init__(self, make_model: ModelFactory):
         self._make_model = make_model
 
     def extract(self, doc: SourceDocument) -> ExtractionResult:
-        structured = self._make_model(output_budget(doc)).with_structured_output(
-            ExtractedResume, method="json_schema", include_raw=True)
-        try:
-            reply = structured.invoke(build_messages(doc))
-        except Exception:
-            raise ExtractionError("model_error") from None  # details (keys, status codes) stay out of the message
-        if getattr(reply["raw"], "response_metadata", {}).get("stop_reason") == "max_tokens":
-            raise ExtractionError("truncated")  # even if it parsed: a cut-off reply can parse and still miss content
-        if reply.get("parsing_error") or reply.get("parsed") is None:
-            raise ExtractionError("invalid")
-        resume = to_resume(reply["parsed"])
+        resume = to_resume(invoke_structured(self._make_model, ExtractedResume, doc, INSTRUCTIONS))
         score = coverage(doc.text, resume)
         if score is not None and score < MIN_COVERAGE:
             raise ExtractionError("incomplete")

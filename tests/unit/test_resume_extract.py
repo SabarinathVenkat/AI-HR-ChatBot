@@ -5,15 +5,15 @@ prove is everything around the model: the prompt, the output budget, provenance 
 catch a reply that was cut short or that silently dropped content.
 """
 import pytest
-from langchain_core.messages import AIMessage
 
 from app.rmg.resume.extract import (
     MAX_OUTPUT_TOKENS, MIN_COVERAGE, MIN_OUTPUT_TOKENS, ExtractedEducation, ExtractedJob, ExtractedProject,
-    ExtractedResume, ExtractedSkillGroup, ExtractionError, LLMResumeExtractor, anthropic_factory, build_messages,
+    ExtractedResume, ExtractedSkillGroup, ExtractionError, anthropic_factory, build_messages,
     coverage, output_budget, to_resume, wrap_untrusted,
 )
 from app.rmg.resume.ingest import SourceDocument
 from app.rmg.resume.model import Origin
+from tests.unit.resume_fakes import FakeModel, extractor_for
 
 
 def extracted(**overrides) -> ExtractedResume:
@@ -29,40 +29,6 @@ def extracted(**overrides) -> ExtractedResume:
     )
     data.update(overrides)
     return ExtractedResume(**data)
-
-
-# --- a fake model ------------------------------------------------------------------------------
-
-class FakeStructured:
-    def __init__(self, reply):
-        self.reply, self.messages = reply, None
-
-    def invoke(self, messages):
-        self.messages = messages
-        if isinstance(self.reply, Exception):
-            raise self.reply
-        return self.reply
-
-
-class FakeModel:
-    def __init__(self, parsed=None, stop_reason="end_turn", parsing_error=None, error=None):
-        reply = error or {"raw": AIMessage(content="", response_metadata={"stop_reason": stop_reason}),
-                          "parsed": parsed, "parsing_error": parsing_error}
-        self.structured, self.kwargs, self.schema = FakeStructured(reply), None, None
-
-    def with_structured_output(self, schema, **kwargs):
-        self.schema, self.kwargs = schema, kwargs
-        return self.structured
-
-
-def extractor_for(model):
-    budgets = []
-
-    def factory(max_tokens):
-        budgets.append(max_tokens)
-        return model
-
-    return LLMResumeExtractor(factory), budgets
 
 
 def text_doc(text="Anil Verma\nSenior Backend Engineer", **kw):
