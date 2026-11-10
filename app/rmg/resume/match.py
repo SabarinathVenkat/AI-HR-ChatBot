@@ -101,3 +101,13 @@ def build_match_plan(resume: Resume, role: Role, experience: Experience | None =
         role_title=role.title, matches=tuple(matches), missing_required=tuple(missing_required),
         missing_nice=tuple(missing_nice), required_coverage=covered / required_total if required_total else None,
         project_order=project_order, skill_order=skill_order, meets_min_years=years)
+
+
+def order_skills(resume: Resume, plan: MatchPlan) -> Resume:
+    """Each skill group keeps its place, and inside a group the skills the JD wants come first (ties keep their order)."""
+    rank = {}
+    for n, text in enumerate(plan.skill_order):
+        rank.setdefault(text, n)
+    groups = [group.model_copy(update={"items": sorted(group.items, key=lambda i: rank.get(i.text, len(rank)))})
+              for group in resume.skill_groups]
+    return resume.model_copy(update={"skill_groups": groups})

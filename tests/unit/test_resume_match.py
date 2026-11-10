@@ -141,3 +141,21 @@ def test_the_plan_is_immutable_and_does_not_change_the_resume():
     with pytest.raises(Exception):  # noqa: B017  frozen model
         plan.role_title = "x"
     assert r.skills_flat() == ["Java"]
+
+
+# --- ordering skills inside each group ------------------------------------------------------------------
+
+def test_skills_are_ordered_inside_each_group_with_the_wanted_ones_first_and_provenance_kept():
+    from app.rmg.resume.match import order_skills
+
+    r = Resume(name="A", skill_groups=[
+        SkillGroup(category="One", items=[item("Python", "skills.0.0"), item("Kafka", "skills.0.1"), item("Java", "skills.0.2")]),
+        SkillGroup(category="Two", items=[item("Go", "skills.1.0"), item("SQL", "skills.1.1")])])
+    plan = build_match_plan(r, role(must=["Java"], nice=["Kafka"]))
+
+    result = order_skills(r, plan)
+
+    assert [[i.text for i in g.items] for g in result.skill_groups] == [["Java", "Kafka", "Python"], ["Go", "SQL"]]
+    assert result.skill_groups[0].items[0].source == "skills.0.2"
+    assert [g.category for g in result.skill_groups] == ["One", "Two"]
+    assert [i.text for i in r.skill_groups[0].items] == ["Python", "Kafka", "Java"]  # the input is untouched

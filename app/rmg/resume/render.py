@@ -217,7 +217,7 @@ def _mark_draft(doc) -> None:
 
 # --- entry point ------------------------------------------------------------------------------------
 
-def render_resume(template: bytes, resume: Resume, *, years_text: str = "", draft: bool = False) -> RenderResult:
+def _load(template: bytes):
     try:
         doc = Document(io.BytesIO(template))
         m = analyse(doc)
@@ -225,7 +225,16 @@ def render_resume(template: bytes, resume: Resume, *, years_text: str = "", draf
         raise TemplateError("unreadable") from None
     if missing := m.missing():
         raise TemplateError("incomplete", tuple(missing))
+    return doc, m
 
+
+def check_template(template: bytes) -> None:
+    """Raise TemplateError if the template cannot be rendered into. Cheap, so it can run before anything costly."""
+    _load(template)
+
+
+def render_resume(template: bytes, resume: Resume, *, years_text: str = "", draft: bool = False) -> RenderResult:
+    doc, m = _load(template)
     problems: list[str] = []
     _render_header(m, resume, years_text)
     _render_skills(m, resume)
