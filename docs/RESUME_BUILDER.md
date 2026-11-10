@@ -19,13 +19,11 @@ Competency Lead approves or sends it back. RMG downloads it; anything not yet ap
 
 ## Roles (demo accounts, password `Welcome@123`)
 
-| Person | Role | What they do |
-| --- | --- | --- |
-| Rhea Kapoor | RMG Head | uploads the template, maps associates to Leads |
-| Sam Joseph | RMG staff | adds job descriptions, tags associates, downloads |
-| Lakshmi Narayan | Competency Lead | reviews Ravi, Divya, Priya and Ananya |
-| Ravi Kumar, Divya Menon, Priya Shankar, Ananya Das | associates | build their resumes |
-| Sanjay Patel, Karthik Raja | associates with **no Lead** | cannot be tagged until the Head maps them |
+- Rhea Kapoor, RMG Head: uploads the template and maps associates to Leads.
+- Sam Joseph, RMG staff: adds job descriptions, tags associates, downloads.
+- Lakshmi Narayan, Competency Lead: reviews Ravi, Divya, Priya and Ananya.
+- Ravi Kumar, Divya Menon, Priya Shankar, Ananya Das: associates who build their resumes.
+- Sanjay Patel and Karthik Raja: associates with no Lead. They cannot be tagged until the Head maps them.
 
 ## Run it
 
@@ -81,22 +79,20 @@ It checks that the instruction is flagged and ignored and that no fake skill rea
 
 ## Where the code is (`app/rmg/resume/`)
 
-| File | Job |
-| --- | --- |
-| `model.py` | the structured resume; every item records where it came from |
-| `ingest.py` | safe reading of .docx, .pdf, .txt |
-| `extract.py`, `jd.py` | model reads a resume or a JD; code assigns provenance and cleans |
-| `facts.py` | experience years from dates, skill de-duplication (code, not model) |
-| `match.py` | which JD skills the resume evidences; project and skill order |
-| `draft.py`, `tailor.py` | one model call per project, run in parallel (LangGraph `Send`) |
-| `grounding.py` | rejects anything the original does not support |
-| `changelog.py` | what changed and why, computed from the two resumes |
-| `template.py`, `render.py` | find the template's structure; fill it by cloning its paragraphs |
-| `pipeline.py` | the whole run as one LangGraph graph |
-| `edit.py`, `chat.py` | draft-only edits; chat turns a sentence into one checked command |
-| `service.py` | permissions, statuses, versions, download rule |
-| `people.py`, `demo.py` | RMG roles, Lead mapping, demo accounts |
-| `../../api/resume_routes.py`, `../../ui/static/resume.*` | HTTP and screens |
+- `model.py`: the structured resume; every item records where it came from.
+- `ingest.py`: safe reading of .docx, .pdf and .txt.
+- `extract.py`, `jd.py`: a model reads a resume or a JD; code assigns provenance and cleans.
+- `facts.py`: experience years from dates and skill de-duplication (code, not model).
+- `match.py`: which JD skills the resume evidences, plus project and skill order.
+- `draft.py`, `tailor.py`: one model call per project, run in parallel (LangGraph `Send`).
+- `grounding.py`: rejects anything the original does not support.
+- `changelog.py`: what changed and why, computed from the two resumes.
+- `template.py`, `render.py`: find the template's structure and fill it by cloning its paragraphs.
+- `pipeline.py`: the whole run as one LangGraph graph.
+- `edit.py`, `chat.py`: draft-only edits; chat turns a sentence into one checked command.
+- `service.py`: permissions, statuses, versions and the download rule.
+- `people.py`, `demo.py`: RMG roles, the Lead mapping and demo accounts.
+- `app/api/resume_routes.py` and `app/ui/static/resume.*`: HTTP and screens.
 
 ## Known limits
 
