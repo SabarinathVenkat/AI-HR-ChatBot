@@ -50,7 +50,7 @@ Commands:
 - remove: delete one item. Give path.
 - move_project: give index (current position) and to (new position).
 - move_bullet: give project, index and to.
-- add_fact: the associate states a NEW fact about themselves. Give text and optionally project (a project number).
+- add_fact: the associate states a NEW fact about themselves. Give text, written as a resume bullet without "I" and using only what they said, and optionally project (a project number).
 - set_role: change the role line under the name. Give text.
 - undo: undo the last change.
 - explain: the associate asks what was changed or why.
