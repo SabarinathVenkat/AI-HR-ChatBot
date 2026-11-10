@@ -70,7 +70,8 @@ def test_the_resume_routes_need_a_signed_in_user(client):
 def test_the_routes_report_unavailable_when_the_builder_is_not_configured(make_client):
     client = make_client(with_resume=False)
 
-    assert client.get("/resume/me", headers=hdr(client, RAVI)).status_code == 503
+    assert client.get("/resume/me", headers=hdr(client, RAVI)).json() == {"available": False, "roles": [], "unread": 0}
+    assert client.get("/resume/requests", headers=hdr(client, RAVI)).status_code == 503
 
 
 def test_me_lists_the_persons_rmg_roles(client):

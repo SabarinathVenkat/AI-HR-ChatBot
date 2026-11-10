@@ -18,8 +18,14 @@ from app.config import Settings
 from app.db.connection import connect
 from app.rag.search import Retrieval
 from app.rmg.agent import build_rmg_agent
+from app.rmg.resume.chat import EditCommand
+from app.rmg.resume.draft import TailoringSettings
+from app.rmg.resume.filestore import FileStore
+from app.rmg.resume.pipeline import PipelineDeps
+from app.rmg.resume.service import ResumeEngine
 from tests.integration.conftest import SECRET, FakeClock, clock  # noqa: F401
 from tests.support import BagOfWordsEmbedder, FixedRouter, ScriptedChatModel
+from tests.unit.resume_fakes import FakeJDExtractor, FakeResumeExtractor, keep_as_written
 
 POLICIES = Path(__file__).resolve().parents[2] / "data" / "policies"
 
@@ -50,11 +56,15 @@ def start_server(tmp_path, clock):  # noqa: F811 (clock is a fixture imported ab
     db_path = tmp_path / "ui.db"
     bootstrap(db_path, BagOfWordsEmbedder())
 
-    def start(responses, intent="chitchat", rate_limit=30, rmg_responses=None) -> LiveServer:
+    def start(responses, intent="chitchat", rate_limit=30, rmg_responses=None, resume=False) -> LiveServer:
         model = ScriptedChatModel(responses=list(responses))
         router = FixedRouter(RouteDecision(intent=intent))
         agent = build_agent(AgentDeps(model, router), MemorySaver())
         rmg_model = ScriptedChatModel(responses=list(rmg_responses)) if rmg_responses is not None else None
+        engine = ResumeEngine(
+            PipelineDeps(FakeResumeExtractor(), FakeJDExtractor(), keep_as_written, TailoringSettings()),
+            lambda message, resume_: EditCommand(action="explain"),
+        ) if resume else None
         app = create_app(
             Settings(jwt_secret=SECRET, demo_mode=True, chat_rate_limit_per_minute=rate_limit),
             connection=lambda: closing(connect(str(db_path))),
@@ -62,6 +72,8 @@ def start_server(tmp_path, clock):  # noqa: F811 (clock is a fixture imported ab
             agent=agent,
             retrieval=Retrieval(BagOfWordsEmbedder(), 0.2),
             rmg_agent=build_rmg_agent(rmg_model, MemorySaver()) if rmg_model else None,
+            resume_engine=engine,
+            resume_files=FileStore(tmp_path / f"files{len(started)}") if resume else None,
         )
         port = _free_port()
         server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))

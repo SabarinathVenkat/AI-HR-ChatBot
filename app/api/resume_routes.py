@@ -76,8 +76,12 @@ def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Cal
         return ResumeService(conn, files, engine, now, employee)
 
     @app.get("/resume/me")
-    def resume_me(svc: ResumeService = Depends(service)):
-        return {"roles": sorted(svc.roles), "unread": len(svc.notifications(unread_only=True))}
+    def resume_me(employee: repo.Employee = Depends(current_employee), conn: sqlite3.Connection = Depends(get_conn)):
+        """Always answers (200), so the web app can ask "is the resume builder here?" without a failed request."""
+        if engine is None or files is None:
+            return {"available": False, "roles": [], "unread": 0}
+        svc = ResumeService(conn, files, engine, now, employee)
+        return {"available": True, "roles": sorted(svc.roles), "unread": len(svc.notifications(unread_only=True))}
 
     @app.get("/resume/template")
     def get_template(svc: ResumeService = Depends(service)):

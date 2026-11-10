@@ -1,0 +1,94 @@
+/* Resume builder screens. Plain CSS only: the server's security policy allows same-origin styles and no inline style. */
+body.rb { display: flex; flex-direction: column; min-height: 100%; }
+.rb-head {
+  display: flex; align-items: center; gap: 24px; flex-wrap: wrap; padding: 12px 24px;
+  background: var(--navy-900); color: var(--rail-ink);
+}
+.rb-brand { display: flex; align-items: center; gap: 10px; }
+.rb-brand h1 { font-size: 18px; }
+.rb-tabs { display: flex; gap: 6px; flex: 1; flex-wrap: wrap; }
+.rb-tab { background: transparent; color: var(--rail-ink); border: 1px solid transparent; border-radius: 10px; padding: 8px 14px; cursor: pointer; font: inherit; }
+.rb-tab[aria-current="page"] { background: var(--navy-700); border-color: var(--rail-muted); }
+.rb-user { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rb-head .btn { background: var(--navy-800); color: var(--rail-ink); border: 1px solid var(--navy-700); text-decoration: none; }
+.rb-count { background: var(--bad); color: #fff; border-radius: 999px; padding: 0 7px; font-size: 12px; margin-left: 4px; }
+
+.rb-notes { background: var(--surface); border-bottom: 1px solid var(--line); padding: 12px 24px; }
+.rb-notes-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.rb-notes h2 { font-size: 16px; }
+.rb-message { margin: 12px 24px 0; padding: 10px 14px; border-radius: 10px; background: var(--primary-soft); }
+.rb-message.error { background: var(--bad-soft); color: var(--bad); }
+.rb-message.ok { background: var(--ok-soft); color: var(--ok); }
+
+.rb-main { padding: 20px 24px 48px; max-width: 1500px; width: 100%; margin: 0 auto; }
+.rb-main h2 { font-size: 20px; margin-bottom: 12px; }
+.rb-main h3 { font-size: 16px; margin: 0 0 8px; }
+.rb-grid { display: grid; gap: 20px; }
+.rb-two { grid-template-columns: minmax(280px, 380px) 1fr; }
+.rb-work { grid-template-columns: minmax(240px, 300px) minmax(360px, 1fr) minmax(280px, 360px); align-items: start; }
+@media (max-width: 1100px) { .rb-two, .rb-work { grid-template-columns: 1fr; } }
+
+.rb-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-sm); }
+.rb-card + .rb-card { margin-top: 16px; }
+.rb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rb-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.rb-item .title { font-weight: 600; }
+.rb-item .sub { color: var(--muted); font-size: 14px; }
+.rb-empty { color: var(--muted); }
+.muted { color: var(--muted); }
+
+.badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--primary-soft); color: var(--primary-dark); white-space: nowrap; }
+.badge.s-approved { background: var(--ok-soft); color: var(--ok); }
+.badge.s-submitted { background: var(--warn-soft); color: var(--warn); }
+.badge.s-changes_requested, .badge.s-cancelled, .badge.k-rejected, .badge.k-dropped { background: var(--bad-soft); color: var(--bad); }
+.badge.k-added_by_you, .badge.o-user_added { background: var(--warn-soft); color: var(--warn); }
+.badge.k-emphasised, .badge.o-reworded { background: var(--accent-soft); color: var(--accent-ink); }
+
+label.rb-field { display: block; font-weight: 600; margin: 10px 0 4px; }
+.rb-card input[type="text"], .rb-card select, .rb-card textarea, .rb-edit textarea, .rb-chat-form textarea {
+  width: 100%; font: inherit; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 10px; background: #fff;
+}
+.rb-card textarea, .rb-edit textarea, .rb-chat-form textarea { min-height: 70px; resize: vertical; }
+.rb-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.rb-check { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; }
+.rb-check.disabled { color: var(--muted); }
+
+table.rb-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.rb-table th, .rb-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.rb-table th { background: var(--bg); font-size: 13px; color: var(--muted); }
+
+.rb-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.rb-bar h2 { margin: 0; flex: 1; }
+.rb-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
+.chip { padding: 2px 10px; border-radius: 999px; font-size: 13px; background: var(--primary-soft); }
+.chip.missing { background: var(--bad-soft); color: var(--bad); }
+.chip.nice { background: var(--bg); color: var(--muted); }
+progress.rb-progress { width: 100%; height: 12px; }
+
+.rb-resume h3.name { font-size: 22px; }
+.rb-resume .role { color: var(--muted); margin-bottom: 8px; }
+.rb-resume .section { margin-top: 16px; }
+.rb-resume .section > h4 { margin: 0 0 6px; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.rb-bullets { margin: 4px 0 0; padding-left: 0; list-style: none; display: grid; gap: 6px; }
+.rb-bullet { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; padding: 6px 8px; border-radius: 8px; border: 1px solid transparent; }
+.rb-bullet:hover { border-color: var(--line); background: var(--bg); }
+.rb-bullet .text { flex: 1; }
+.rb-tools { display: flex; gap: 4px; flex: none; }
+.rb-tools button, .rb-linkbtn { background: none; border: 1px solid var(--line-strong); border-radius: 8px; padding: 2px 8px; font: inherit; font-size: 13px; cursor: pointer; }
+.rb-project { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--line-strong); }
+.rb-project .pname { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }
+.rb-edit { margin: 6px 0; }
+
+.rb-log { display: grid; gap: 8px; }
+.rb-log .entry { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.rb-log .where { font-weight: 600; font-size: 14px; }
+.rb-log .reason { color: var(--muted); font-size: 14px; }
+.rb-log .before, .rb-log .after { font-size: 14px; margin-top: 4px; padding: 4px 8px; border-radius: 6px; }
+.rb-log .before { background: var(--bad-soft); }
+.rb-log .after { background: var(--ok-soft); }
+
+.rb-chat-log { display: grid; gap: 8px; max-height: 260px; overflow: auto; margin-bottom: 8px; }
+.rb-chat-log .me { justify-self: end; background: var(--primary); color: #fff; padding: 6px 12px; border-radius: 12px; max-width: 90%; }
+.rb-chat-log .bot { background: var(--bg); padding: 6px 12px; border-radius: 12px; max-width: 95%; white-space: pre-wrap; }
+.rb-warn { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 8px 12px; margin-bottom: 10px; }
+.rb-busy { color: var(--muted); font-style: italic; }

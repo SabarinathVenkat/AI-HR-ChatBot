@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resume builder</title>
+  <meta name="theme-color" content="#0a1730">
+  <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/resume.css">
+</head>
+<body class="rb">
+  <a class="skip-link" href="#view">Skip to the content</a>
+
+  <header class="rb-head">
+    <div class="rb-brand">
+      <img class="brand-logo" src="/img/logo.svg" alt="" width="32" height="32">
+      <h1>Resume builder</h1>
+    </div>
+    <nav id="tabs" class="rb-tabs" aria-label="Sections"></nav>
+    <div class="rb-user">
+      <button id="bell" class="btn rb-bell" type="button" aria-expanded="false" aria-controls="notes">Notifications <span id="bell-count" class="rb-count" hidden>0</span></button>
+      <span id="who" class="who"></span>
+      <a class="btn" href="/">Back to assistant</a>
+      <button id="sign-out" class="btn" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <section id="notes" class="rb-notes" hidden aria-label="Notifications">
+    <div class="rb-notes-head"><h2>Notifications</h2><button id="notes-read" class="btn" type="button">Mark all read</button></div>
+    <ul id="notes-list" class="rb-list"></ul>
+  </section>
+
+  <p id="message" class="rb-message" role="status" aria-live="polite" hidden></p>
+
+  <main id="view" class="rb-main" tabindex="-1"></main>
+
+  <script src="/resume.js"></script>
+</body>
+</html>

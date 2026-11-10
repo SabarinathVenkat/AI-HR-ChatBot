@@ -563,6 +563,16 @@
     $("mode-toggle").hidden = !state.rmgAvailable;
   }
 
+  /* The resume builder is a separate page. Show its link only when this deployment has it. */
+  async function probeResume() {
+    try {
+      const response = await api("/resume/me");
+      $("resume-link").hidden = !(response.ok && (await response.json()).available === true);
+    } catch {
+      $("resume-link").hidden = true;
+    }
+  }
+
   async function enterChat() {
     const response = await api("/me");
     if (!response.ok) throw new Error("not ok");
@@ -571,6 +581,7 @@
     $("avatar").textContent = initials(state.user.name);
     $("approvals-section").hidden = state.user.role !== "manager";
     await loadFeatures();
+    probeResume();
     applyMode();
     showScreen("chat");
     greet();
