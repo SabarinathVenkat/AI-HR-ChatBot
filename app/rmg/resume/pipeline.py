@@ -57,8 +57,9 @@ class PipelineDeps:
 @dataclass(frozen=True)
 class PipelineRequest:
     resume_file: tuple[str, bytes]  # (filename, bytes) as uploaded
-    jd_file: tuple[str, bytes]
     template: bytes
+    jd_file: tuple[str, bytes] | None = None  # read and extracted during the run, unless `jd` is given
+    jd: JobDescription | None = None  # a job description that was already read (it is stored once and reused)
     role_index: int = 0  # which role of the JD to tailor for
     today: date | None = None  # for experience; defaults to today
     draft: bool = True  # a download is a draft until it is approved
@@ -116,6 +117,8 @@ def build_pipeline(deps: PipelineDeps):
             return {"errors": [("resume", e.code, str(e))]}
 
     def extract_jd(state: State):
+        if state["request"].jd is not None:
+            return {"jd": state["request"].jd}
         try:
             return {"jd": deps.jd_extractor.extract(read_document(*state["request"].jd_file))}
         except (IngestError, ExtractionError) as e:
