@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from app.db import repositories as repo
+from app.rmg.resume.chat import EditCommand
 from app.rmg.resume.filestore import FileStore
 from app.rmg.resume.service import ResumeEngine, ResumeService, ServiceError
 
@@ -36,6 +37,10 @@ class BuildBody(BaseModel):
 class DecideBody(BaseModel):
     decision: Literal["approve", "send_back"]
     note: str | None = Field(default=None, max_length=1000)
+
+
+class ChatEditBody(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
 
 
 class ReadBody(BaseModel):
@@ -125,6 +130,14 @@ def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Cal
     @app.post("/resume/requests/{request_id}/build")
     def build(request_id: int, body: BuildBody | None = None, svc: ResumeService = Depends(service)):
         return svc.build(request_id, force=bool(body and body.force))
+
+    @app.post("/resume/requests/{request_id}/edit")
+    def edit(request_id: int, body: EditCommand, svc: ResumeService = Depends(service)):
+        return svc.edit(request_id, body)
+
+    @app.post("/resume/requests/{request_id}/chat")
+    def chat(request_id: int, body: ChatEditBody, svc: ResumeService = Depends(service)):
+        return svc.chat(request_id, body.message)
 
     @app.post("/resume/requests/{request_id}/save")
     def save(request_id: int, svc: ResumeService = Depends(service)):

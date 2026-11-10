@@ -91,7 +91,7 @@ def check_grounding(original: Resume, tailored: Resume, plan: MatchPlan) -> Grou
     return GroundingReport(violations=tuple(violations), user_added=tuple(user_added))
 
 
-def _rebuild(resume: Resume, fn) -> Resume:
+def rebuild_items(resume: Resume, fn) -> Resume:
     """A copy of the resume with every item replaced by fn(path, item); None removes the item."""
     groups = []
     for g, group in enumerate(resume.skill_groups):
@@ -121,4 +121,4 @@ def enforce_grounding(original: Resume, tailored: Resume, plan: MatchPlan) -> tu
     def fix(path: str, item: Item) -> Item | None:
         return by_source.get(item.source) if path in failing else item
 
-    return _rebuild(tailored, fix), report
+    return rebuild_items(tailored, fix), report

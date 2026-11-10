@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.api.main import create_app
 from app.config import Settings
+from app.rmg.resume.chat import EditCommand
 from app.rmg.resume.demo import seed_resume_demo
 from app.rmg.resume.draft import TailoringSettings
 from app.rmg.resume.filestore import FileStore
@@ -30,7 +31,8 @@ def template_bytes() -> bytes:
 def make_client(api_db, clock, tmp_path, argon_hash):
     def build(with_resume=True):
         seed_resume_demo(api_db, hash_password=lambda p: argon_hash)
-        engine = ResumeEngine(PipelineDeps(FakeResumeExtractor(), FakeJDExtractor(), keep_as_written, TailoringSettings()))
+        engine = ResumeEngine(PipelineDeps(FakeResumeExtractor(), FakeJDExtractor(), keep_as_written, TailoringSettings()),
+                              lambda message, resume: EditCommand(action="remove", path="projects.0.bullets.0", reply="Removed."))
         app = create_app(Settings(jwt_secret=SECRET), connection=lambda: nullcontext(api_db), clock=clock,
                          resume_engine=engine if with_resume else None,
                          resume_files=FileStore(tmp_path / "files") if with_resume else None)
@@ -200,3 +202,34 @@ def test_a_jd_can_be_uploaded_by_rmg(client):
                            headers=hdr(client, STAFF))
 
     assert response.status_code == 200 and response.json()["title"] == "Platform Engineer"
+
+
+def built_request(client):
+    request_id = tagged_request(client)
+    client.post(f"/resume/requests/{request_id}/resume?filename=cv.txt", content=b"Ravi", headers=hdr(client, RAVI))
+    client.post(f"/resume/requests/{request_id}/build", headers=hdr(client, RAVI))
+    return request_id
+
+
+def test_an_edit_button_and_undo_work_over_http(client):
+    request_id = built_request(client)
+    base = f"/resume/requests/{request_id}"
+
+    edited = client.post(f"{base}/edit", json={"action": "remove", "path": "projects.0.bullets.0"}, headers=hdr(client, RAVI))
+    assert edited.status_code == 200 and edited.json()["changed"]
+    assert client.post(f"{base}/edit", json={"action": "undo"}, headers=hdr(client, RAVI)).json()["message"] == "Undone."
+    bad = client.post(f"{base}/edit", json={"action": "remove", "path": "projects.9.bullets.0"}, headers=hdr(client, RAVI))
+    assert bad.status_code == 422 and bad.json()["error"]["code"] == "edit_no_such_item"
+    assert client.post(f"{base}/edit", json={"action": "fly"}, headers=hdr(client, RAVI)).status_code == 422
+
+
+def test_chat_editing_works_over_http_and_is_for_the_associate_only(client):
+    request_id = built_request(client)
+    base = f"/resume/requests/{request_id}"
+
+    reply = client.post(f"{base}/chat", json={"message": "drop the first bullet"}, headers=hdr(client, RAVI))
+
+    assert reply.status_code == 200 and reply.json()["reply"] == "Removed." and reply.json()["changed"]
+    assert client.post(f"{base}/chat", json={"message": "x"}, headers=hdr(client, STAFF)).status_code == 403
+    assert client.post(f"{base}/chat", json={"message": ""}, headers=hdr(client, RAVI)).status_code == 422
+    assert client.post(f"{base}/chat", json={"message": "x" * 2001}, headers=hdr(client, RAVI)).status_code == 422

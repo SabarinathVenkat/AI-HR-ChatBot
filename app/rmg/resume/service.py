@@ -20,6 +20,8 @@ from datetime import datetime
 
 from app.db.repositories import Employee
 from app.rmg.resume.changelog import build_change_log
+from app.rmg.resume.chat import EditCommand, explain
+from app.rmg.resume.edit import EditError, add_fact, move_bullet, move_project, remove_item, set_role_line, set_text
 from app.rmg.resume.extract import ExtractionError
 from app.rmg.resume.facts import experience
 from app.rmg.resume.filestore import FileStore
@@ -37,6 +39,7 @@ TEMPLATE_LIMITS = dict(max_bytes=40_000_000, max_uncompressed=150_000_000, max_e
 OPEN_FOR_ASSOCIATE = ("requested", "in_progress", "changes_requested")
 EDITABLE = ("in_progress", "changes_requested")
 RMG = frozenset({"rmg_staff", "rmg_head"})
+MAX_UNDO = 20
 
 
 class ServiceError(Exception):
@@ -452,6 +455,92 @@ class ResumeService:
         self._audit("resume_reopened", {"request_id": request_id})
         self.conn.commit()
         return {"status": "in_progress"}
+
+    # ------------------------------------------------------------------------------------ edits (the draft only)
+    def _editing(self, request_id: int):
+        row = self._as_associate(request_id, EDITABLE)
+        draft = self._need_draft(request_id)
+        base, working = Resume.model_validate_json(draft["base_json"]), Resume.model_validate_json(draft["working_json"])
+        role = self._jd(row["jd_id"]).roles[row["role_index"]]
+        plan = build_match_plan(base, role, experience(base.jobs, self._now().date()))
+        return draft, base, working, plan
+
+    def _store(self, request_id: int, draft, working: Resume) -> None:
+        undo = [*json.loads(draft["undo_json"]), draft["working_json"]][-MAX_UNDO:]
+        self.conn.execute("UPDATE resume_drafts SET working_json = ?, undo_json = ?, updated_at = ? WHERE request_id = ?",
+                          (working.model_dump_json(), json.dumps(undo), self._iso(), request_id))
+
+    @staticmethod
+    def _present(value, code: str = "no_such_item"):
+        if value is None:
+            raise EditError(code)
+        return value
+
+    def _execute(self, cmd: EditCommand, base: Resume, working: Resume, plan, by: str) -> Resume:
+        need = self._present
+        match cmd.action:
+            case "set_text":
+                return set_text(working, base, plan, need(cmd.path), need(cmd.text, "empty_text"), by=by)
+            case "remove":
+                return remove_item(working, need(cmd.path))
+            case "move_project":
+                return move_project(working, need(cmd.index, "bad_position"), need(cmd.to, "bad_position"))
+            case "move_bullet":
+                return move_bullet(working, need(cmd.project), need(cmd.index, "bad_position"), need(cmd.to, "bad_position"))
+            case "add_fact":
+                return add_fact(working, cmd.project, need(cmd.text, "empty_text"))
+            case "set_role":
+                return set_role_line(working, base, plan, need(cmd.text, "empty_text"), by=by)
+        raise EditError("no_such_item")
+
+    def _apply(self, request_id: int, cmd: EditCommand, by: str) -> tuple[bool, str]:
+        """Run one command on the draft. Returns (changed, message). Raises EditError when it is refused."""
+        draft, base, working, plan = self._editing(request_id)
+        if cmd.action == "none":
+            return False, cmd.reply or "I am not sure what you would like to change."
+        if cmd.action == "explain":
+            row = self._row(request_id)
+            return False, explain(self._changelog(row, draft)[0])
+        if cmd.action == "undo":
+            undo = json.loads(draft["undo_json"])
+            if not undo:
+                return False, "There is nothing to undo."
+            self.conn.execute("UPDATE resume_drafts SET working_json = ?, undo_json = ?, updated_at = ? WHERE request_id = ?",
+                              (undo.pop(), json.dumps(undo), self._iso(), request_id))
+            message = "Undone."
+        else:
+            self._store(request_id, draft, self._execute(cmd, base, working, plan, by))
+            message = cmd.reply or "Done."
+        self._audit("resume_edited", {"request_id": request_id, "action": cmd.action, "path": cmd.path, "by": by})
+        self.conn.commit()
+        return True, message
+
+    def edit(self, request_id: int, cmd: EditCommand) -> dict:
+        """An edit from a button or a form: the associate's own words (by="user")."""
+        try:
+            changed, message = self._apply(request_id, cmd, "user")
+        except EditError as e:
+            raise ServiceError(f"edit_{e.code}", str(e), 422) from None
+        return {"changed": changed, "message": message, "detail": self.detail(request_id)}
+
+    def chat(self, request_id: int, message: str) -> dict:
+        """An edit in words. The model only picks a command; it runs with by="assistant", so it cannot add claims."""
+        _, _, working, _ = self._editing(request_id)  # checks access and status before the model is called
+        if self.engine.interpreter is None:
+            raise ServiceError("chat_unavailable", "Chat editing is not available right now.", 503)
+        try:
+            command = self.engine.interpreter(message, working)
+        except ExtractionError:
+            return {"reply": "I could not work out what to change. Could you say it another way?", "changed": False,
+                    "detail": self.detail(request_id)}
+        try:
+            changed, reply = self._apply(request_id, command, "assistant")
+        except EditError as e:
+            reply = f"I did not change that. {e}"
+            if e.code == "ungrounded":
+                reply += " If it is true, tell me the fact and I will add it as your own statement."
+            changed = False
+        return {"reply": reply, "changed": changed, "detail": self.detail(request_id)}
 
     # ------------------------------------------------------------------------------------ download
     def download(self, request_id: int) -> tuple[str, bytes, bool]:
