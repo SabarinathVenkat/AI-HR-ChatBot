@@ -171,19 +171,35 @@ def _resume_words(resume: Resume) -> list[str]:
     return [w for part in parts for w in _words(part)]
 
 
+PROSE_WORDS = 10  # a line this long is compared by its 3-word runs; a shorter one (a skills or job line) by its words
+LINE_MATCH = 0.8
+
+
+def _is_heading(line: str) -> bool:
+    text = line.strip()
+    return bool(text) and text.isupper() and len(text.split()) <= 4
+
+
 def coverage(source_text: str, resume: Resume) -> float | None:
-    """The share of source lines whose wording (3-word runs) is found in the resume. None if there is no text."""
-    lines = [w for w in (_words(line) for line in source_text.splitlines()) if w]
+    """The share of content lines of the source that are found in the resume. None if there is no text.
+
+    Headings are not content. A long line (a bullet) must have its 3-word runs in the resume. A short structured line
+    ("Languages: Java, SQL", "Engineer, Acme, Mar 2019 - Present") is split across fields in the resume, so its words
+    are compared instead."""
+    lines = [w for line in source_text.splitlines() if not _is_heading(line) and (w := _words(line))]
     if not lines:
         return None
     resume_words = _resume_words(resume)
     grams3 = {tuple(resume_words[i:i + 3]) for i in range(len(resume_words) - 2)}
-    grams1 = {(w,) for w in resume_words}
+    words1 = set(resume_words)
     covered = 0
     for words in lines:
-        shingles = _shingles(words)
-        known = grams3 if len(words) >= 3 else grams1
-        if shingles and len(shingles & known) / len(shingles) >= 0.8:
+        if len(words) >= PROSE_WORDS:
+            shingles = _shingles(words)
+            found = len(shingles & grams3) / len(shingles)
+        else:
+            found = sum(1 for w in words if w in words1) / len(words)
+        if found >= LINE_MATCH:
             covered += 1
     return covered / len(lines)
 
@@ -203,7 +219,7 @@ def anthropic_factory() -> ModelFactory:
     from langchain_anthropic import ChatAnthropic
 
     def make(max_tokens: int):
-        return ChatAnthropic(model=MODEL_NAME, max_tokens=max_tokens, temperature=0, timeout=120, max_retries=2)
+        return ChatAnthropic(model=MODEL_NAME, max_tokens=max_tokens, timeout=120, max_retries=2)
 
     return make
 

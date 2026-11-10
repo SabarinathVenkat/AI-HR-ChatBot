@@ -223,3 +223,28 @@ def test_the_production_factory_builds_a_small_fast_model_with_the_requested_out
     model = anthropic_factory()(7777)
 
     assert model.model == "claude-haiku-5-5" and model.max_tokens == 7777
+
+
+# --- found with the real model: headings and structured lines must not count as lost content -----------------------
+
+REAL_SHAPE = """Anil Verma
+Senior Backend Engineer
+SKILLS
+Backend: Java, Spring Boot
+EXPERIENCE
+Senior Engineer, Finwave, Mar 2020 - Present
+PROJECTS
+Project: Payment Platform
+- Designed REST APIs for partner systems.
+"""
+
+
+def test_headings_and_structured_lines_split_across_fields_still_count_as_covered():
+    resume = to_resume(extracted(projects=[ExtractedProject(name="Project: Payment Platform", description="",
+                                                           bullets=["Designed REST APIs for partner systems."])]))
+
+    assert coverage(REAL_SHAPE, resume) == 1.0
+
+
+def test_a_document_that_is_only_headings_has_no_content_to_compare():
+    assert coverage("SKILLS" + chr(10) + "EDUCATION" + chr(10), to_resume(extracted())) is None
