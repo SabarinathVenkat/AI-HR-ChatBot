@@ -46,23 +46,23 @@ def has_numbering(p) -> bool:
     return p.find(f"{W}pPr/{W}numPr") is not None
 
 
-def _run_is_bold(r) -> bool:
+def run_is_bold(r) -> bool:
     b = r.find(f"{W}rPr/{W}b")
     return b is not None and b.get(W + "val") not in ("0", "false")
 
 
-def _text_runs(p):
+def text_runs(p):
     return [r for r in p.iter(W + "r") if "".join(t.text or "" for t in r.iter(W + "t"))]
 
 
 def all_bold(p) -> bool:
-    runs = _text_runs(p)
-    return bool(runs) and all(_run_is_bold(r) for r in runs)
+    runs = text_runs(p)
+    return bool(runs) and all(run_is_bold(r) for r in runs)
 
 
 def first_run_bold(p) -> bool:
-    runs = _text_runs(p)
-    return bool(runs) and _run_is_bold(runs[0])
+    runs = text_runs(p)
+    return bool(runs) and run_is_bold(runs[0])
 
 
 def is_heading(p) -> bool:
