@@ -23,7 +23,10 @@ from app.config import Settings
 from app.db import repositories as repo
 from app.db.seed import DEMO_PASSWORD
 from app.observability import audit
+from app.api.resume_routes import register_resume_routes
 from app.rag.search import Retrieval
+from app.rmg.resume.filestore import FileStore
+from app.rmg.resume.service import ResumeEngine
 from app.services import leave as leave_service
 from app.tools.context import ToolContext
 from app.tools.registry import call_tool
@@ -82,6 +85,8 @@ def create_app(
     agent=None,
     retrieval: Retrieval | None = None,
     rmg_agent=None,
+    resume_engine: ResumeEngine | None = None,
+    resume_files: FileStore | None = None,
 ) -> FastAPI:
     now: Clock = clock or (lambda: datetime.now(timezone.utc))
     app = FastAPI(title="HR Chat Agent", version="0.1.0")
@@ -369,6 +374,9 @@ def create_app(
         return StreamingResponse(
             events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"}
         )
+
+    register_resume_routes(app, get_conn=get_conn, current_employee=current_employee, now=now,
+                           engine=resume_engine, files=resume_files)
 
     # Last, so every API route above takes precedence over the static web app.
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="web")

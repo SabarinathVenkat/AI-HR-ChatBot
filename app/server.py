@@ -21,6 +21,8 @@ from app.db.connection import connect
 from app.rag.embeddings import FastEmbedder
 from app.rag.search import Retrieval
 from app.rmg.factory import build_live_rmg_agent
+from app.rmg.resume.factory import build_live_resume_engine
+from app.rmg.resume.filestore import FileStore
 
 log = logging.getLogger("hr_chat")
 
@@ -47,6 +49,10 @@ def create_production_app(settings: Settings | None = None) -> FastAPI:
     # The RMG toggle in the web app. RMG_ENABLED=false removes it from this deployment.
     rmg_on = os.environ.get("RMG_ENABLED", "true").lower() != "false"
     rmg_agent = build_live_rmg_agent(settings, saver) if rmg_on else None
+    # The resume builder (RMG). RESUME_ENABLED=false removes it; uploads go to RESUME_STORE_DIR, outside the repository.
+    resume_on = os.environ.get("RESUME_ENABLED", "true").lower() != "false"
+    resume_engine = build_live_resume_engine() if resume_on else None
+    resume_files = FileStore(os.environ.get("RESUME_STORE_DIR", "var/resume_files")) if resume_on else None
     log.info("HR chat agent ready (models: %s / %s); resource management %s",
              settings.answer_model, settings.router_model, "on" if rmg_on else "off")
     return create_app(
@@ -56,6 +62,8 @@ def create_production_app(settings: Settings | None = None) -> FastAPI:
         agent=agent,
         retrieval=Retrieval(embedder),
         rmg_agent=rmg_agent,
+        resume_engine=resume_engine,
+        resume_files=resume_files,
     )
 
 
