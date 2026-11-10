@@ -8,6 +8,7 @@ from app.db.seed import SEED_AS_OF, seed
 from app.rag.chunker import load_policy_dir
 from app.rag.embeddings import Embedder
 from app.rag.index import index_policies
+from app.rmg.resume.demo import seed_resume_demo
 
 log = logging.getLogger(__name__)
 POLICY_DIR = Path(__file__).resolve().parents[1] / "data" / "policies"
@@ -26,6 +27,8 @@ def bootstrap(
         if demo_data and conn.execute("SELECT count(*) FROM employees").fetchone()[0] == 0:
             log.info("seeding demo data")
             seed(conn, as_of=SEED_AS_OF, hash_password=hash_password)
+        if demo_data:
+            seed_resume_demo(conn, hash_password)  # idempotent: an older demo database gains the RMG accounts
         if reindex or conn.execute("SELECT count(*) FROM policy_chunks").fetchone()[0] == 0:
             chunks = load_policy_dir(policy_dir)
             log.info("indexing %d policy sections", len(chunks))

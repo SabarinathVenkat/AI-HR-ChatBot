@@ -19,3 +19,4 @@ docs/learning/
 
 # Office creates these lock files while a document is open
 ~$*
+var/

@@ -27,7 +27,22 @@ def test_bootstrap_creates_demo_data_and_the_policy_index(tmp_path):
     bootstrap(db, BagOfWordsEmbedder())
 
     employees, chunks, balances = counts(db)
-    assert employees == 10 and chunks > 30 and balances == 30
+    assert employees == 13 and chunks > 30 and balances == 30  # 10 HR demo people and 3 RMG demo accounts
+
+
+def test_an_older_demo_database_gains_the_rmg_accounts_without_losing_anything(tmp_path):
+    from app.db.connection import init_schema
+    from app.db.seed import SEED_AS_OF, seed
+
+    db = tmp_path / "hr.db"
+    conn = connect(str(db))
+    init_schema(conn)
+    seed(conn, as_of=SEED_AS_OF, hash_password=lambda p: "x")  # a database from before the resume builder existed
+    conn.close()
+
+    bootstrap(db, BagOfWordsEmbedder())
+
+    assert counts(db)[0] == 13
 
 
 def test_bootstrap_is_idempotent(tmp_path):

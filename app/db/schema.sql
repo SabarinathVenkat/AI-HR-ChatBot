@@ -127,3 +127,98 @@ CREATE VIRTUAL TABLE IF NOT EXISTS policy_fts USING fts5(title, text);
 CREATE VIRTUAL TABLE IF NOT EXISTS policy_vec USING vec0(
     embedding float[384] distance_metric=cosine
 );
+
+-- ---------------------------------------------------------------------------------------------------------
+-- Resume builder (RMG). An employee can hold RMG roles on top of their HR role.
+-- ---------------------------------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS rmg_roles (
+    employee_id INTEGER NOT NULL REFERENCES employees(id),
+    role        TEXT NOT NULL CHECK (role IN ('rmg_staff', 'rmg_head', 'competency_lead')),
+    PRIMARY KEY (employee_id, role)
+);
+
+-- Which Competency Lead approves which associate's resume. One lead per associate.
+CREATE TABLE IF NOT EXISTS lead_assignments (
+    associate_id INTEGER PRIMARY KEY REFERENCES employees(id),
+    lead_id      INTEGER NOT NULL REFERENCES employees(id)
+);
+
+-- The resume template (a .docx). The file lives in the file store; the row says which one is active.
+CREATE TABLE IF NOT EXISTS resume_templates (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT NOT NULL,
+    filename    TEXT NOT NULL,
+    file_key    TEXT NOT NULL,
+    status      TEXT NOT NULL CHECK (status IN ('active', 'archived')),
+    uploaded_by INTEGER NOT NULL REFERENCES employees(id),
+    created_at  TEXT NOT NULL
+);
+
+-- A job description is stored once (already read into requirements); many associates can be tagged to it.
+CREATE TABLE IF NOT EXISTS job_descriptions (
+    id         INTEGER PRIMARY KEY,
+    title      TEXT NOT NULL,
+    filename   TEXT NOT NULL,
+    jd_json    TEXT NOT NULL,
+    created_by INTEGER NOT NULL REFERENCES employees(id),
+    created_at TEXT NOT NULL
+);
+
+-- One request per tagged associate. lead_id is the Competency Lead at the time of tagging.
+CREATE TABLE IF NOT EXISTS resume_requests (
+    id            INTEGER PRIMARY KEY,
+    jd_id         INTEGER NOT NULL REFERENCES job_descriptions(id),
+    associate_id  INTEGER NOT NULL REFERENCES employees(id),
+    lead_id       INTEGER NOT NULL REFERENCES employees(id),
+    role_index    INTEGER NOT NULL DEFAULT 0,
+    status        TEXT NOT NULL CHECK (status IN
+                    ('requested', 'in_progress', 'submitted', 'changes_requested', 'approved', 'cancelled')),
+    created_by    INTEGER NOT NULL REFERENCES employees(id),
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL,
+    decided_by    INTEGER REFERENCES employees(id),
+    decided_at    TEXT,
+    decision_note TEXT,
+    base_filename TEXT,
+    base_file_key TEXT,
+    UNIQUE (jd_id, associate_id)
+);
+CREATE INDEX IF NOT EXISTS idx_resume_requests_associate ON resume_requests(associate_id, status);
+CREATE INDEX IF NOT EXISTS idx_resume_requests_lead ON resume_requests(lead_id, status);
+
+-- The working state of a request: the resume as read, the resume being tailored, and the undo stack.
+CREATE TABLE IF NOT EXISTS resume_drafts (
+    request_id   INTEGER PRIMARY KEY REFERENCES resume_requests(id),
+    base_json    TEXT NOT NULL,
+    working_json TEXT NOT NULL,
+    undo_json    TEXT NOT NULL DEFAULT '[]',
+    warnings_json TEXT NOT NULL DEFAULT '[]',
+    years_text   TEXT NOT NULL DEFAULT '',
+    read_coverage REAL,
+    template_id  INTEGER REFERENCES resume_templates(id),
+    updated_at   TEXT NOT NULL
+);
+
+-- Every save, submission and approval is a version, so nothing is lost and a Lead sees what was approved.
+CREATE TABLE IF NOT EXISTS resume_versions (
+    id          INTEGER PRIMARY KEY,
+    request_id  INTEGER NOT NULL REFERENCES resume_requests(id),
+    version     INTEGER NOT NULL,
+    kind        TEXT NOT NULL CHECK (kind IN ('saved', 'submitted', 'approved')),
+    resume_json TEXT NOT NULL,
+    years_text  TEXT NOT NULL DEFAULT '',
+    template_id INTEGER REFERENCES resume_templates(id),
+    created_by  INTEGER NOT NULL REFERENCES employees(id),
+    created_at  TEXT NOT NULL,
+    UNIQUE (request_id, version)
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id          INTEGER PRIMARY KEY,
+    employee_id INTEGER NOT NULL REFERENCES employees(id),
+    message     TEXT NOT NULL,
+    request_id  INTEGER REFERENCES resume_requests(id),
+    created_at  TEXT NOT NULL,
+    read_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_employee ON notifications(employee_id, read_at);
