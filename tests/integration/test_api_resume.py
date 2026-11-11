@@ -266,3 +266,12 @@ def test_the_job_description_list_download_is_for_rmg_only_and_a_missing_one_is_
 
     assert client.get(f"/resume/jds/{jd_id}/file", headers=hdr(client, RAVI)).status_code == 403
     assert client.get("/resume/jds/9999/file", headers=hdr(client, STAFF)).status_code == 404
+
+
+def test_only_the_rmg_head_can_upload_a_template_over_http(client):
+    for who in (STAFF, RAVI, LEAD):
+        response = client.post("/resume/template?filename=t.docx", content=template_bytes(), headers=hdr(client, who))
+        assert response.status_code == 403 and response.json()["error"]["code"] == "forbidden", who
+    assert client.post("/resume/template?filename=t.docx", content=template_bytes()).status_code == 401
+    assert client.post("/resume/template?filename=t.docx", content=template_bytes(), headers=hdr(client, HEAD)).status_code == 200
+    assert client.get("/resume/template", headers=hdr(client, STAFF)).json()["template"]["filename"] == "t.docx"  # staff can see it

@@ -199,3 +199,17 @@ def test_long_requirement_text_stays_inside_its_card_at_common_window_sizes(page
             "() => [...document.querySelectorAll('.chip')].filter(c => c.getBoundingClientRect().right > c.closest('.rb-card').getBoundingClientRect().right + 1).length")
         overflow = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
         assert (width, sticking_out, overflow) == (width, 0, 0)
+
+
+def test_only_the_rmg_head_sees_the_setup_tab(page, start_server):
+    server = start_server([], resume=True)
+    seen = {}
+    for name in ("Nancy", "Shadrach", "Ravi Kumar"):
+        open_builder(page, server, name)
+        seen[name] = page.locator("#tabs .rb-tab").all_inner_texts()
+        page.goto(server.url)
+        sign_out(page)
+
+    assert "Setup" in seen["Nancy"]
+    assert "Setup" not in seen["Shadrach"] and "Requests" in seen["Shadrach"]
+    assert seen["Ravi Kumar"] == ["My requests"]

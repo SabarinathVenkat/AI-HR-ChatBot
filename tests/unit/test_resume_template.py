@@ -103,3 +103,11 @@ def test_a_blank_line_the_template_keeps_between_highlight_bullets_is_remembered
 
     assert spaced.separator is not None and paragraph_text(spaced.separator) == ""
     assert plain.separator is None
+
+
+def test_a_projects_heading_that_also_says_experience_is_still_the_projects_section():
+    """Found while checking a second template: "PROJECT EXPERIENCE" was read as the highlights section, because
+    "experience" is matched before "project"."""
+    m = analyse(make_template(highlights_heading="PROFILE HIGHLIGHTS", projects_heading="PROJECT EXPERIENCE"))
+
+    assert m.missing() == [] and len(m.projects.blocks) == 2 and len(m.highlights.region) == 3

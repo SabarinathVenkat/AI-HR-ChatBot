@@ -15,11 +15,13 @@ from docx.document import Document as DocxDocument
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
+# Checked in this order, and the first match wins. "project" comes before "experience", so a heading such as
+# "PROJECT EXPERIENCE" is the projects section and not the highlights.
 SECTION_WORDS = {
     "skills": r"skill|technolog|expertise|competenc|tech stack",
     "education": r"education|qualification|academic",
-    "highlights": r"experience|summary|highlight|profile",
     "projects": r"project",
+    "highlights": r"experience|summary|highlight|profile",
     "certifications": r"certif|training|award",
 }
 MAX_HEADING_CHARS = 40
