@@ -54,7 +54,8 @@ def test_a_resume_goes_from_request_to_approved_download(page, start_server):
 
     # RMG tags Ravi (who has a lead) and sees that Sanjay cannot be tagged.
     open_builder(page, server, "Sam Joseph")
-    expect(page.get_by_label(re.compile("Sanjay Patel"))).to_be_disabled()
+    expect(page.locator("#blocked-people")).to_contain_text("Sanjay Patel")  # no Lead, so not offered for tagging
+    expect(page.locator("#tag-people input")).to_have_count(4)
     page.get_by_label(re.compile("Ravi Kumar")).check()
     page.locator("#tag-go").click()
     expect(page.locator("#message")).to_contain_text("Tagged 1")

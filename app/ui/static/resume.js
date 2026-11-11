@@ -132,18 +132,24 @@
     };
     jdSelect.addEventListener("change", fillRoles);
     fillRoles();
-    const people = associates.map((a) => h("label", { class: `rb-check${a.lead ? "" : " disabled"}` },
+    const person = (a) => h("label", { class: `rb-check${a.lead ? "" : " disabled"}` },
       h("input", { type: "checkbox", value: a.id, disabled: !a.lead }),
-      h("span", { text: `${a.name}, ${a.department}` + (a.lead ? ` (Lead: ${a.lead})` : " (no Competency Lead yet)") })));
+      h("span", { class: "who-line" }, h("span", { class: "nm", text: a.name }),
+        h("span", { class: "meta", text: a.lead ? `${a.department} · Lead: ${a.lead}` : a.department })));
+    const taggable = associates.filter((a) => a.lead);
+    const blocked = associates.filter((a) => !a.lead);
     const jdFile = h("input", { id: "jd-file", type: "file", accept: ".docx,.pdf,.txt", "aria-label": "Job description file" });
     const jdTitle = h("input", { id: "jd-title", type: "text", placeholder: "Title (optional)" });
 
     const form = h("div", { class: "rb-card" },
       h("h3", { text: "New request" }),
       !tpl.template ? h("p", { class: "rb-warn", text: "No resume template is set up yet. Ask the RMG Head to upload one." }) : null,
-      h("label", { class: "rb-field", for: "tag-jd", text: "Job description" }), jds.length ? jdSelect : h("p", { class: "muted", text: "Upload a job description below." }),
+      h("label", { class: "rb-field", for: "tag-jd", text: "Job description" }), jds.length ? jdSelect : h("p", { class: "muted", text: "Add a job description first." }),
       h("label", { class: "rb-field", for: "tag-role", text: "Role" }), roleSelect,
-      h("label", { class: "rb-field", text: "Tag associates" }), h("div", { id: "tag-people" }, people),
+      h("label", { class: "rb-field", text: "Tag associates" }),
+      h("div", { id: "tag-people", class: "rb-people" }, taggable.map(person)),
+      blocked.length ? [h("p", { class: "muted rb-subhead", text: "No Competency Lead yet, so they cannot be tagged:" }),
+        h("div", { id: "blocked-people", class: "rb-chips" }, blocked.map((a) => h("span", { class: "chip nice", text: a.name })))] : null,
       h("div", { class: "rb-row" }, h("button", { id: "tag-go", class: "btn primary", type: "button", on: { click: () => attempt(async () => {
         const ids = [...document.querySelectorAll("#tag-people input:checked")].map((i) => Number(i.value));
         if (!jds.length || !ids.length) { flash("Choose a job description and at least one associate.", "error"); return; }
@@ -151,18 +157,20 @@
         const skipped = result.skipped.map((s) => s.message).join(" ");
         flash(`Tagged ${result.created.length}.${skipped ? " " + skipped : ""}`, result.skipped.length ? "error" : "ok");
         await renderTab();
-      }) } }, "Tag selected")),
+      }) } }, "Tag selected")));
+
+    const jdCardNode = h("div", { class: "rb-card" },
       h("h3", { text: "Add a job description" }),
-      h("label", { class: "rb-field", for: "jd-file", text: "File (.docx, .pdf or .txt)" }), jdFile,
-      h("label", { class: "rb-field", for: "jd-title", text: "Title" }), jdTitle,
-      h("div", { class: "rb-row" }, h("button", { id: "jd-go", class: "btn", type: "button", on: { click: () => attempt(async () => {
-        const file = jdFile.files[0];
-        if (!file) { flash("Choose a file first.", "error"); return; }
-        const title = jdTitle.value.trim();
-        await upload(`/resume/jds?filename=${encodeURIComponent(file.name)}${title ? `&title=${encodeURIComponent(title)}` : ""}`, file);
-        flash("Job description added.", "ok");
-        await renderTab();
-      }, "Reading the job description…") } }, "Upload")));
+      h("div", { class: "rb-inline" }, jdFile, jdTitle,
+        h("button", { id: "jd-go", class: "btn", type: "button", on: { click: () => attempt(async () => {
+          const file = jdFile.files[0];
+          if (!file) { flash("Choose a file first.", "error"); return; }
+          const title = jdTitle.value.trim();
+          await upload(`/resume/jds?filename=${encodeURIComponent(file.name)}${title ? `&title=${encodeURIComponent(title)}` : ""}`, file);
+          flash("Job description added.", "ok");
+          await renderTab();
+        }, "Reading the job description…") } }, "Upload")),
+      h("p", { class: "muted", text: "A Word, PDF or text file. It is read once and stored, and can be used for many associates." }));
 
     const table = h("table", { class: "rb-table" },
       h("thead", {}, h("tr", {}, ["Job description", "Associate", "Lead", "Status", "Required covered", ""].map((t) => h("th", { text: t })))),
@@ -171,7 +179,8 @@
         h("td", {}, statusBadge(r.status)), h("td", { text: r.coverage ? pct(r.coverage.required_after) : "-" }),
         h("td", {}, h("button", { class: "btn", type: "button", on: { click: () => openRequest(r.id) } }, "Open"))))));
     $("view").replaceChildren(h("h2", { text: "Resume requests" }), h("div", { class: "rb-grid rb-two" }, form,
-      h("div", {}, requests.length ? table : h("p", { class: "rb-empty", text: "No requests yet." }))));
+      h("div", {}, jdCardNode, h("div", { class: "rb-card" }, h("h3", { text: "Requests" }),
+        requests.length ? table : h("p", { class: "rb-empty", text: "No requests yet. Tag an associate to start one." })))));
   }
 
   /* ---------- RMG head setup ---------- */
@@ -183,8 +192,8 @@
     $("view").replaceChildren(h("h2", { text: "Setup" }), h("div", { class: "rb-grid rb-two" },
       h("div", {}, h("div", { class: "rb-card" },
         h("h3", { text: "Resume template" }),
-        h("p", { id: "tpl-current", text: tpl.template ? `Active: ${tpl.template.name} (${tpl.template.filename})` : "No template yet." }),
-        h("p", { class: "muted", text: "A Word (.docx) file. The new template replaces the active one for new drafts." }),
+        h("p", { id: "tpl-current", class: "rb-current", text: tpl.template ? `Active: ${tpl.template.name}` : "No template yet." }),
+        h("p", { class: "muted", text: "A Word (.docx) file. It is checked for the parts a resume needs before it becomes active. A new template replaces the active one for new drafts." }),
         h("label", { class: "rb-field", for: "tpl-file", text: "Template file" }), file,
         h("div", { class: "rb-row" }, h("button", { id: "tpl-go", class: "btn primary", type: "button", on: { click: () => attempt(async () => {
           if (!file.files[0]) { flash("Choose a file first.", "error"); return; }
@@ -194,7 +203,8 @@
         }, "Checking the template…") } }, "Upload template")))),
       h("div", { class: "rb-card" },
         h("h3", { text: "Competency Lead for each associate" }),
-        h("div", { class: "rb-row" }, associate, lead,
+        h("p", { class: "muted", text: "The Lead approves that associate's resumes. An associate with no Lead cannot be tagged." }),
+        h("div", { class: "rb-map" }, associate, h("span", { class: "arrow", "aria-hidden": "true", text: "→" }), lead,
           h("button", { id: "map-go", class: "btn primary", type: "button", on: { click: () => attempt(async () => {
             await call("/resume/leads", { method: "PUT", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ associate_id: Number(associate.value), lead_id: Number(lead.value) }) });
@@ -249,7 +259,8 @@
     const buttons = [];
     const btn = (id, label, fn, cls = "btn", busy) => buttons.push(h("button", { id, class: cls, type: "button", on: { click: () => attempt(fn, busy) } }, label));
     if (can.upload) {
-      buttons.push(h("label", { class: "rb-field", for: "resume-file", text: d.base_filename ? `Your resume: ${d.base_filename}` : "Your resume (max 5 pages)" }), fileInput);
+      buttons.push(h("label", { class: "rb-filepick", for: "resume-file" },
+        h("span", { text: d.base_filename ? `Your resume: ${d.base_filename}` : "Your resume (max 5 pages)" }), fileInput));
       btn("upload-resume", "Upload", async () => {
         const file = fileInput.files[0];
         if (!file) { flash("Choose your resume file first.", "error"); return; }
@@ -268,7 +279,7 @@
     if (can.reopen) btn("reopen", "Reopen to edit", async () => { await post(`/resume/requests/${d.id}/reopen`); await refreshDetail(); });
     if (can.download) buttons.push(h("button", { id: "download", class: "btn", type: "button", on: { click: () => download(d.id) } }, d.status === "approved" ? "Download approved resume" : "Download draft"));
     if (can.cancel) btn("cancel", "Cancel request", async () => { await post(`/resume/requests/${d.id}/cancel`); flash("Request cancelled.", "ok"); await refreshDetail(); });
-    return h("div", { class: "rb-row" }, buttons);
+    return h("div", { class: "rb-toolbar" }, buttons);
   }
 
   function decisionCard(d) {
@@ -339,7 +350,7 @@
   }
 
   function mover(label, command) {
-    return h("button", { type: "button", "aria-label": label, on: { click: () => doEdit(command) } }, label.startsWith("Move up") ? "↑" : "↓");
+    return h("button", { type: "button", "aria-label": label, on: { click: () => doEdit(command) } }, label.startsWith("Move up") ? "Up" : "Down");
   }
 
   function factBox(d, project) {
@@ -410,13 +421,17 @@
 
   function renderWorkspace() {
     const d = state.detail;
-    $("view").replaceChildren(
+    $("view").replaceChildren(...[
       h("div", { class: "rb-bar" },
         h("button", { class: "btn", type: "button", id: "back", on: { click: () => attempt(renderTab) } }, "Back"),
-        h("h2", { text: `${d.jd.title}: ${d.associate.name}` }), statusBadge(d.status)),
-      h("p", { class: "muted", text: `Competency Lead: ${d.lead.name}` + (d.decision_note ? ` · Note: ${d.decision_note}` : "") }),
+        h("div", { class: "rb-titleblock" },
+          h("h2", { text: `${d.jd.title}: ${d.associate.name}` }),
+          h("span", { class: "muted", text: `Competency Lead: ${d.lead.name}` })),
+        statusBadge(d.status)),
+      d.decision_note ? h("p", { class: "rb-note", id: "decision-note-shown", text: `Competency Lead note: ${d.decision_note}` }) : null,
       actionBar(d), decisionCard(d),
-      h("div", { class: "rb-grid rb-work" }, jdCard(d), resumeCard(d), changesCard(d)));
+      h("div", { class: "rb-grid rb-work" }, jdCard(d), resumeCard(d), changesCard(d)),
+    ].filter(Boolean));
   }
 
   /* ---------- tabs ---------- */
