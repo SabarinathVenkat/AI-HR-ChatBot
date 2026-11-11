@@ -16,7 +16,8 @@ import re
 from dataclasses import dataclass
 
 from docx import Document
-from docx.oxml import OxmlElement
+from docx.enum.text import WD_COLOR_INDEX
+from docx.oxml import OxmlElement, parse_xml
 from docx.shared import RGBColor
 
 from app.rmg.resume.model import Resume
@@ -149,8 +150,24 @@ def _render_skills(m: TemplateMap, resume: Resume) -> None:
     _replace(m.skills.region, new)
 
 
+def _entry_span(region: list) -> list:
+    """Every element from the first entry to the last, including the blank spacers the template keeps between them."""
+    span, element = [], region[0]
+    while element is not None:
+        span.append(element)
+        if element is region[-1]:
+            break
+        element = element.getnext()
+    return span
+
+
 def _render_list(slot, entries: list[list[tuple[str, bool]]]) -> None:
-    _replace(slot.region, [_clone(slot.proto, segments) for segments in entries])
+    new = []
+    for number, segments in enumerate(entries):
+        if number and slot.separator is not None:
+            new.append(copy.deepcopy(slot.separator))  # the template's own spacing between entries
+        new.append(_clone(slot.proto, segments))
+    _replace(_entry_span(slot.region) if slot.separator is not None else slot.region, new)
 
 
 def _project_span(slot) -> list:
@@ -184,22 +201,67 @@ def _render_projects(m: TemplateMap, resume: Resume) -> list[str]:
             new.append(_clone(proto, [(bullet.text, False)]))
         new.append(_blank_like(slot.proto_blank if slot.proto_blank is not None else slot.proto_name))
     _replace(_project_span(slot), new)
-    _keep_with_next(slot.heading)
+    _remove_spacers_before(slot.heading)
+    _start_on_new_page(slot.heading)
     return list(dict.fromkeys(problems))
 
 
-def _keep_with_next(p) -> None:
-    """A heading must not be left alone at the bottom of a page."""
-    ppr = p.find(W + "pPr")
+_PPR_ORDER = ["pStyle", "keepNext", "keepLines", "pageBreakBefore"]  # the order Word requires inside w:pPr
+
+
+def _ensure_ppr_child(ppr, name: str) -> None:
+    if ppr.find(W + name) is not None:
+        return
+    earlier = _PPR_ORDER[:_PPR_ORDER.index(name)]
+    position = 0
+    for index, child in enumerate(ppr):
+        if child.tag.split("}")[1] in earlier:
+            position = index + 1
+    ppr.insert(position, OxmlElement(f"w:{name}"))
+
+
+def _start_on_new_page(heading) -> None:
+    """Page 1 of the template is a fixed block (banner, sidebar, highlights); the projects belong on the pages after it.
+    Left to flow, a short first page lets the projects start at the bottom of page 1, on top of the sidebar."""
+    ppr = heading.find(W + "pPr")
     if ppr is None:
         ppr = OxmlElement("w:pPr")
-        p.insert(0, ppr)
-    if ppr.find(W + "keepNext") is None:
-        position = 1 if ppr.find(W + "pStyle") is not None else 0  # schema order: pStyle, then keepNext
-        ppr.insert(position, OxmlElement("w:keepNext"))
+        heading.insert(0, ppr)
+    _ensure_ppr_child(ppr, "keepNext")
+    _ensure_ppr_child(ppr, "pageBreakBefore")
+
+
+def _remove_spacers_before(heading) -> None:
+    """Blank lines right before the heading only pushed it down the page; with a page break they would risk a blank page."""
+    previous = heading.getprevious()
+    while previous is not None and previous.tag == W + "p" and is_blank(previous):
+        heading.getparent().remove(previous)
+        previous = heading.getprevious()
+
+
+WATERMARK = (
+    '<w:p %s><w:pPr><w:pStyle w:val="Header"/></w:pPr><w:r><w:rPr><w:noProof/></w:rPr><w:pict>'
+    '<v:shapetype id="_x0000_t136" coordsize="21600,21600" o:spt="136" adj="10800" path="m@7,l@8,m@5,21600l@6,21600e">'
+    '<v:formulas><v:f eqn="sum #0 0 10800"/><v:f eqn="prod #0 2 1"/><v:f eqn="sum 21600 0 @1"/><v:f eqn="sum 0 0 @2"/>'
+    '<v:f eqn="sum 21600 0 @3"/><v:f eqn="if @0 @3 0"/><v:f eqn="if @0 21600 @1"/><v:f eqn="if @0 0 @2"/>'
+    '<v:f eqn="if @0 @4 21600"/><v:f eqn="mid @5 @6"/><v:f eqn="mid @8 @5"/><v:f eqn="mid @7 @8"/>'
+    '<v:f eqn="mid @6 @7"/><v:f eqn="sum @6 0 @5"/></v:formulas>'
+    '<v:path textpathok="t" o:connecttype="custom" o:connectlocs="@9,0;@10,10800;@11,21600;@12,10800" o:connectangles="270,180,90,0"/>'
+    '<v:textpath on="t" fitshape="t"/><v:handles><v:h position="#0,bottomRight" xrange="6629,14971"/></v:handles>'
+    '<o:lock v:ext="edit" text="t" shapetype="t"/></v:shapetype>'
+    '<v:shape id="PowerPlusWaterMarkObject%d" o:spid="_x0000_s20%02d" type="#_x0000_t136" '
+    'style="position:absolute;margin-left:0;margin-top:0;width:420pt;height:140pt;rotation:315;z-index:-251658752;'
+    'mso-position-horizontal:center;mso-position-horizontal-relative:margin;mso-position-vertical:center;'
+    'mso-position-vertical-relative:margin" o:allowincell="f" fillcolor="#c00000" stroked="f">'
+    '<v:fill opacity=".18"/><v:textpath style="font-family:&quot;Arial&quot;;font-size:1pt" string="DRAFT"/></v:shape>'
+    '</w:pict></w:r></w:p>'
+)
+_NAMESPACES = ('xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+               'xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"')
 
 
 def _mark_draft(doc) -> None:
+    shape = 0
     for number, section in enumerate(doc.sections):
         headers = [section.header]
         if section.different_first_page_header_footer:
@@ -213,6 +275,9 @@ def _mark_draft(doc) -> None:
             run = paragraph.add_run(DRAFT_TEXT)
             run.bold = True
             run.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
+            run.font.highlight_color = WD_COLOR_INDEX.YELLOW  # readable on a dark banner too
+            shape += 1
+            header._element.append(parse_xml(WATERMARK % (_NAMESPACES, shape, shape)))  # a diagonal DRAFT on the page
 
 
 # --- entry point ------------------------------------------------------------------------------------

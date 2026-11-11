@@ -6,6 +6,7 @@ import io
 
 import pytest
 from docx import Document
+from lxml import etree
 from docx.oxml import OxmlElement
 
 from app.rmg.resume.model import Education, Item, Origin, Project, Resume, SkillGroup
@@ -204,3 +205,71 @@ def test_something_that_is_not_a_docx_is_refused():
         render_resume(b"not a docx", RESUME)
 
     assert e.value.code == "unreadable"
+
+
+# --- spacing: the template's own pattern is reproduced, old spacers do not pile up ---------------------------------------
+
+def highlight_block(result):
+    """The paragraphs between the KEY HIGHLIGHTS heading and the PROJECT DETAILS heading, as text ('' for a blank line)."""
+    lines = [paragraph_text(p) for p in paragraphs(result)]
+    return lines[lines.index("KEY HIGHLIGHTS") + 1:lines.index("PROJECT DETAILS")]
+
+
+def test_highlights_keep_one_blank_line_between_bullets_as_the_template_does():
+    result = render(template=make_template(certifications=True, spaced_highlights=True))
+
+    assert highlight_block(result) == ["Highlight number 0", "", "Highlight number 1", "", "Highlight number 2", "",
+                                       "Highlight number 3", "", "Highlight number 4"]
+
+
+def test_fewer_highlights_than_the_template_had_leave_no_leftover_blank_lines():
+    two = RESUME.model_copy(update={"highlights": RESUME.highlights[:2]})
+
+    assert highlight_block(render(two, template=make_template(certifications=True, spaced_highlights=True))) == [
+        "Highlight number 0", "", "Highlight number 1"]
+
+
+def test_a_template_without_spacers_gets_no_spacers():
+    assert "" not in highlight_block(render())
+
+
+# --- page layout: page 1 is a fixed block, projects start on page 2 ----------------------------------------------------
+
+def test_the_projects_always_start_on_a_new_page_so_they_never_sit_on_the_first_page_sidebar():
+    heading = next(p for p in paragraphs(render()) if paragraph_text(p) == "PROJECT DETAILS")
+    order = [child.tag.split("}")[1] for child in heading.find(f"{W}pPr")]
+
+    assert "pageBreakBefore" in order
+    assert order.index("pStyle") < order.index("keepNext") < order.index("pageBreakBefore")  # the order Word requires
+
+
+def test_spacer_lines_right_before_the_projects_heading_are_removed_so_no_blank_page_can_appear():
+    result = render(template=make_template(certifications=True, spaced_highlights=True, blanks_before_projects=3))
+
+    block = highlight_block(result)
+
+    assert block[-1] == "Highlight number 4"  # no trailing blank lines
+
+
+# --- the draft mark ---------------------------------------------------------------------------------------------------
+
+def header_xml(result) -> str:
+    doc = Document(io.BytesIO(result.docx))
+    return " ".join(etree.tostring(s.header._element).decode() for s in doc.sections)
+
+
+def test_a_draft_also_carries_a_diagonal_watermark_that_shows_on_every_page():
+    xml = header_xml(render(draft=True))
+
+    assert 'string="DRAFT"' in xml and "textpath" in xml
+
+
+def test_an_approved_download_has_no_watermark():
+    assert "textpath" not in header_xml(render(draft=False))
+
+
+def test_the_draft_line_is_highlighted_so_it_can_be_read_on_a_dark_banner():
+    doc = Document(io.BytesIO(render(draft=True).docx))
+    runs = [r for s in doc.sections for p in s.header.paragraphs for r in p.runs if "DRAFT" in r.text]
+
+    assert runs and all(r.font.highlight_color is not None for r in runs)

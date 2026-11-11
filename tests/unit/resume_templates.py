@@ -31,7 +31,8 @@ def label_value(container, label, value):
     return p
 
 
-def make_template(*, education_first=False, header_in_table=False, numbered_bullets=True, certifications=False, title_style=True):
+def make_template(*, education_first=False, header_in_table=False, numbered_bullets=True, certifications=False, title_style=True,
+                  spaced_highlights=False, blanks_before_projects=0):
     doc = Document()
     holder = doc
     if header_in_table:
@@ -64,6 +65,10 @@ def make_template(*, education_first=False, header_in_table=False, numbered_bull
     doc.add_paragraph("KEY HIGHLIGHTS", style="Heading 1")
     for i in range(3):
         add(doc, f"Sample highlight {i}")
+        if spaced_highlights and i < 2:
+            doc.add_paragraph("")  # the real template puts a blank line between highlight bullets
+    for _ in range(blanks_before_projects):
+        doc.add_paragraph("")  # spacer lines the real template puts before the projects heading
     doc.add_paragraph("PROJECT DETAILS", style="Heading 1")
     for n in range(2):
         bold_para(doc, f"Sample Project {n}")

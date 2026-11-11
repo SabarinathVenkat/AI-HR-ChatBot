@@ -96,6 +96,7 @@ class ListSlot:
     heading: object
     region: list
     proto: object  # the first entry, cloned for every new entry
+    separator: object | None = None  # a blank line the template keeps between entries, if it does
 
 
 @dataclass(eq=False)
@@ -219,6 +220,14 @@ def _find_blocks(paras: list) -> list[Block]:
     return blocks
 
 
+def _separator_between(entries: list):
+    """The blank paragraph that sits between the first two entries, if the template spaces its entries that way."""
+    if len(entries) < 2:
+        return None
+    between = entries[0].getnext()
+    return between if between is not None and between.getnext() is entries[1] and is_blank(between) else None
+
+
 def analyse(doc: DocxDocument) -> TemplateMap:
     m = TemplateMap()
     _find_header(doc, m)
@@ -246,7 +255,7 @@ def analyse(doc: DocxDocument) -> TemplateMap:
         heading, paras = found
         bullets = [p for p in paras if has_numbering(p)]
         if bullets:
-            m.highlights = ListSlot(heading=heading, region=bullets, proto=bullets[0])
+            m.highlights = ListSlot(heading=heading, region=bullets, proto=bullets[0], separator=_separator_between(bullets))
             m.notes.append(f"highlights: {len(bullets)} bullets")
     if found := first("projects"):
         heading, paras = found

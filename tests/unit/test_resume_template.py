@@ -95,3 +95,11 @@ def test_the_notes_say_what_was_found_in_plain_words():
 @pytest.mark.parametrize("tag", ["p"])
 def test_the_word_namespace_helper_is_exported_for_the_renderer(tag):
     assert W + tag == "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p"
+
+
+def test_a_blank_line_the_template_keeps_between_highlight_bullets_is_remembered_as_the_separator():
+    spaced = analyse(make_template(spaced_highlights=True)).highlights
+    plain = analyse(make_template()).highlights
+
+    assert spaced.separator is not None and paragraph_text(spaced.separator) == ""
+    assert plain.separator is None
