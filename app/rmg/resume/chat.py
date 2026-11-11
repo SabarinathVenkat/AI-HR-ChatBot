@@ -50,7 +50,12 @@ Commands:
 - remove: delete one item. Give path.
 - move_project: give index (current position) and to (new position).
 - move_bullet: give project, index and to.
-- add_fact: the associate states a NEW fact about themselves. Give text, written as a resume bullet without "I" and using only what they said, and optionally project (a project number).
+- add_fact: ONLY when the associate clearly says that THEY did, used or achieved something that is not in the resume
+  ("I also ran Kubernetes clusters at Finwave", "add that I led the Docker migration"). Give text, written as a resume
+  bullet without "I" and using only what they said, and optionally project (a project number).
+  A request to "mention", "add" or "include" a skill, tool or technology WITHOUT saying that they have that experience is
+  NOT a fact ("add Kubernetes to my skills", "mention Terraform"): use none, and in reply ask whether they have used it and
+  where, so they can state it themselves. Never turn a bare skill name into a fact.
 - set_role: change the role line under the name. Give text.
 - undo: undo the last change.
 - explain: the associate asks what was changed or why.

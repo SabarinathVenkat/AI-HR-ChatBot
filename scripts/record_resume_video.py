@@ -31,6 +31,7 @@ os.environ["HR_CHAT_AUTOSTART"] = "false"
 
 import uvicorn  # noqa: E402
 from dotenv import load_dotenv  # noqa: E402
+from playwright.sync_api import Error as PlaywrightError  # noqa: E402
 from playwright.sync_api import expect, sync_playwright  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,12 +55,14 @@ NARRATION = {
        "RMG staff ask for resumes. The associate builds their own with an assistant. And a Competency Lead approves it. "
        "Everything you will see is the real application with real AI models. The documents are samples.",
     1: "First, a one time setup by the RMG Head, Nancy. Nancy uploads the company resume template, which is an ordinary "
-       "Word file. Before it becomes active, the system checks it is safe, and that it has the parts a resume needs: "
+       "Word file, shown here. Before it becomes active, the system checks it is safe, and that it has the parts a resume needs: "
        "name, summary, skills, highlights and projects. Here, an ordinary document is uploaded by mistake, and it is "
-       "refused with a clear list of what is missing. Then the real template is uploaded, and it is accepted.",
+       "refused with a clear list of what is missing. Then the real template is uploaded, and it is accepted. "
+       "A new template can replace it at any time: new drafts use it, while drafts already built, and approved resumes, "
+       "keep the template they were made with.",
     2: "Nancy also decides which Competency Lead approves which associate. Here the associates are mapped to Veera. "
        "An associate with no Lead cannot be tagged for a resume, because nobody could approve it.",
-    3: "Now RMG staff, Shadrach, gets a new job opening. Shadrach uploads the job description, a Word, PDF or text file. "
+    3: "Now RMG staff, Shadrach, gets a new job opening. Shadrach uploads the job description, a Word, PDF or text file. Here is the file. "
        "An AI model reads it into a structured list: the role, the minimum years, the must have skills and the nice to "
        "have skills. It is read once, stored, and can be used for many associates.",
     4: "Shadrach tags the associates who fit. Here, Sabari. Several people can be tagged at once. People with no "
@@ -67,14 +70,15 @@ NARRATION = {
        "notification.",
     5: "Sabari signs in, and the bell shows a notification. The request is in Sabari's own list. Only Sabari, the Lead "
        "and RMG can see it. For anyone else, it does not exist.",
-    6: "Sabari uploads the current resume. The file is checked before anything else: its real type, its size, macros, "
+    6: "Sabari uploads the current resume, shown here. The file is checked before anything else: its real type, its size, macros, "
        "password protection, and a limit of five pages. Then Build is clicked. Behind the scenes, an AI model reads the "
        "resume, each project is rewritten for this job, in parallel, and a safety check puts back anything that the "
        "original resume does not support.",
     7: "Here is the result. On the left are the job's requirements and a coverage score. It shows which required "
        "skills are in the resume, and which are not. A skill that is missing, like Kubernetes, is shown as not in the "
        "resume, and it is never added. Notice also the warning: the job description contained a sentence trying to "
-       "give orders to an AI. Documents are treated as untrusted, so it was flagged and ignored.",
+       "give orders to an AI. Documents are treated as untrusted, so it was flagged and ignored. "
+       "The original job description can be downloaded from here, by the associate, the Lead and RMG.",
     8: "In the middle is the tailored resume. Any line that was reworded carries a tag. On the right is the change "
        "list: what moved, what was reworded, what was dropped, each with before and after, and the reason. It is "
        "computed by code from the two resumes, so it cannot disagree with what really changed. The experience years "
@@ -87,8 +91,9 @@ NARRATION = {
         "original resume.",
     12: "Changes can also be asked for in plain words. The assistant only picks one edit from a fixed list, and the "
         "system checks it before applying it. Here there is a request for a shorter bullet, and a question about what "
-        "has changed. Then comes a request to mention Kubernetes, which the resume does not have, and the assistant "
-        "refuses. It can reword, but it cannot invent. And the last change can be undone.",
+        "has changed. Then comes a request to mention Kubernetes, which the resume does not have. The assistant "
+        "does not add it, and asks whether the associate has really used it. It can reword, but it cannot invent. "
+        "And the last change can be undone.",
     13: "A draft can be downloaded at any time, in the company template. Until the Lead approves, every download "
         "carries a diagonal DRAFT watermark, so an unapproved resume cannot be mistaken for a final one.",
     14: "Next, a version is saved, and the resume is submitted for review. Only the associate can submit. While the Lead "
@@ -285,13 +290,21 @@ def caption(page, badge: str, title: str, detail: str = "") -> None:
 
 
 def point(page, locator, pause: int = 300):
-    """Move the pointer onto an element, first scrolling it clear of the sticky header and the caption bar."""
-    locator.scroll_into_view_if_needed()
-    box = locator.bounding_box()
-    if box["y"] + box["height"] > 800 - CAPTION_H - 12 or box["y"] < 80:
-        locator.evaluate("el => el.scrollIntoView({block: 'center', inline: 'nearest'})")
-        page.wait_for_timeout(250)
-        box = locator.bounding_box()
+    """Move the pointer onto an element, first scrolling it clear of the sticky header and the caption bar.
+    A screen redraw can replace the element between two steps, so a detached element is looked up again."""
+    for attempt in range(5):
+        try:
+            locator.scroll_into_view_if_needed()
+            box = locator.bounding_box()
+            if box["y"] + box["height"] > 800 - CAPTION_H - 12 or box["y"] < 80:
+                locator.evaluate("el => el.scrollIntoView({block: 'center', inline: 'nearest'})")
+                page.wait_for_timeout(250)
+                box = locator.bounding_box()
+            break
+        except PlaywrightError as error:
+            if attempt == 4 or not any(word in str(error) for word in ("not attached", "detached", "null")):
+                raise
+            page.wait_for_timeout(600)
     x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
     page.mouse.move(x, y, steps=22)
     page.wait_for_timeout(pause)
@@ -391,6 +404,21 @@ def docx_to_pngs(docx: Path, folder: Path) -> list[Path]:
     return pages
 
 
+def prepare_previews(template: Path) -> dict[str, list[Path]]:
+    """Pictures of the input files (as Word shows them), made before recording so the video never waits for Word."""
+    import shutil
+
+    folder = Path(tempfile.mkdtemp())
+    sources = {"template": template, "jd": DATA / "senior_java_developer_jd.docx", "resume": DATA / "sabari_resume.docx"}
+    previews = {}
+    for key, source in sources.items():
+        copy = folder / f"{key}{source.suffix}"  # a unique name, so the page pictures of different files never clash
+        shutil.copy(source, copy)
+        previews[key] = docx_to_pngs(copy, folder)
+        print(f"  preview {key}: {len(previews[key])} page(s)", flush=True)
+    return previews
+
+
 def show_pages(page, images: list[Path], title: str) -> None:
     """A full-screen overlay with the pages of a downloaded Word file, as pictures."""
     import base64
@@ -405,7 +433,9 @@ def show_pages(page, images: list[Path], title: str) -> None:
         const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:18px;align-items:flex-start;justify-content:center';
         for (const src of sources) {
           const i = document.createElement('img'); i.src = src;
-          i.style.cssText = 'height:calc(100vh - ' + (h + 110) + 'px);width:auto;border:1px solid #334;box-shadow:0 8px 30px rgba(0,0,0,.5);background:#fff';
+          const maxH = window.innerHeight - (h + 110), maxW = (window.innerWidth - 60 - 18 * (sources.length - 1)) / sources.length;
+          i.style.cssText = 'max-height:' + maxH + 'px;max-width:' + maxW + 'px;width:auto;height:auto;border:1px solid #334;' +
+            'box-shadow:0 8px 30px rgba(0,0,0,.5);background:#fff';
           row.append(i);
         }
         o.append(t, row); document.body.append(o);
@@ -428,7 +458,8 @@ def chat(page, message: str, timeout: int = 120000) -> str:
 
 
 # ---------- the walkthrough ----------
-def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path, list[tuple[float, Path]]]:
+def walkthrough(browser, url: str, narrate: bool, template: Path,
+                previews: dict[str, list[Path]]) -> tuple[Path, list[tuple[float, Path]]]:
     work = Path(tempfile.mkdtemp())
     size = {"width": 1280, "height": 800}
     ctx = browser.new_context(viewport=size, record_video_dir=str(work), record_video_size=size, bypass_csp=True,
@@ -449,6 +480,13 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
             talk.say(NARRATION[n])
         else:
             caption(page, f"{n} of {TOTAL}", title, detail)
+
+    def preview(key: str, title: str, hold: int = 7000) -> None:
+        """Show a file that is about to be used, as Word shows it (at most three pages)."""
+        show_pages(page, previews[key][:3], title)
+        page.wait_for_timeout(hold)
+        hide_pages(page)
+        page.wait_for_timeout(400)
 
     def download(button_selector: str, name: str, title: str) -> Path:
         with page.expect_download(timeout=120000) as info:
@@ -473,6 +511,7 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
         login_as(page, "Nancy")
         click(page, page.get_by_role("button", name="Setup"))
         page.wait_for_timeout(1200)
+        preview("template", "The company resume template (a Word file)")
         choose_file(page, "#tpl-file", DATA / "senior_java_developer_jd.docx")  # not a template: must be refused
         click(page, page.locator("#tpl-go"))
         expect(page.locator("#message")).to_have_class(re.compile("error"), timeout=60000)
@@ -491,6 +530,7 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
         # 3 RMG staff: job description
         step(3, "RMG staff: add the job description", "An AI model reads it into role, years, must-have and nice-to-have skills")
         login_as(page, "Shadrach")
+        preview("jd", "The job description to upload (a Word file)")
         choose_file(page, "#jd-file", DATA / "senior_java_developer_jd.docx")
         type_into(page, page.locator("#jd-title"), JD_TITLE)
         click(page, page.locator("#jd-go"))
@@ -520,6 +560,7 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
 
         # 6 upload and build
         step(6, "Upload the resume and build the tailored draft", "Checked on upload, then read, tailored in parallel and safety-checked")
+        preview("resume", "Sabari's current resume (a Word file)")
         choose_file(page, "#resume-file", DATA / "sabari_resume.docx")
         click(page, page.locator("#upload-resume"))
         say_flash(page, "Resume uploaded")
@@ -538,6 +579,9 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
         if page.locator(".rb-warn").count():
             point(page, page.locator(".rb-warn").first, 600)
             page.wait_for_timeout(3000)
+        download("#download-jd", "jd_downloaded.docx", "The job description, downloaded from the request")
+        say_flash(page, "Downloaded the job description")
+        page.wait_for_timeout(1500)
 
         # 8 resume and change log
         step(8, "The tailored resume and the change list", "Tags show what was reworded; the list is computed by code, with before and after")
@@ -703,11 +747,12 @@ def main() -> None:
     print("template:", template.name, flush=True)
     if narrate:
         pregenerate()
+    previews = prepare_previews(template)
     server, url = start_app()
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
-            webm, clips = walkthrough(browser, url, narrate, template)
+            webm, clips = walkthrough(browser, url, narrate, template, previews)
             browser.close()
     finally:
         server.should_exit = True

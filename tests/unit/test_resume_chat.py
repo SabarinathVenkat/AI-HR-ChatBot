@@ -29,3 +29,14 @@ def test_an_explanation_comes_from_the_log_and_is_capped():
     text = explain(log)
 
     assert text.startswith("Changes: 14 items reworded.") and "and 4 more" in text and text.count("\n- ") == 10
+
+
+def test_the_prompt_says_a_bare_skill_request_is_not_a_fact_and_must_be_asked_about():
+    """Found while recording the demo with the real model: "Add Kubernetes to my skills" was turned into an added fact
+    every time, putting a skill on the resume as the associate's own statement when they had stated nothing."""
+    model = FakeModel(parsed=EditCommand(action="none"))
+    LLMEditInterpreter(lambda max_tokens: model)("Add Kubernetes to my skills.", RESUME)
+
+    prompt = model.structured.messages[0].content
+    assert "ONLY when the associate clearly says that THEY did" in prompt
+    assert "WITHOUT saying that they have that experience" in prompt and "Never turn a bare skill name into a fact" in prompt
