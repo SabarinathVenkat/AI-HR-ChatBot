@@ -144,7 +144,10 @@
     const form = h("div", { class: "rb-card" },
       h("h3", { text: "New request" }),
       !tpl.template ? h("p", { class: "rb-warn", text: "No resume template is set up yet. Ask the RMG Head to upload one." }) : null,
-      h("label", { class: "rb-field", for: "tag-jd", text: "Job description" }), jds.length ? jdSelect : h("p", { class: "muted", text: "Add a job description first." }),
+      h("label", { class: "rb-field", for: "tag-jd", text: "Job description" }),
+      jds.length ? h("div", { class: "rb-selectrow" }, jdSelect,
+        h("button", { id: "board-jd-download", class: "btn", type: "button", on: { click: () => downloadJd(`/resume/jds/${jdSelect.value}/file`) } }, "Download"))
+        : h("p", { class: "muted", text: "Add a job description first." }),
       h("label", { class: "rb-field", for: "tag-role", text: "Role" }), roleSelect,
       h("label", { class: "rb-field", text: "Tag associates" }),
       h("div", { id: "tag-people", class: "rb-people" }, taggable.map(person)),
@@ -234,9 +237,10 @@
     loadNotes();
   }
 
-  function download(id) {
+  /* Fetch a file with the signed-in token and hand it to the browser as a download. */
+  function downloadFile(path, fallbackName, doneMessage) {
     return attempt(async () => {
-      const response = await api(`/resume/requests/${id}/download`);
+      const response = await api(path);
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         throw new Error((body.error && body.error.message) || "The download failed.");
@@ -244,14 +248,18 @@
       const blob = await response.blob();
       const match = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "");
       const url = URL.createObjectURL(blob);
-      const link = h("a", { href: url, download: match ? match[1] : "resume.docx" });
+      const link = h("a", { href: url, download: match ? match[1] : fallbackName });
       document.body.append(link);
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
-      flash(response.headers.get("X-Resume-Draft") === "true" ? "Downloaded a DRAFT copy (not approved yet)." : "Downloaded the approved resume.", "ok");
+      flash(doneMessage(response), "ok");
     });
   }
+
+  const download = (id) => downloadFile(`/resume/requests/${id}/download`, "resume.docx",
+    (response) => (response.headers.get("X-Resume-Draft") === "true" ? "Downloaded a DRAFT copy (not approved yet)." : "Downloaded the approved resume."));
+  const downloadJd = (path) => downloadFile(path, "job-description.docx", () => "Downloaded the job description.");
 
   function actionBar(d) {
     const can = d.can;
@@ -309,7 +317,9 @@
         role.min_years !== null && role.min_years !== undefined ? h("p", { class: "muted", text: `At least ${role.min_years} years` + (d.years_text ? ` (you have ${d.years_text})` : "") }) : null,
         d.jd.flagged.length ? h("p", { class: "rb-warn", text: "This job description contains text that tries to instruct an assistant. It was ignored." }) : null,
         h("h3", { text: "Must have" }), chips(role.must_have, ""),
-        role.nice_to_have.length ? [h("h3", { text: "Nice to have" }), chips(role.nice_to_have, "nice")] : null),
+        role.nice_to_have.length ? [h("h3", { text: "Nice to have" }), chips(role.nice_to_have, "nice")] : null,
+        h("div", { class: "rb-row" }, h("button", { id: "download-jd", class: "btn", type: "button",
+          on: { click: () => downloadJd(`/resume/requests/${d.id}/jd`) } }, "Download job description"))),
       cov ? h("div", { class: "rb-card", id: "coverage" },
         h("h3", { text: `Required skills covered: ${pct(cov.required_after)}` }),
         cov.required_after !== null ? h("progress", { class: "rb-progress", max: "1", value: String(cov.required_after) }) : null,

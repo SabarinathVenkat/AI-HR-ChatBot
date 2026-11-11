@@ -234,3 +234,35 @@ def test_chat_editing_works_over_http_and_is_for_the_associate_only(client):
     assert client.post(f"{base}/chat", json={"message": "x"}, headers=hdr(client, STAFF)).status_code == 403
     assert client.post(f"{base}/chat", json={"message": ""}, headers=hdr(client, RAVI)).status_code == 422
     assert client.post(f"{base}/chat", json={"message": "x" * 2001}, headers=hdr(client, RAVI)).status_code == 422
+
+
+# --- downloading the job description ----------------------------------------------------------------------------------
+
+def test_the_job_description_of_a_request_can_be_downloaded_by_those_who_have_a_part_in_it(client):
+    request_id = tagged_request(client)
+
+    for who in (RAVI, LEAD, STAFF):
+        response = client.get(f"/resume/requests/{request_id}/jd", headers=hdr(client, who))
+        assert response.status_code == 200 and response.content[:2] == b"PK"  # the seeded demo JD is made into a Word file
+        assert response.headers["content-disposition"].startswith('attachment; filename="')
+        assert response.headers["x-content-type-options"] == "nosniff"
+    assert client.get(f"/resume/requests/{request_id}/jd", headers=hdr(client, DIVYA)).status_code == 404
+    assert client.get(f"/resume/requests/{request_id}/jd").status_code == 401
+
+
+def test_an_uploaded_job_description_comes_back_exactly_as_it_was_sent(client):
+    original = b"We need a Java developer with Kafka experience."
+    created = client.post("/resume/jds?filename=opening.txt&title=Platform%20Engineer", content=original, headers=hdr(client, STAFF)).json()
+
+    response = client.get(f"/resume/jds/{created['id']}/file", headers=hdr(client, STAFF))
+
+    assert response.status_code == 200 and response.content == original
+    assert response.headers["content-type"].startswith("text/plain")
+    assert 'filename="Platform_Engineer.txt"' in response.headers["content-disposition"]
+
+
+def test_the_job_description_list_download_is_for_rmg_only_and_a_missing_one_is_not_found(client):
+    jd_id = client.get("/resume/jds", headers=hdr(client, STAFF)).json()["jds"][0]["id"]
+
+    assert client.get(f"/resume/jds/{jd_id}/file", headers=hdr(client, RAVI)).status_code == 403
+    assert client.get("/resume/jds/9999/file", headers=hdr(client, STAFF)).status_code == 404

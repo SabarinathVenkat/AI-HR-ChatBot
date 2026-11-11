@@ -165,3 +165,35 @@ progress.rb-progress { width: 100%; height: 12px; }
 .rb-chat-log:empty { display: none; }
 .rb-work > div > .rb-card:first-child { margin-top: 0; }
 .rb-grid.rb-work { gap: 16px; }
+
+/* ---------- layout fixes (found with long, sentence-style requirements at several window widths) ---------- */
+.rb-grid > * { min-width: 0; }                       /* a grid cell may shrink below its widest child, so nothing spills out */
+@media (min-width: 1101px) { .rb-work { grid-template-columns: minmax(260px, 340px) minmax(340px, 1fr) minmax(280px, 380px); } }
+.rb-chips .chip {
+  white-space: normal; overflow-wrap: anywhere;      /* the chat app's citation chips never wrap; requirement chips must */
+  max-width: 100%; line-height: 1.3; border-radius: 12px; padding: 3px 10px;
+}
+.rb-card { overflow-wrap: anywhere; }
+.rb-card .rb-row { margin-top: 12px; }
+
+/* one height for the whole toolbar, so the file box and the buttons line up */
+.rb-toolbar { align-items: stretch; }
+.rb-toolbar > * { min-height: 44px; }
+.rb-toolbar .btn { display: inline-flex; align-items: center; padding: 0 18px; }
+.rb-filepick { box-sizing: border-box; padding: 0 12px; margin: 0; }  /* the main stylesheet gives every label a margin */
+
+/* the browser's raw "Choose File" button, in the app's style */
+input[type="file"]::file-selector-button {
+  margin-right: 10px; padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 8px;
+  background: var(--primary-soft); color: var(--primary-dark); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover { background: #d7e5ff; }
+
+.rb-selectrow { display: flex; gap: 8px; align-items: center; }
+.rb-selectrow select { flex: 1; min-width: 0; }
+.rb-selectrow .btn { white-space: nowrap; padding: 8px 14px; }
+@media (max-width: 700px) {
+  .rb-head { padding: 10px 14px; gap: 10px; }
+  .rb-main { padding: 14px; }
+  .rb-toolbar > * { width: 100%; }
+}

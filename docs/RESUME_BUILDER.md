@@ -94,6 +94,14 @@ It checks that the instruction is flagged and ignored and that no fake skill rea
 - `people.py`, `demo.py`: RMG roles, the Lead mapping and demo accounts.
 - `app/api/resume_routes.py` and `app/ui/static/resume.*`: HTTP and screens.
 
+## Job description download
+
+The original job description file is kept when RMG adds it (in the file store, outside the repository). The associate,
+their Competency Lead and RMG can download it from the request screen ("Download job description"), and RMG can also
+download it from the job description list on the Requests tab. A job description that has no stored file (the seeded
+demo one, or one added before this existed) is made into a Word file from its stored requirements, so the button always
+works. Older databases gain the new `file_key` column automatically when the app starts.
+
 ## Known limits
 
 - Only the heuristic template analyser exists. A template with no Title-style header or with bullets typed as a

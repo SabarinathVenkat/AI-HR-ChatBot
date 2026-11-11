@@ -108,7 +108,7 @@ def start():
     threading.Thread(target=server.run, daemon=True).start()
     while not server.started:
         time.sleep(0.05)
-    return server, f"http://127.0.0.1:{port}"
+    return server, f"http://127.0.0.1:{port}", db
 
 
 def sign_in(page, url, name):
@@ -133,7 +133,7 @@ def shot(page, name):
 
 
 def main() -> None:
-    server, url = start()
+    server, url, _ = start()
     template = io.BytesIO(make_demo_template())
     try:
         with sync_playwright() as p:

@@ -27,7 +27,7 @@ from app.rmg.resume.facts import experience
 from app.rmg.resume.filestore import FileStore
 from app.rmg.resume.grounding import check_grounding
 from app.rmg.resume.ingest import IngestError, read_document
-from app.rmg.resume.jd import JobDescription
+from app.rmg.resume.jd import JobDescription, jd_to_docx
 from app.rmg.resume.match import build_match_plan
 from app.rmg.resume.model import Resume
 from app.rmg.resume.people import lead_of, roles_of
@@ -40,6 +40,8 @@ OPEN_FOR_ASSOCIATE = ("requested", "in_progress", "changes_requested")
 EDITABLE = ("in_progress", "changes_requested")
 RMG = frozenset({"rmg_staff", "rmg_head"})
 MAX_UNDO = 20
+DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+MEDIA_TYPES = {".docx": DOCX_TYPE, ".pdf": "application/pdf", ".txt": "text/plain; charset=utf-8"}
 
 
 class ServiceError(Exception):
@@ -192,9 +194,10 @@ class ResumeService:
         except (IngestError, ExtractionError) as e:
             raise ServiceError(e.code, str(e), 422) from None
         name = (title or jd.roles[0].title)[:150]
+        key = self.files.put(data, {"docx": ".docx", "pdf": ".pdf", "txt": ".txt"}[document.kind])  # keep the original file
         cursor = self.conn.execute(
-            "INSERT INTO job_descriptions (title, filename, jd_json, created_by, created_at) VALUES (?,?,?,?,?)",
-            (name, document.filename, jd.model_dump_json(), self.actor.id, self._iso()))
+            "INSERT INTO job_descriptions (title, filename, jd_json, file_key, created_by, created_at) VALUES (?,?,?,?,?,?)",
+            (name, document.filename, jd.model_dump_json(), key, self.actor.id, self._iso()))
         self._audit("jd_created", {"jd_id": cursor.lastrowid})
         self.conn.commit()
         return self._jd_view(cursor.lastrowid)
@@ -204,6 +207,38 @@ class ResumeService:
         jd = JobDescription.model_validate_json(row["jd_json"])
         return {"id": row["id"], "title": row["title"], "filename": row["filename"], "created_at": row["created_at"],
                 "roles": [r.model_dump() for r in jd.roles], "flagged": jd.flagged}
+
+    def _jd_file(self, jd_id: int) -> tuple[str, bytes, str]:
+        """The original file if it was kept, otherwise a Word file made from the stored requirements."""
+        row = self.conn.execute("SELECT * FROM job_descriptions WHERE id = ?", (jd_id,)).fetchone()
+        if row is None:
+            raise ServiceError("not_found", "That job description was not found.", 404)
+        base = _safe_filename(row["title"])
+        if row["file_key"]:
+            try:
+                data = self.files.get(row["file_key"])
+                suffix = "." + row["file_key"].rsplit(".", 1)[1]
+                return base + suffix, data, MEDIA_TYPES[suffix]
+            except FileNotFoundError:
+                pass  # the file has gone: fall back to the stored requirements
+        data = jd_to_docx(row["title"], JobDescription.model_validate_json(row["jd_json"]))
+        return base + ".docx", data, DOCX_TYPE
+
+    def download_jd(self, request_id: int) -> tuple[str, bytes, str]:
+        """The job description of a request, for the associate, their Lead and RMG."""
+        row = self._visible(request_id)
+        result = self._jd_file(row["jd_id"])
+        self._audit("jd_downloaded", {"request_id": request_id, "jd_id": row["jd_id"]})
+        self.conn.commit()
+        return result
+
+    def jd_file(self, jd_id: int) -> tuple[str, bytes, str]:
+        """A job description from RMG's list."""
+        self._need(*RMG)
+        result = self._jd_file(jd_id)
+        self._audit("jd_downloaded", {"jd_id": jd_id})
+        self.conn.commit()
+        return result
 
     def list_jds(self) -> list[dict]:
         self._need(*RMG)

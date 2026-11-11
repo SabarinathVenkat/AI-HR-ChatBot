@@ -20,6 +20,21 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
     return conn
 
 
+# Columns added after a table first shipped. CREATE TABLE IF NOT EXISTS leaves an older database as it was, so each is
+# added here when missing.
+ADDED_COLUMNS = [("job_descriptions", "file_key", "TEXT")]
+
+
+def upgrade_schema(conn: sqlite3.Connection) -> None:
+    """Add any column an older database lacks. Safe to run again."""
+    for table, column, definition in ADDED_COLUMNS:
+        existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if existing and column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    conn.commit()
+
+
 def init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    upgrade_schema(conn)
     conn.commit()

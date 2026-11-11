@@ -160,6 +160,7 @@ CREATE TABLE IF NOT EXISTS job_descriptions (
     title      TEXT NOT NULL,
     filename   TEXT NOT NULL,
     jd_json    TEXT NOT NULL,
+    file_key   TEXT,
     created_by INTEGER NOT NULL REFERENCES employees(id),
     created_at TEXT NOT NULL
 );

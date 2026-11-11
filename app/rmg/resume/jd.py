@@ -4,6 +4,9 @@ The model only reads (ExtractedJD). Code cleans the result: trims and de-duplica
 makes no sense, and keeps any text that tried to instruct the assistant as a flag for a person, never as an order.
 The same safe extraction path as for resumes is used, so failures look the same.
 """
+import io
+
+from docx import Document
 from pydantic import BaseModel, ValidationError
 
 from app.rmg.resume.extract import ExtractionError, ModelFactory, invoke_structured
@@ -95,3 +98,26 @@ class JDExtractor:
 
     def extract(self, doc: SourceDocument) -> JobDescription:
         return to_job_description(invoke_structured(self._make_model, ExtractedJD, doc, INSTRUCTIONS))
+
+
+def jd_to_docx(title: str, jd: JobDescription) -> bytes:
+    """A Word file made from the stored requirements, for a job description whose original file is not available."""
+    doc = Document()
+    doc.add_heading(title, level=0)
+    for role in jd.roles:
+        doc.add_heading(role.title, level=1)
+        if role.min_years is not None:
+            doc.add_paragraph(f"Minimum experience: {role.min_years} years")
+        if role.domain:
+            doc.add_paragraph(f"Domain: {role.domain}")
+        doc.add_heading("Must have", level=2)
+        for skill in role.must_have:
+            doc.add_paragraph(skill, style="List Bullet")
+        if role.nice_to_have:
+            doc.add_heading("Nice to have", level=2)
+            for skill in role.nice_to_have:
+                doc.add_paragraph(skill, style="List Bullet")
+    doc.add_paragraph("This document was made from the requirements stored in the system. The original file was not kept.")
+    out = io.BytesIO()
+    doc.save(out)
+    return out.getvalue()

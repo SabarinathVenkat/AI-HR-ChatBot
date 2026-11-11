@@ -110,6 +110,18 @@ def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Cal
                         svc: ResumeService = Depends(service)):
         return svc.create_jd(filename, await read_upload(request, MAX_RESUME_UPLOAD), title)
 
+    def as_attachment(result: tuple[str, bytes, str]) -> Response:
+        name, data, media_type = result
+        return Response(content=data, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+    @app.get("/resume/jds/{jd_id}/file")
+    def jd_file(jd_id: int, svc: ResumeService = Depends(service)):
+        return as_attachment(svc.jd_file(jd_id))
+
+    @app.get("/resume/requests/{request_id}/jd")
+    def request_jd(request_id: int, svc: ResumeService = Depends(service)):
+        return as_attachment(svc.download_jd(request_id))
+
     @app.get("/resume/associates")
     def associates(svc: ResumeService = Depends(service)):
         return {"associates": svc.associates()}

@@ -149,3 +149,53 @@ def test_the_lead_can_send_a_resume_back_and_the_associate_sees_why(page, start_
     page.locator("#bell").click()
     expect(page.locator("#notes")).to_contain_text("sent back")
     assert [e for e in page.console_errors if "422" not in e] == []  # the one deliberate 422 is the empty note
+
+
+def test_the_job_description_can_be_downloaded_from_the_board_and_from_the_associates_request(page, start_server):
+    server = start_server([], resume=True)
+    open_builder(page, server, "Shadrach")
+
+    with page.expect_download() as board_download:
+        page.locator("#board-jd-download").click()
+    assert board_download.value.suggested_filename.endswith(".docx")
+
+    page.get_by_label(re.compile("Ravi Kumar")).check()
+    page.locator("#tag-go").click()
+    expect(page.locator("#message")).to_contain_text("Tagged 1")
+    page.goto(server.url)
+    sign_out(page)
+    open_builder(page, server, "Ravi Kumar")
+    page.get_by_role("button", name="Open").first.click()
+    with page.expect_download() as request_download:
+        page.locator("#download-jd").click()
+    assert request_download.value.suggested_filename.endswith(".docx")
+    expect(page.locator("#message")).to_contain_text("Downloaded the job description")
+    assert page.console_errors == []
+
+
+def test_long_requirement_text_stays_inside_its_card_at_common_window_sizes(page, start_server):
+    """Found from a screenshot: requirement chips written as long sentences ran out of the narrow left card."""
+    server = start_server([], resume=True)
+    open_builder(page, server, "Shadrach")
+    page.get_by_label(re.compile("Ravi Kumar")).check()
+    page.locator("#tag-go").click()
+    expect(page.locator("#message")).to_contain_text("Tagged 1")
+    page.goto(server.url)
+    sign_out(page)
+    open_builder(page, server, "Ravi Kumar")
+    page.get_by_role("button", name="Open").first.click()
+    expect(page.locator(".rb-chips").first).to_be_visible()
+    page.evaluate("""() => {
+        const chips = document.querySelector('.rb-chips');
+        for (let i = 0; i < 3; i++) {
+          const chip = document.createElement('span'); chip.className = 'chip';
+          chip.textContent = 'Experience designing and consuming REST APIs at scale with a very long explanation of what is wanted';
+          chips.append(chip);
+        }
+    }""")
+    for width in (1572, 1366, 1100, 900):
+        page.set_viewport_size({"width": width, "height": 800})
+        sticking_out = page.evaluate(
+            "() => [...document.querySelectorAll('.chip')].filter(c => c.getBoundingClientRect().right > c.closest('.rb-card').getBoundingClientRect().right + 1).length")
+        overflow = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
+        assert (width, sticking_out, overflow) == (width, 0, 0)
