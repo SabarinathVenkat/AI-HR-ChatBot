@@ -2,8 +2,9 @@
 
     .venv\\Scripts\\python.exe scripts\\make_demo_documents.py
 
-Writes scripts/demo_data/sabari_resume.docx and scripts/demo_data/senior_java_developer_jd.docx. The job
-description contains a planted line that tries to instruct an AI assistant, to show that it is flagged and ignored.
+Writes scripts/demo_data/sabari_resume.docx, senior_java_developer_jd.docx (contains a planted line that tries to
+instruct an AI assistant, to show that it is flagged and ignored) and payments_platform_jd.docx (a plain, realistic job
+description with nothing planted).
 """
 from pathlib import Path
 
@@ -71,6 +72,38 @@ JD = [
 ]
 
 
+# A plain, realistic job description with nothing planted in it, for trying the builder as a normal user would.
+JD_CLEAN = [
+    ("title", "Senior Java Developer, Payments Platform"),
+    ("p", "Location: Chennai (hybrid)    Employment type: Full time    Experience: 5 to 9 years"),
+    ("h", "About the role"),
+    ("p", "We are looking for a Senior Java Developer to join the team that builds the payments platform for a retail "
+          "banking client. You will design and build backend services that process card and bank-transfer payments, "
+          "work closely with product owners and testers, and help keep the platform fast, secure and reliable."),
+    ("h", "What you will do"),
+    ("b", "Design, build and maintain REST APIs and microservices in Java and Spring Boot."),
+    ("b", "Build event-driven services that publish and consume messages on Kafka."),
+    ("b", "Write and tune SQL queries and stored procedures on PostgreSQL."),
+    ("b", "Write unit and integration tests, and take part in code reviews."),
+    ("b", "Investigate production issues using logs, metrics and tracing, and fix the root cause."),
+    ("b", "Mentor junior developers and share good engineering practices."),
+    ("h", "Must have"),
+    ("b", "At least 5 years of backend development experience."),
+    ("b", "Strong Java (11 or later) and Spring Boot."),
+    ("b", "Experience designing and consuming REST APIs."),
+    ("b", "Hands-on experience with Apache Kafka."),
+    ("b", "Solid SQL skills, ideally PostgreSQL."),
+    ("h", "Nice to have"),
+    ("b", "Experience with AWS services such as EC2, S3 and RDS."),
+    ("b", "Docker and Kubernetes."),
+    ("b", "CI/CD pipelines, for example Jenkins."),
+    ("b", "Exposure to the banking or payments domain."),
+    ("h", "What we offer"),
+    ("p", "A friendly team, a clear growth path, learning support, and the chance to work on a platform used by "
+          "millions of customers."),
+]
+
+
 def build(path: Path, lines: list[tuple[str, str]]) -> None:
     doc = Document()
     doc.styles["Normal"].font.size = Pt(11)
@@ -94,4 +127,5 @@ if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     build(OUT / "sabari_resume.docx", RESUME)
     build(OUT / "senior_java_developer_jd.docx", JD)
+    build(OUT / "payments_platform_jd.docx", JD_CLEAN)
     print("Wrote", *sorted(p.name for p in OUT.iterdir()))

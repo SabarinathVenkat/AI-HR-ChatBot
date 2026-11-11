@@ -97,3 +97,16 @@ def test_extraction_failures_are_the_same_loud_errors_as_for_resumes(model, code
     with pytest.raises(ExtractionError) as e:
         extractor.extract(doc())
     assert e.value.code == code and "SECRET" not in str(e.value)
+
+
+def test_the_instructions_ask_for_short_skill_names_not_sentences_and_keep_years_out_of_the_skill_lists():
+    """Found with the real model: a job description written in sentences gave whole sentences as skills, which can never
+    match a resume. The model is told to give one short name per entry and to put years in min_years."""
+    model = FakeModel(parsed=jd())
+    extractor, _ = extractor_for(model, JDExtractor)
+
+    extractor.extract(doc())
+
+    prompt = model.structured.messages[0].content
+    assert "ONE short skill" in prompt and "Never copy a whole sentence" in prompt and "min_years" in prompt
+    assert '"Kafka", not "Apache Kafka"' in prompt and "not skills" in prompt
