@@ -105,3 +105,16 @@ It checks that the instruction is flagged and ignored and that no fake skill rea
 - Sign-in is the demo password login. Notifications are in-app only (no email).
 - The tailored resume keeps the associate's own role title; it does not take the JD's title.
 - Nothing is deleted automatically (no retention job yet).
+
+## Demo video and screenshots
+
+- `scripts/make_demo_documents.py` makes a made-up sample resume and job description (Word files) in `scripts/demo_data/`.
+  The job description contains a planted sentence that tries to instruct an AI, to show it is flagged and ignored.
+- `scripts/resume_ui_shots.py` takes a screenshot of every screen with fake models (free and instant) into `var/ui/`.
+  Use it to check alignment after changing the screens.
+- `scripts/record_resume_video.py` records a narrated walkthrough of the whole journey with the real application and
+  models, using five demo accounts. It writes `docs/video/resume_builder_walkthrough_narrated.mp4` (git-ignored, large).
+  Needs `pip install imageio-ffmpeg edge-tts pypdfium2` (edge-tts 7.3 or newer; older versions are refused by the
+  voice service), Word installed (the downloaded files are opened in Word to show them), and `ANTHROPIC_API_KEY`.
+  `--no-voice` records a silent video; `--demo-template` uses the generic template instead of the Ideas2IT one.
+  The narration text is the `NARRATION` dictionary at the top of the script; edit it and run again.
