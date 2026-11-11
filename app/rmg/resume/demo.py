@@ -11,15 +11,20 @@ from app.db.seed import DEMO_PASSWORD, email_for
 from app.rmg.resume.jd import JobDescription, Role
 from app.rmg.resume.people import assign_role, set_lead
 
-# name, department, RMG role
+# name, department, RMG role (None: an ordinary associate, who builds resumes)
 DEMO_PEOPLE = [
-    ("Sam Joseph", "Resource Management", "rmg_staff"),
-    ("Rhea Kapoor", "Resource Management", "rmg_head"),
-    ("Lakshmi Narayan", "Engineering", "competency_lead"),
+    ("Shadrach", "Resource Management", "rmg_staff"),
+    ("Nancy", "Resource Management", "rmg_head"),
+    ("Veera", "Engineering", "competency_lead"),
+    ("Sabari", "Engineering", None),
 ]
-LEAD_NAME = "Lakshmi Narayan"
-# Associates mapped to the lead. Sanjay Patel (6) and Karthik Raja (8) are left unmapped on purpose, to show what
-# happens when RMG tags someone who has no Competency Lead.
+LEAD_NAME = "Veera"
+STAFF_NAME = "Shadrach"
+# Earlier versions of the demo used other names. An existing database is renamed in place, so its roles, assignments
+# and requests carry over.
+RENAMED = {"Sam Joseph": "Shadrach", "Rhea Kapoor": "Nancy", "Lakshmi Narayan": "Veera"}
+# Associates mapped to the lead: Sabari, and four of the older demo employees. Sanjay Patel (6) and Karthik Raja (8)
+# are left unmapped on purpose, to show what happens when RMG tags someone who has no Competency Lead.
 MAPPED_ASSOCIATES = (4, 5, 7, 9)
 
 DEMO_JD_TITLE = "Senior Java Developer (demo)"
@@ -42,17 +47,26 @@ def _employee_id(conn: sqlite3.Connection, name: str, department: str, hash_pass
     return cursor.lastrowid
 
 
+def _rename_old_accounts(conn: sqlite3.Connection) -> None:
+    for old, new in RENAMED.items():
+        conn.execute("UPDATE employees SET name = ?, email = ? WHERE lower(email) = lower(?)",
+                     (new, email_for(new), email_for(old)))
+    conn.commit()
+
+
 def seed_resume_demo(conn: sqlite3.Connection, hash_password: Callable[[str], str]) -> None:
+    _rename_old_accounts(conn)
     ids = {}
     for name, department, role in DEMO_PEOPLE:
         ids[name] = _employee_id(conn, name, department, hash_password)
-        assign_role(conn, ids[name], role)
-    for associate in MAPPED_ASSOCIATES:
+        if role is not None:
+            assign_role(conn, ids[name], role)
+    for associate in (*MAPPED_ASSOCIATES, ids["Sabari"]):
         if conn.execute("SELECT 1 FROM employees WHERE id = ?", (associate,)).fetchone():
             set_lead(conn, associate, ids[LEAD_NAME])
     if not conn.execute("SELECT 1 FROM job_descriptions WHERE title = ?", (DEMO_JD_TITLE,)).fetchone():
         conn.execute(
             "INSERT INTO job_descriptions (title, filename, jd_json, created_by, created_at) VALUES (?, ?, ?, ?, ?)",
-            (DEMO_JD_TITLE, "demo-jd.txt", DEMO_JD.model_dump_json(), ids["Sam Joseph"],
+            (DEMO_JD_TITLE, "demo-jd.txt", DEMO_JD.model_dump_json(), ids[STAFF_NAME],
              datetime.now(timezone.utc).isoformat(timespec="seconds")))
         conn.commit()

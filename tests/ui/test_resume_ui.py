@@ -43,7 +43,7 @@ def test_a_resume_goes_from_request_to_approved_download(page, start_server):
     server = start_server([], resume=True)
 
     # The RMG Head sets up the template.
-    open_builder(page, server, "Rhea Kapoor")
+    open_builder(page, server, "Nancy")
     page.get_by_role("button", name="Setup").click()
     page.locator("#tpl-file").set_input_files({"name": "template.docx", "mimeType": "application/octet-stream", "buffer": template_bytes()})
     page.locator("#tpl-go").click()
@@ -53,9 +53,9 @@ def test_a_resume_goes_from_request_to_approved_download(page, start_server):
     sign_out(page)
 
     # RMG tags Ravi (who has a lead) and sees that Sanjay cannot be tagged.
-    open_builder(page, server, "Sam Joseph")
+    open_builder(page, server, "Shadrach")
     expect(page.locator("#blocked-people")).to_contain_text("Sanjay Patel")  # no Lead, so not offered for tagging
-    expect(page.locator("#tag-people input")).to_have_count(4)
+    expect(page.locator("#tag-people input")).to_have_count(5)  # four older demo associates and Sabari
     page.get_by_label(re.compile("Ravi Kumar")).check()
     page.locator("#tag-go").click()
     expect(page.locator("#message")).to_contain_text("Tagged 1")
@@ -88,7 +88,7 @@ def test_a_resume_goes_from_request_to_approved_download(page, start_server):
     sign_out(page)
 
     # The Competency Lead approves.
-    open_builder(page, server, "Lakshmi Narayan")
+    open_builder(page, server, "Veera")
     expect(page.locator("#view .rb-item")).to_have_count(1)
     page.get_by_role("button", name="Open").click()
     expect(page.locator("#changes")).to_contain_text("Emphasised")
@@ -98,7 +98,7 @@ def test_a_resume_goes_from_request_to_approved_download(page, start_server):
     sign_out(page)
 
     # RMG downloads the approved resume.
-    open_builder(page, server, "Sam Joseph")
+    open_builder(page, server, "Shadrach")
     page.get_by_role("button", name="Open").click()
     with page.expect_download() as info:
         page.locator("#download").click()
@@ -108,14 +108,14 @@ def test_a_resume_goes_from_request_to_approved_download(page, start_server):
 
 def test_the_lead_can_send_a_resume_back_and_the_associate_sees_why(page, start_server):
     server = start_server([], resume=True)
-    open_builder(page, server, "Rhea Kapoor")
+    open_builder(page, server, "Nancy")
     page.get_by_role("button", name="Setup").click()
     page.locator("#tpl-file").set_input_files({"name": "template.docx", "mimeType": "application/octet-stream", "buffer": template_bytes()})
     page.locator("#tpl-go").click()
     expect(page.locator("#message")).to_contain_text("Template uploaded")
     page.goto(server.url)
     sign_out(page)
-    open_builder(page, server, "Sam Joseph")
+    open_builder(page, server, "Shadrach")
     page.get_by_label(re.compile("Ravi Kumar")).check()
     page.locator("#tag-go").click()
     expect(page.locator("#message")).to_contain_text("Tagged 1")
@@ -132,7 +132,7 @@ def test_the_lead_can_send_a_resume_back_and_the_associate_sees_why(page, start_
     page.goto(server.url)
     sign_out(page)
 
-    open_builder(page, server, "Lakshmi Narayan")
+    open_builder(page, server, "Veera")
     page.get_by_role("button", name="Open").click()
     page.locator("#send-back").click()
     expect(page.locator("#message")).to_contain_text("Please say what needs to change")

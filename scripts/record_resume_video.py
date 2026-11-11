@@ -51,53 +51,58 @@ JD_TITLE = "Senior Java Developer, Fintech Payments"
 NARRATION = {
     0: "This is the Resume Builder, a part of the RMG assistant. It helps an associate prepare a resume for one specific "
        "job, in the company template, without inventing anything. Four people take part. The RMG Head sets things up. "
-       "RMG staff ask for resumes. The associate builds theirs with an assistant. And a Competency Lead approves it. "
-       "Everything you will see is the real application with real AI models. The people and documents are samples.",
-    1: "First, a one time setup by the RMG Head, Rhea. She uploads the company resume template, which is an ordinary "
+       "RMG staff ask for resumes. The associate builds their own with an assistant. And a Competency Lead approves it. "
+       "Everything you will see is the real application with real AI models. The documents are samples.",
+    1: "First, a one time setup by the RMG Head, Nancy. Nancy uploads the company resume template, which is an ordinary "
        "Word file. Before it becomes active, the system checks it is safe, and that it has the parts a resume needs: "
-       "name, summary, skills, highlights and projects. Here she tries an ordinary document by mistake, and it is "
-       "refused with a clear list of what is missing. Then she uploads the real template, and it is accepted.",
-    2: "Rhea also decides which Competency Lead approves which associate. Here four associates are mapped to Lakshmi "
-       "Narayan. An associate with no Lead cannot be tagged for a resume, because nobody could approve it.",
-    3: "Now RMG staff, Sam, gets a new job opening. He uploads the job description, a Word, PDF or text file. An AI "
-       "model reads it into a structured list: the role, the minimum years, the must have skills and the nice to have "
-       "skills. It is read once, stored, and can be used for many associates.",
-    4: "Sam tags the associates who fit. Here, Ravi Kumar. He could tag several at once. People with no Competency "
-       "Lead are listed separately and cannot be tagged. Each tagged person gets a request, and a notification.",
-    5: "Ravi signs in, and the bell shows a notification. The request is in his own list. Only Ravi, his Lead and RMG "
-       "can see it. For anyone else, it does not exist.",
-    6: "Ravi uploads his current resume. The file is checked before anything else: its real type, its size, macros, "
-       "password protection, and a limit of five pages. Then he clicks Build. Behind the scenes, an AI model reads the "
+       "name, summary, skills, highlights and projects. Here, an ordinary document is uploaded by mistake, and it is "
+       "refused with a clear list of what is missing. Then the real template is uploaded, and it is accepted.",
+    2: "Nancy also decides which Competency Lead approves which associate. Here the associates are mapped to Veera. "
+       "An associate with no Lead cannot be tagged for a resume, because nobody could approve it.",
+    3: "Now RMG staff, Shadrach, gets a new job opening. Shadrach uploads the job description, a Word, PDF or text file. "
+       "An AI model reads it into a structured list: the role, the minimum years, the must have skills and the nice to "
+       "have skills. It is read once, stored, and can be used for many associates.",
+    4: "Shadrach tags the associates who fit. Here, Sabari. Several people can be tagged at once. People with no "
+       "Competency Lead are listed separately and cannot be tagged. Each tagged person gets a request, and a "
+       "notification.",
+    5: "Sabari signs in, and the bell shows a notification. The request is in Sabari's own list. Only Sabari, the Lead "
+       "and RMG can see it. For anyone else, it does not exist.",
+    6: "Sabari uploads the current resume. The file is checked before anything else: its real type, its size, macros, "
+       "password protection, and a limit of five pages. Then Build is clicked. Behind the scenes, an AI model reads the "
        "resume, each project is rewritten for this job, in parallel, and a safety check puts back anything that the "
        "original resume does not support.",
     7: "Here is the result. On the left are the job's requirements and a coverage score. It shows which required "
-       "skills are in Ravi's resume, and which are not. A skill he does not have, like Kubernetes, is shown as not in "
-       "his resume, and it is never added. Notice also the warning: the job description contained a sentence trying to "
+       "skills are in the resume, and which are not. A skill that is missing, like Kubernetes, is shown as not in the "
+       "resume, and it is never added. Notice also the warning: the job description contained a sentence trying to "
        "give orders to an AI. Documents are treated as untrusted, so it was flagged and ignored.",
     8: "In the middle is the tailored resume. Any line that was reworded carries a tag. On the right is the change "
        "list: what moved, what was reworded, what was dropped, each with before and after, and the reason. It is "
        "computed by code from the two resumes, so it cannot disagree with what really changed. The experience years "
-       "are also computed by code from his dates, not by the model.",
-    9: "Ravi stays in control. He can edit any line by hand. When he saves, the change list updates straight away.",
-    10: "He can remove a line, and move projects up or down. Each of these shows up in the change list too.",
-    11: "If something is true but missing from his resume, he can add it as his own statement. It is clearly tagged as "
-        "added by you, so the Lead can tell what came from Ravi, rather than from his original resume.",
-    12: "He can also ask in plain words. The assistant only picks one edit from a fixed list, and the system checks it "
-        "before applying it. He asks for a shorter bullet. He asks what has changed. Then he asks it to mention "
-        "Kubernetes, which his resume does not have, and it refuses, and offers to add it as his own statement. The "
-        "assistant can reword, but it cannot invent. And he can undo.",
-    13: "Ravi can download a draft at any time, in the company template. Until the Lead approves, every download "
+       "are also computed by code from the dates, not by the model.",
+    9: "The associate stays in control. Any line can be edited by hand. After saving, the change list updates straight "
+       "away.",
+    10: "Lines can be removed, and projects moved up or down. Each of these shows up in the change list too.",
+    11: "If something is true but missing from the resume, the associate can add it as their own statement. It is "
+        "clearly tagged as added by you, so the Lead can tell what came from the associate, rather than from the "
+        "original resume.",
+    12: "Changes can also be asked for in plain words. The assistant only picks one edit from a fixed list, and the "
+        "system checks it before applying it. Here there is a request for a shorter bullet, and a question about what "
+        "has changed. Then comes a request to mention Kubernetes, which the resume does not have, and the assistant "
+        "refuses. It can reword, but it cannot invent. And the last change can be undone.",
+    13: "A draft can be downloaded at any time, in the company template. Until the Lead approves, every download "
         "carries a diagonal DRAFT watermark, so an unapproved resume cannot be mistaken for a final one.",
-    14: "Ravi saves a version, and submits for review. Only the associate can submit. While the Lead reviews, editing "
-        "is locked.",
-    15: "Lakshmi, the Competency Lead, signs in and gets a notification. She sees the resume, the change list, and "
-        "anything Ravi added himself, marked for her attention. Only the Lead mapped to this associate can decide.",
-    16: "She wants more detail, so she sends it back. A note is required, so the associate knows what to change.",
-    17: "Ravi gets a notification, and the status is now changes requested, with her note at the top. He revises, "
-        "saves, and submits again.",
-    18: "Lakshmi reviews again, and approves.",
-    19: "Sam sees on the board that it is approved, with its coverage. He downloads the final resume. This time there "
-        "is no watermark, and no draft mark in the file name. Only the approved version is clean.",
+    14: "Next, a version is saved, and the resume is submitted for review. Only the associate can submit. While the Lead "
+        "reviews, editing is locked.",
+    15: "Veera, the Competency Lead, signs in and gets a notification. Veera sees the resume, the change list, and "
+        "anything the associate added personally, marked for attention. Only the Lead mapped to this associate can "
+        "decide.",
+    16: "The Lead wants more detail, so the resume is sent back. A note is required, so the associate knows what to "
+        "change.",
+    17: "Sabari gets a notification, and the status is now changes requested, with the Lead's note at the top. Sabari "
+        "revises, saves, and submits again.",
+    18: "Veera reviews again, and approves.",
+    19: "Shadrach sees on the board that it is approved, with its coverage, and downloads the final resume. This time "
+        "there is no watermark, and no draft mark in the file name. Only the approved version is clean.",
     20: "If an approved resume needs to change, the associate can reopen it. The approval is cleared, and the next save "
         "becomes a new version, so the history is kept.",
     21: "That was the whole journey. The assistant rewords but never invents skills. Facts such as experience years are "
@@ -330,7 +335,7 @@ def open_builder(page) -> None:
 
 
 def login_as(page, name: str) -> None:
-    expect(page.locator("#demo-list button")).to_have_count(13)
+    expect(page.locator("#demo-list button")).to_have_count(14)
     page.wait_for_timeout(900)
     click(page, page.get_by_role("button", name=re.compile(rf"^{name}")))
     page.wait_for_timeout(600)
@@ -465,7 +470,7 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
 
         # 1 RMG Head: template
         step(1, "RMG Head: set up the resume template", "A Word template, checked for safety and for the parts a resume needs")
-        login_as(page, "Rhea Kapoor")
+        login_as(page, "Nancy")
         click(page, page.get_by_role("button", name="Setup"))
         page.wait_for_timeout(1200)
         choose_file(page, "#tpl-file", DATA / "senior_java_developer_jd.docx")  # not a template: must be refused
@@ -485,7 +490,7 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
 
         # 3 RMG staff: job description
         step(3, "RMG staff: add the job description", "An AI model reads it into role, years, must-have and nice-to-have skills")
-        login_as(page, "Sam Joseph")
+        login_as(page, "Shadrach")
         choose_file(page, "#jd-file", DATA / "senior_java_developer_jd.docx")
         type_into(page, page.locator("#jd-title"), JD_TITLE)
         click(page, page.locator("#jd-go"))
@@ -496,7 +501,7 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
         step(4, "Tag the associates who fit the job", "One request per person; people with no Lead cannot be tagged")
         page.locator("#tag-jd").select_option(label=JD_TITLE)
         point(page, page.locator("#tag-people"), 600)
-        click(page, page.locator("#tag-people .rb-check", has_text="Ravi Kumar"))
+        click(page, page.locator("#tag-people .rb-check", has_text="Sabari"))
         point(page, page.locator("#blocked-people"), 600)
         page.wait_for_timeout(2500)
         click(page, page.locator("#tag-go"))
@@ -509,18 +514,18 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
 
         # 5 associate sees it
         step(5, "The associate sees the request and a notification", "Only the associate, their Lead and RMG can see a request")
-        login_as(page, "Ravi Kumar")
+        login_as(page, "Sabari")
         show_notifications(page)
         open_request(page)
 
         # 6 upload and build
         step(6, "Upload the resume and build the tailored draft", "Checked on upload, then read, tailored in parallel and safety-checked")
-        choose_file(page, "#resume-file", DATA / "ravi_kumar_resume.docx")
+        choose_file(page, "#resume-file", DATA / "sabari_resume.docx")
         click(page, page.locator("#upload-resume"))
         say_flash(page, "Resume uploaded")
         page.wait_for_timeout(2500)
         click(page, page.locator("#build"))
-        expect(page.locator("#resume")).to_contain_text("Ravi Kumar", timeout=300000)
+        expect(page.locator("#resume")).to_contain_text("Sabari", timeout=300000)
         say_flash(page, "tailored draft is ready")
         page.evaluate("window.scrollTo(0, 0)")
         page.wait_for_timeout(2500)
@@ -585,7 +590,7 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
         step(13, "Download a draft", "Every unapproved download carries a DRAFT watermark")
         page.evaluate("window.scrollTo(0, 0)")
         page.wait_for_timeout(1200)
-        download("#download", "ravi_draft.docx", "Draft download: watermark on every page")
+        download("#download", "sabari_draft.docx", "Draft download: watermark on every page")
 
         # 14 save and submit
         step(14, "Save a version and submit for review", "Only the associate can submit; editing is then locked")
@@ -598,8 +603,8 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
         logout(page)
 
         # 15 lead reviews
-        step(15, "The Competency Lead reviews", "She sees the changes, and anything the associate added himself")
-        login_as(page, "Lakshmi Narayan")
+        step(15, "The Competency Lead reviews", "Changes, and anything the associate added personally, are marked")
+        login_as(page, "Veera")
         show_notifications(page)
         open_request(page)
         scroll_to(page, "#changes", 3000)
@@ -619,7 +624,7 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
 
         # 17 associate revises
         step(17, "The associate sees the note and revises", "Status: changes requested; the note is shown at the top")
-        login_as(page, "Ravi Kumar")
+        login_as(page, "Sabari")
         show_notifications(page)
         open_request(page)
         point(page, page.locator("#decision-note-shown"), 600)
@@ -640,7 +645,7 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
 
         # 18 approve
         step(18, "The Competency Lead approves", "Approval creates the approved version")
-        login_as(page, "Lakshmi Narayan")
+        login_as(page, "Veera")
         open_request(page)
         click(page, page.locator("#approve"))
         say_flash(page, "Approved")
@@ -649,16 +654,16 @@ def walkthrough(browser, url: str, narrate: bool, template: Path) -> tuple[Path,
 
         # 19 RMG downloads final
         step(19, "RMG downloads the approved resume", "No watermark and no draft mark: only an approved resume is clean")
-        login_as(page, "Sam Joseph")
+        login_as(page, "Shadrach")
         point(page, page.locator(".rb-table"), 600)
         page.wait_for_timeout(2500)
         open_request(page)
-        download("#download", "ravi_final.docx", "Approved download: no watermark")
+        download("#download", "sabari_final.docx", "Approved download: no watermark")
         logout(page)
 
         # 20 reopen
         step(20, "Reopen an approved resume", "Approval is cleared and the next save is a new version")
-        login_as(page, "Ravi Kumar")
+        login_as(page, "Sabari")
         open_request(page)
         scroll_to(page, "text=Versions", 2500)
         page.evaluate("window.scrollTo(0, 0)")

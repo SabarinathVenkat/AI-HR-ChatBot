@@ -48,7 +48,7 @@ def world(db, tmp_path):
     return World(db, FileStore(tmp_path / "files"), engine)
 
 
-HEAD, STAFF, LEAD, RAVI, DIVYA, SANJAY = "Rhea Kapoor", "Sam Joseph", "Lakshmi Narayan", "Ravi Kumar", "Divya Menon", "Sanjay Patel"
+HEAD, STAFF, LEAD, RAVI, DIVYA, SANJAY = "Nancy", "Shadrach", "Veera", "Ravi Kumar", "Divya Menon", "Sanjay Patel"
 
 
 @pytest.fixture

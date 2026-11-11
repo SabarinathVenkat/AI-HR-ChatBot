@@ -64,7 +64,7 @@ def rich_resume() -> Resume:
         elif section == "PROJECTS" and kind == "b":
             current["bullets"].append(text)
     return Resume(
-        name="Ravi Kumar", role_title=orig("Senior Java Developer", "title"),
+        name="Sabari", role_title=orig("Senior Java Developer", "title"),
         summary=orig("Backend engineer with 10 years of experience building payment and banking platforms.", "summary"),
         skill_groups=skills, education=[Education(degree="B.E. Computer Science", institution="Anna University", year="2014")],
         certifications=["Oracle Certified Professional, Java SE 11"], highlights=highlights,
@@ -139,32 +139,32 @@ def main() -> None:
         with sync_playwright() as p:
             browser = p.chromium.launch()
             page = browser.new_context(viewport=SIZE).new_page()
-            sign_in(page, url, "Rhea Kapoor")
+            sign_in(page, url, "Nancy")
             page.get_by_role("button", name="Setup").click()
             page.locator("#tpl-file").set_input_files({"name": "template.docx", "mimeType": "application/octet-stream", "buffer": template.getvalue()})
             page.locator("#tpl-go").click()
             expect(page.locator("#message")).to_contain_text("Template uploaded")
             shot(page, "01_setup")
             sign_out(page, url)
-            sign_in(page, url, "Sam Joseph")
-            page.get_by_label(re.compile("Ravi Kumar")).check()
+            sign_in(page, url, "Shadrach")
+            page.get_by_label(re.compile("Sabari")).check()
             shot(page, "02_board_form")
             page.locator("#tag-go").click()
             expect(page.locator("#message")).to_contain_text("Tagged 1")
             shot(page, "03_board_tagged")
             sign_out(page, url)
-            sign_in(page, url, "Ravi Kumar")
+            sign_in(page, url, "Sabari")
             page.locator("#bell").click()
             shot(page, "04_notifications")
             page.locator("#bell").click()
             shot(page, "05_my_requests")
             page.get_by_role("button", name="Open").first.click()
             shot(page, "06_workspace_empty")
-            page.locator("#resume-file").set_input_files({"name": "cv.txt", "mimeType": "text/plain", "buffer": b"Ravi"})
+            page.locator("#resume-file").set_input_files({"name": "cv.txt", "mimeType": "text/plain", "buffer": b"Sabari"})
             page.locator("#upload-resume").click()
             expect(page.locator("#message")).to_contain_text("Resume uploaded")
             page.locator("#build").click()
-            expect(page.locator("#resume")).to_contain_text("Ravi Kumar")
+            expect(page.locator("#resume")).to_contain_text("Sabari")
             shot(page, "07_workspace_built")
             page.locator("#resume .rb-project .edit").first.click()
             shot(page, "08_editing")

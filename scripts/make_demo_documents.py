@@ -2,7 +2,7 @@
 
     .venv\\Scripts\\python.exe scripts\\make_demo_documents.py
 
-Writes scripts/demo_data/ravi_kumar_resume.docx and scripts/demo_data/senior_java_developer_jd.docx. The job
+Writes scripts/demo_data/sabari_resume.docx and scripts/demo_data/senior_java_developer_jd.docx. The job
 description contains a planted line that tries to instruct an AI assistant, to show that it is flagged and ignored.
 """
 from pathlib import Path
@@ -13,7 +13,7 @@ from docx.shared import Pt
 OUT = Path(__file__).with_name("demo_data")
 
 RESUME = [
-    ("title", "Ravi Kumar"),
+    ("title", "Sabari"),
     ("sub", "Senior Java Developer"),
     ("h", "SUMMARY"),
     ("p", "Backend engineer with 10 years of experience building payment and banking platforms for retail banks and "
@@ -92,6 +92,6 @@ def build(path: Path, lines: list[tuple[str, str]]) -> None:
 
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
-    build(OUT / "ravi_kumar_resume.docx", RESUME)
+    build(OUT / "sabari_resume.docx", RESUME)
     build(OUT / "senior_java_developer_jd.docx", JD)
     print("Wrote", *sorted(p.name for p in OUT.iterdir()))

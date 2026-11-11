@@ -24,7 +24,7 @@ def test_the_login_page_lists_the_demo_accounts_and_fills_the_form(page, start_s
     page.goto(server.url)
 
     expect(page.locator("#login-screen")).to_be_visible()
-    expect(page.locator("#demo-list button")).to_have_count(13)
+    expect(page.locator("#demo-list button")).to_have_count(14)
     page.get_by_role("button", name=re.compile(r"^Ravi Kumar")).click()
 
     assert page.locator("#login-email").input_value() == "ravi.kumar@example-ideas2it.invalid"

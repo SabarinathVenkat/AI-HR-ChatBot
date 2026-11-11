@@ -18,7 +18,7 @@ from tests.integration.conftest import SECRET, auth_headers
 from tests.unit.resume_fakes import FakeJDExtractor, FakeResumeExtractor, keep_as_written
 from tests.unit.resume_templates import make_template
 
-HEAD, STAFF, LEAD, RAVI, DIVYA, SANJAY = "Rhea Kapoor", "Sam Joseph", "Lakshmi Narayan", "Ravi Kumar", "Divya Menon", "Sanjay Patel"
+HEAD, STAFF, LEAD, RAVI, DIVYA, SANJAY = "Nancy", "Shadrach", "Veera", "Ravi Kumar", "Divya Menon", "Sanjay Patel"
 
 
 def template_bytes() -> bytes:

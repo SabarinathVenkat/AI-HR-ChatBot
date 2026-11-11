@@ -57,9 +57,9 @@ def test_an_associate_without_a_lead_has_none(db):
 def test_the_demo_adds_one_account_per_role_and_maps_leads(db):
     seed_resume_demo(db, hash_password=lambda p: "h")
 
-    assert roles_of(db, employee_id(db, "Sam Joseph")) == {"rmg_staff"}
-    assert roles_of(db, employee_id(db, "Rhea Kapoor")) == {"rmg_head"}
-    lead = employee_id(db, "Lakshmi Narayan")
+    assert roles_of(db, employee_id(db, "Shadrach")) == {"rmg_staff"}
+    assert roles_of(db, employee_id(db, "Nancy")) == {"rmg_head"}
+    lead = employee_id(db, "Veera")
     assert roles_of(db, lead) == {"competency_lead"}
     assert lead_of(db, 4) == lead and lead_of(db, 6) is None  # Sanjay has no lead on purpose: the "no lead" case
     assert db.execute("SELECT count(*) FROM job_descriptions").fetchone()[0] == 1
@@ -73,4 +73,26 @@ def test_the_demo_seed_can_run_again_without_duplicating_anything(db):
     seed_resume_demo(db, hash_password=lambda p: "h")
 
     assert counts == [db.execute(f"SELECT count(*) FROM {t}").fetchone()[0] for t in tables]
-    assert len(DEMO_PEOPLE) == 3
+    assert len(DEMO_PEOPLE) == 4
+
+
+def test_the_demo_associate_sabari_has_no_rmg_role_and_is_mapped_to_the_lead(db):
+    seed_resume_demo(db, hash_password=lambda p: "h")
+
+    sabari = employee_id(db, "Sabari")
+    assert roles_of(db, sabari) == frozenset() and lead_of(db, sabari) == employee_id(db, "Veera")
+
+
+def test_a_database_made_with_the_earlier_demo_names_is_renamed_in_place_keeping_roles_and_requests(db):
+    from app.db.seed import DEMO_PASSWORD  # noqa: F401
+    for name, role in (("Rhea Kapoor", "rmg_head"), ("Sam Joseph", "rmg_staff"), ("Lakshmi Narayan", "competency_lead")):
+        db.execute("INSERT INTO employees (email, password_hash, name, role, manager_id, department, join_date, employment_status)"
+                   " VALUES (?, 'h', ?, 'employee', 1, 'RMG', '2019-01-07', 'confirmed')", (email_for(name), name))
+        assign_role(db, employee_id(db, name), role)
+    old_head = employee_id(db, "Rhea Kapoor")
+
+    seed_resume_demo(db, hash_password=lambda p: "h")
+
+    assert employee_id(db, "Nancy") == old_head and roles_of(db, old_head) == {"rmg_head"}
+    assert db.execute("SELECT count(*) FROM employees WHERE name IN ('Rhea Kapoor','Sam Joseph','Lakshmi Narayan')").fetchone()[0] == 0
+    assert db.execute("SELECT count(*) FROM employees WHERE name IN ('Nancy','Shadrach','Veera')").fetchone()[0] == 3

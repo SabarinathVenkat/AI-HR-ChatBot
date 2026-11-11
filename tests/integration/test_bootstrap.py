@@ -27,7 +27,7 @@ def test_bootstrap_creates_demo_data_and_the_policy_index(tmp_path):
     bootstrap(db, BagOfWordsEmbedder())
 
     employees, chunks, balances = counts(db)
-    assert employees == 13 and chunks > 30 and balances == 30  # 10 HR demo people and 3 RMG demo accounts
+    assert employees == 14 and chunks > 30 and balances == 30  # 10 HR demo people and 4 resume demo accounts
 
 
 def test_an_older_demo_database_gains_the_rmg_accounts_without_losing_anything(tmp_path):
@@ -42,7 +42,7 @@ def test_an_older_demo_database_gains_the_rmg_accounts_without_losing_anything(t
 
     bootstrap(db, BagOfWordsEmbedder())
 
-    assert counts(db)[0] == 13
+    assert counts(db)[0] == 14
 
 
 def test_bootstrap_is_idempotent(tmp_path):

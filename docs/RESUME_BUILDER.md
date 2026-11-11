@@ -19,10 +19,10 @@ Competency Lead approves or sends it back. RMG downloads it; anything not yet ap
 
 ## Roles (demo accounts, password `Welcome@123`)
 
-- Rhea Kapoor, RMG Head: uploads the template and maps associates to Leads.
-- Sam Joseph, RMG staff: adds job descriptions, tags associates, downloads.
-- Lakshmi Narayan, Competency Lead: reviews Ravi, Divya, Priya and Ananya.
-- Ravi Kumar, Divya Menon, Priya Shankar, Ananya Das: associates who build their resumes.
+- Nancy, RMG Head: uploads the template and maps associates to Leads.
+- Shadrach, RMG staff: adds job descriptions, tags associates, downloads.
+- Veera, Competency Lead: reviews Sabari, Divya, Priya and Ananya.
+- Sabari, Divya Menon, Priya Shankar, Ananya Das: associates who build their resumes.
 - Sanjay Patel and Karthik Raja: associates with no Lead. They cannot be tagged until the Head maps them.
 
 ## Run it
@@ -42,29 +42,29 @@ If an older demo database exists, the RMG accounts are added on the next start (
 
 Use a private window per person or sign out between steps. Each step says who is signed in.
 
-1. **Rhea Kapoor** > Resume builder > **Setup**. Upload `demo_template.docx` (or your real template). Expect
+1. **Nancy** > Resume builder > **Setup**. Upload `demo_template.docx` (or your real template). Expect
    "Template uploaded and active". Try uploading a PDF or a Word file with no headings: you should get a clear refusal.
-2. **Rhea Kapoor** > Setup > Competency Lead: map **Sanjay Patel** to Lakshmi Narayan. (Skip to see the no-lead case.)
-3. **Sam Joseph** > Requests. In "Add a job description" upload a JD file (try the one in `scripts/resume_smoke.py`, or
-   use the seeded "Senior Java Developer (demo)"). Under "New request" pick the JD and role, tick **Ravi Kumar**.
+2. **Nancy** > Setup > Competency Lead: map **Sanjay Patel** to Veera. (Skip to see the no-lead case.)
+3. **Shadrach** > Requests. In "Add a job description" upload a JD file (try the one in `scripts/resume_smoke.py`, or
+   use the seeded "Senior Java Developer (demo)"). Under "New request" pick the JD and role, tick **Sabari**.
    Sanjay is greyed out if you skipped step 2. Click **Tag selected**.
-4. **Ravi Kumar** > Resume builder > My requests > Open. Upload a resume (.docx, .pdf or .txt, up to 5 pages) and click
+4. **Sabari** > Resume builder > My requests > Open. Upload a resume (.docx, .pdf or .txt, up to 5 pages) and click
    **Build tailored resume** (about 20 to 60 seconds).
    - Left: the JD's requirements and coverage. Skills the JD wants but your resume lacks are listed as "not claimed".
    - Middle: the tailored resume. Badges mark anything reworded or added by you.
    - Right: **What changed**, with before and after for each change.
-5. Still as Ravi: edit a line, remove one, move a project, click **Add a fact** and add something true. Then in the chat
+5. Still as Sabari: edit a line, remove one, move a project, click **Add a fact** and add something true. Then in the chat
    box try: `make the first bullet shorter`, `what did you change?`, and `mention Kubernetes` (if it is not in the resume,
    the assistant should refuse and offer to add it as your own statement).
 6. Click **Save version**, then **Submit for review**. The editing controls disappear.
-7. **Sam Joseph** > Requests > Open > **Download draft**. Open the file: it has a red "DRAFT - pending approval" line in
+7. **Shadrach** > Requests > Open > **Download draft**. Open the file: it has a red "DRAFT - pending approval" line in
    the header and the file name ends with `_DRAFT.docx`.
-8. **Lakshmi Narayan** > Review > Open. Try **Send back** with no note (it asks for one), then with a note.
-9. **Ravi** sees "Changes requested" and the note, plus a notification (bell). Edit, save, submit again.
-10. **Lakshmi** > **Approve**. **Sam** > Download: now it is the approved version with no DRAFT mark.
-11. **Ravi** > **Reopen to edit** shows that an approved resume can be changed; the next save is a new version.
+8. **Veera** > Review > Open. Try **Send back** with no note (it asks for one), then with a note.
+9. **Sabari** sees "Changes requested" and the note, plus a notification (bell). Edit, save, submit again.
+10. **Veera** > **Approve**. **Shadrach** > Download: now it is the approved version with no DRAFT mark.
+11. **Sabari** > **Reopen to edit** shows that an approved resume can be changed; the next save is a new version.
 
-Also try as **Divya Menon**: open Ravi's request id by URL (`/resume/requests/1` through the API) and you get "not found".
+Also try as **Divya Menon**: open Sabari's request id by URL (`/resume/requests/1` through the API) and you get "not found".
 
 ## Run the automated tests
 
