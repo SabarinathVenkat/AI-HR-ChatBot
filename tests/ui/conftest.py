@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import uvicorn
 from langgraph.checkpoint.memory import MemorySaver
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 from app.agent.graph import AgentDeps, build_agent
 from app.agent.router import RouteDecision
@@ -28,6 +28,10 @@ from tests.support import BagOfWordsEmbedder, FixedRouter, ScriptedChatModel
 from tests.unit.resume_fakes import FakeJDExtractor, FakeResumeExtractor, keep_as_written
 
 POLICIES = Path(__file__).resolve().parents[2] / "data" / "policies"
+
+# Browser tests wait for the real server and, in the journey tests, for several people to sign in in turn. Five seconds
+# was enough on a quiet machine and produced rare false failures on a busy one, so every expectation waits longer.
+expect.set_options(timeout=15_000)
 
 
 class LiveServer:
