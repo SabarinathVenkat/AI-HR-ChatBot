@@ -124,9 +124,23 @@ def _set_run_text(run, text: str) -> None:
 
 # --- sections ---------------------------------------------------------------------------------------
 
+MAX_ROLE_LINE_CHARS = 46  # beyond this the role line wraps onto the summary in the template's banner
+
+
+def shorten_years(text: str) -> str:
+    """"10 years 3 months" -> "10 yrs": the years only, shortened. Months alone are left as they are."""
+    match = re.match(r"^(\d+) years?\b", text.strip())
+    if not match:
+        return text
+    years = int(match.group(1))
+    return f"{years} {'yr' if years == 1 else 'yrs'}"
+
+
 def _render_header(m: TemplateMap, resume: Resume, years_text: str) -> None:
     _fill(m.name, [(resume.name, False)])
     title = resume.role_title.text if resume.role_title else ""
+    if len(f"{title} {years_text}") > MAX_ROLE_LINE_CHARS:
+        years_text = shorten_years(years_text)
     if m.role is not None:
         runs = text_runs(m.role)
         if len(runs) >= 2 and title and years_text:  # the template styles the title and the years differently
@@ -158,13 +172,51 @@ def _entry_span(region: list) -> list:
     return span
 
 
-def _render_list(slot, entries: list[list[tuple[str, bool]]]) -> None:
+def _render_list(slot, entries: list[list[tuple[str, bool]]]) -> list:
+    """Replace a list section's entries with new ones cloned from its prototype. Returns the new elements."""
     new = []
     for number, segments in enumerate(entries):
         if number and slot.separator is not None:
             new.append(copy.deepcopy(slot.separator))  # the template's own spacing between entries
         new.append(_clone(slot.proto, segments))
     _replace(_entry_span(slot.region) if slot.separator is not None else slot.region, new)
+    return new
+
+
+def _job_line(job) -> str:
+    """"Senior Data Scientist, Ideas2IT (May 2025 – Present)"; whatever part is missing is simply left out."""
+    text = ", ".join(part for part in (job.title, job.company) if part)
+    if job.start and job.end:
+        return f"{text} ({job.start} \u2013 {job.end})"
+    return f"{text} (from {job.start})" if job.start else text
+
+
+def _render_work_history(slot, jobs: list, anchor) -> None:
+    """Under the highlights: a subheading and one bullet per job, cloned from the template's own subheading and bullet."""
+    new = [copy.deepcopy(slot.separator) if slot.separator is not None else _blank_like(slot.subheading),
+           _clone(slot.subheading, [("Work history", False)])]
+    for number, job in enumerate(jobs):
+        if number and slot.separator is not None:
+            new.append(copy.deepcopy(slot.separator))
+        new.append(_clone(slot.proto, [(_job_line(job), False)]))
+    for element in new:
+        anchor.addnext(element)
+        anchor = element
+
+
+def template_gaps(template: bytes, resume: Resume) -> list[str]:
+    """In plain words, what this resume has that the template has no place for. Cheap: it only reads the template."""
+    _, m = _load(template)
+    gaps = []
+    if resume.certifications and m.certifications is None:
+        gaps.append("Certifications are not in the Word file: the template has no place for them.")
+    if resume.education and m.education is None:
+        gaps.append("Education is not in the Word file: the template has no place for it.")
+    if resume.jobs and m.highlights.subheading is None:
+        gaps.append("Work history is not in the Word file: the template has no place for it.")
+    if any(p.description for p in resume.projects) and m.projects.proto_desc is None:
+        gaps.append("Project descriptions are not in the Word file: the template has no place for them.")
+    return gaps
 
 
 def _project_span(slot) -> list:
@@ -274,7 +326,12 @@ def render_resume(template: bytes, resume: Resume, *, years_text: str = "") -> R
             _render_list(slot, entries)
         elif entries:
             problems.append(f"{name}: the template has no such section, so they were not included")
-    _render_list(m.highlights, [[(h.text, False)] for h in resume.highlights])
+    new_highlights = _render_list(m.highlights, [[(h.text, False)] for h in resume.highlights])
+    if resume.jobs:
+        if m.highlights.subheading is not None:
+            _render_work_history(m.highlights, resume.jobs, new_highlights[-1] if new_highlights else m.highlights.subheading)
+        else:
+            problems.append("work history: the template has no place for it, so it was not included")
     problems += _render_projects(m, resume)
 
     out = io.BytesIO()

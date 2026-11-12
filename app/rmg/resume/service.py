@@ -34,7 +34,7 @@ from app.rmg.resume.match import build_match_plan
 from app.rmg.resume.model import Resume
 from app.rmg.resume.people import lead_of, roles_of
 from app.rmg.resume.pipeline import PipelineDeps, PipelineError, PipelineRequest, run_pipeline
-from app.rmg.resume.render import TemplateError, check_template, render_resume
+from app.rmg.resume.render import TemplateError, check_template, render_resume, template_gaps
 
 TEMPLATE_LIMITS = dict(max_bytes=40_000_000, max_uncompressed=150_000_000, max_entries=2000, max_pages=50,
                        max_text_chars=200_000)
@@ -393,7 +393,7 @@ class ResumeService:
             "jd": {"id": row["jd_id"], "title": self._jd_title(row["jd_id"]), "role": role.model_dump(), "flagged": jd.flagged},
             "associate": {"id": row["associate_id"], "name": self._name(row["associate_id"])},
             "lead": {"id": row["lead_id"], "name": self._name(row["lead_id"])},
-            "resume": None, "changelog": None, "warnings": [], "years_text": "", "read_coverage": None,
+            "resume": None, "changelog": None, "warnings": [], "years_text": "", "read_coverage": None, "render_notes": [],
             "versions": [dict(v) for v in self.conn.execute(
                 "SELECT version, kind, created_at FROM resume_versions WHERE request_id = ? ORDER BY version", (request_id,))],
             "can": self._can(row, relations, draft is not None),
@@ -401,8 +401,18 @@ class ResumeService:
         if draft is not None:
             log, _ = self._changelog(row, draft)
             view.update(resume=json.loads(draft["working_json"]), changelog=asdict(log), warnings=json.loads(draft["warnings_json"]),
-                        years_text=draft["years_text"], read_coverage=draft["read_coverage"])
+                        years_text=draft["years_text"], read_coverage=draft["read_coverage"], render_notes=self._render_notes(draft))
         return view
+
+    def _render_notes(self, draft) -> list[str]:
+        """What this resume has that the template has no place for, so the associate is told instead of finding it missing."""
+        try:
+            template = self.conn.execute("SELECT * FROM resume_templates WHERE id = ?", (draft["template_id"],)).fetchone() or self.active_template()
+            if template is None:
+                return []
+            return template_gaps(self.files.get(template["file_key"]), Resume.model_validate_json(draft["working_json"]))
+        except (TemplateError, FileNotFoundError, ValueError):
+            return []  # a notice must never stop the page from opening
 
     def summaries(self, scope: str) -> list[dict]:
         if scope == "mine":

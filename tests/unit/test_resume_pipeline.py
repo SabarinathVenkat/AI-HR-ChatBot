@@ -32,7 +32,7 @@ def template_bytes(**kw) -> bytes:
 
 def request(**kw) -> PipelineRequest:
     base = dict(resume_file=("cv.txt", b"Anil Verma, a backend engineer"), jd_file=("jd.txt", b"We need a Java developer"),
-                template=template_bytes(), today=TODAY)
+                template=template_bytes(highlights_subheading="Professional summary and Key highlights"), today=TODAY)
     base.update(kw)
     return PipelineRequest(**base)
 

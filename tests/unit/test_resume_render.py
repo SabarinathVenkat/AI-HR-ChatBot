@@ -275,3 +275,89 @@ def test_an_institution_without_a_degree_renders_too():
     thin = RESUME.model_copy(update={"education": [Education(institution="Anna University", year="2014")]})
 
     assert "Anna University 2014" in texts(render(thin))
+
+
+# --- a long role line: the years are shortened so the banner does not wrap onto the summary ------------------------------
+
+def test_a_long_role_line_gets_short_years_so_it_stays_on_one_line():
+    long_title = RESUME.model_copy(update={"role_title": orig("Senior Data Scientist | ML Engineering & MLOps")})
+
+    assert "Senior Data Scientist | ML Engineering & MLOps 10 yrs" in texts(render(long_title, years_text="10 years 3 months"))
+
+
+def test_a_short_role_line_keeps_the_full_years():
+    assert "Senior Backend Engineer 10 years 3 months" in texts(render(years_text="10 years 3 months"))
+
+
+@pytest.mark.parametrize("given,short", [("10 years 3 months", "10 yrs"), ("1 year", "1 yr"), ("8 months", "8 months"), ("12 years", "12 yrs")])
+def test_years_can_be_shortened(given, short):
+    from app.rmg.resume.render import shorten_years
+
+    assert shorten_years(given) == short
+
+
+# --- work history: shown under the highlights, in the template's own styles, instead of being dropped -----------------------
+
+from app.rmg.resume.model import Job  # noqa: E402
+from app.rmg.resume.render import template_gaps  # noqa: E402
+
+JOBS = [Job(company="Ideas2IT", title="Senior Data Scientist", start="May 2025", end="Present"),
+        Job(company="Photon", title="Lead Data Scientist", start="Jan 2024", end="May 2025"),
+        Job(title="Freelance developer", start="2020"), Job(company="Acme")]
+WITH_JOBS = RESUME.model_copy(update={"jobs": JOBS})
+SUB = "Professional summary and Key highlights"
+
+
+def right_column(result):
+    """The paragraphs from the KEY HIGHLIGHTS heading to the PROJECT DETAILS heading."""
+    lines = [paragraph_text(p) for p in paragraphs(result)]
+    return lines[lines.index("KEY HIGHLIGHTS") + 1:lines.index("PROJECT DETAILS")]
+
+
+def test_work_history_follows_the_highlights_under_its_own_subheading_in_the_templates_styles():
+    result = render(WITH_JOBS, template=make_template(certifications=True, highlights_subheading=SUB))
+
+    column = right_column(result)
+    assert column[0] == SUB  # the template's own subheading is still first
+    start = column.index("Work history")
+    assert column[start - 2:start] == ["Highlight number 4", ""]  # a blank line sets the new block apart
+    assert column[start + 1:start + 5] == ["Senior Data Scientist, Ideas2IT (May 2025 – Present)", "Lead Data Scientist, Photon (Jan 2024 – May 2025)",
+                                           "Freelance developer (from 2020)", "Acme"]
+    bullets = [p for p in paragraphs(result) if paragraph_text(p).startswith(("Senior Data Scientist, Ideas2IT", "Acme"))]
+    assert all(has_numbering(p) for p in bullets)  # the same bullet style as the highlights
+
+
+def test_the_template_spacing_between_bullets_is_kept_in_the_work_history():
+    result = render(WITH_JOBS, template=make_template(certifications=True, spaced_highlights=True, highlights_subheading=SUB))
+
+    column = right_column(result)
+    first = column.index("Senior Data Scientist, Ideas2IT (May 2025 – Present)")
+    assert column[first + 1] == "" and column[first + 2].startswith("Lead Data Scientist")
+
+
+def test_a_resume_with_no_highlights_still_shows_its_work_history():
+    bare = WITH_JOBS.model_copy(update={"highlights": []})
+
+    column = right_column(render(bare, template=make_template(certifications=True, highlights_subheading=SUB)))
+
+    assert "Work history" in column and any(t.startswith("Senior Data Scientist, Ideas2IT") for t in column)
+
+
+def test_a_template_with_no_subheading_cannot_hold_work_history_and_says_so():
+    result = render(WITH_JOBS)
+
+    assert "Work history" not in texts(result)
+    assert any(p.startswith("work history:") for p in result.problems)
+
+
+def test_no_jobs_means_no_work_history_block():
+    assert "Work history" not in texts(render(RESUME, template=make_template(certifications=True, highlights_subheading=SUB)))
+
+
+def test_the_gaps_say_in_plain_words_what_the_template_has_no_place_for():
+    thin = RESUME.model_copy(update={"jobs": JOBS, "certifications": ["AWS Certified"]})
+
+    gaps = template_gaps(save(make_template()), thin)
+
+    assert any("Certifications" in g for g in gaps) and any("Work history" in g for g in gaps)
+    assert template_gaps(save(make_template(certifications=True, highlights_subheading=SUB)), thin) == []

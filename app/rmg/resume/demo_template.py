@@ -50,6 +50,7 @@ def make_demo_template() -> bytes:
     p.add_run(" Sample University 2010")
 
     doc.add_paragraph("KEY HIGHLIGHTS", style="Heading 1")
+    doc.add_paragraph().add_run("Professional summary and Key highlights").bold = True  # the work history goes under this
     for i in range(3):
         _bullet(doc, f"Sample highlight {i + 1}")
 

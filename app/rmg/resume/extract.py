@@ -87,6 +87,14 @@ def _items(texts: list[str], prefix: str) -> list[Item]:
     return [i for n, t in enumerate(texts) if (i := _item(t, f"{prefix}.{n}")) is not None]
 
 
+_PROJECT_LABEL = re.compile(r"^\s*project\s*(?:\d+\s*)?[:\-\u2013\u2014.]\s*", re.IGNORECASE)
+
+
+def _project_name(name: str) -> str:
+    """Resumes often write "Project: Name" or "Project 2 - Name". The label is not part of the name."""
+    return _PROJECT_LABEL.sub("", name).strip() or name.strip()
+
+
 def _opt(text: str) -> str | None:
     return text.strip() or None
 
@@ -106,7 +114,7 @@ def to_resume(x: ExtractedResume) -> Resume:
             highlights=_items(x.highlights, "highlights"),
             jobs=[Job(company=_opt(j.company), title=_opt(j.title), start=_opt(j.start), end=_opt(j.end))
                   for j in x.jobs if _opt(j.company) or _opt(j.title)],
-            projects=[Project(name=p.name, description=_item(p.description, f"projects.{n}.description"),
+            projects=[Project(name=_project_name(p.name), description=_item(p.description, f"projects.{n}.description"),
                               bullets=_items(p.bullets, f"projects.{n}.bullets"))
                       for n, p in enumerate(x.projects) if p.name.strip()],
         )
@@ -198,7 +206,7 @@ def coverage(source_text: str, resume: Resume) -> float | None:
     Headings are not content. A long line (a bullet) must have its 3-word runs in the resume. A short structured line
     ("Languages: Java, SQL", "Engineer, Acme, Mar 2019 - Present") is split across fields in the resume, so its words
     are compared instead."""
-    lines = [chunk for line in source_text.splitlines() if not _is_heading(line) and (words := _words(line))
+    lines = [chunk for line in source_text.splitlines() if not _is_heading(line) and (words := _words(_PROJECT_LABEL.sub("", line)))
              for chunk in _pieces(words)]
     if not lines:
         return None

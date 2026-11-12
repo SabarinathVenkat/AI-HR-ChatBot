@@ -99,6 +99,7 @@ class ListSlot:
     region: list
     proto: object  # the first entry, cloned for every new entry
     separator: object | None = None  # a blank line the template keeps between entries, if it does
+    subheading: object | None = None  # a line under the section heading that is not an entry ("Professional summary and Key highlights")
 
 
 @dataclass(eq=False)
@@ -257,7 +258,9 @@ def analyse(doc: DocxDocument) -> TemplateMap:
         heading, paras = found
         bullets = [p for p in paras if has_numbering(p)]
         if bullets:
-            m.highlights = ListSlot(heading=heading, region=bullets, proto=bullets[0], separator=_separator_between(bullets))
+            subheading = next((p for p in paras if not is_blank(p) and not has_numbering(p)), None)
+            m.highlights = ListSlot(heading=heading, region=bullets, proto=bullets[0], separator=_separator_between(bullets),
+                                    subheading=subheading)
             m.notes.append(f"highlights: {len(bullets)} bullets")
     if found := first("projects"):
         heading, paras = found

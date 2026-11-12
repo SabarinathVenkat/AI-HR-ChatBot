@@ -293,3 +293,24 @@ def test_a_very_long_line_with_a_third_of_it_missing_scores_about_two_thirds_not
     score = coverage(" ".join(sentences), resume)
 
     assert 0.55 <= score <= 0.8
+
+
+# --- found with a real resume: the word "Project:" was kept in every project name ---------------------------------------
+
+@pytest.mark.parametrize("raw,clean", [
+    ("Project: Client Health Monitor (Cigna)", "Client Health Monitor (Cigna)"),
+    ("Project 2: Healthcare CPT Code Prediction", "Healthcare CPT Code Prediction"),
+    ("PROJECT - FIS ML Deployment", "FIS ML Deployment"),
+    ("Projects Dashboard", "Projects Dashboard"),  # a name that merely starts with the word is left alone
+    ("Project Phoenix", "Project Phoenix"),
+])
+def test_the_label_in_front_of_a_project_name_is_dropped_but_a_real_name_is_kept(raw, clean):
+    resume = to_resume(extracted(projects=[ExtractedProject(name=raw, description="", bullets=[])]))
+
+    assert resume.projects[0].name == clean
+
+
+def test_a_project_label_in_the_source_does_not_count_as_lost_content():
+    resume = to_resume(extracted(projects=[ExtractedProject(name="Project: Foo Bar", description="", bullets=[])]))
+
+    assert coverage("Project: Foo Bar", resume) == 1.0

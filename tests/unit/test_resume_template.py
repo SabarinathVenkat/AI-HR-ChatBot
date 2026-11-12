@@ -111,3 +111,11 @@ def test_a_projects_heading_that_also_says_experience_is_still_the_projects_sect
     m = analyse(make_template(highlights_heading="PROFILE HIGHLIGHTS", projects_heading="PROJECT EXPERIENCE"))
 
     assert m.missing() == [] and len(m.projects.blocks) == 2 and len(m.highlights.region) == 3
+
+
+def test_the_line_under_the_highlights_heading_is_remembered_as_the_subheading():
+    with_sub = analyse(make_template(highlights_subheading="Professional summary and Key highlights")).highlights
+    without = analyse(make_template()).highlights
+
+    assert paragraph_text(with_sub.subheading) == "Professional summary and Key highlights"
+    assert without.subheading is None

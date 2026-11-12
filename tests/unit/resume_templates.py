@@ -33,7 +33,7 @@ def label_value(container, label, value):
 
 def make_template(*, education_first=False, header_in_table=False, numbered_bullets=True, certifications=False, title_style=True,
                   spaced_highlights=False, blanks_before_projects=0, skills_heading="SKILLS",
-                  highlights_heading="KEY HIGHLIGHTS", projects_heading="PROJECT DETAILS"):
+                  highlights_heading="KEY HIGHLIGHTS", projects_heading="PROJECT DETAILS", highlights_subheading=None):
     doc = Document()
     holder = doc
     if header_in_table:
@@ -64,6 +64,8 @@ def make_template(*, education_first=False, header_in_table=False, numbered_bull
 
     add = bullet if numbered_bullets else (lambda d, t: d.add_paragraph("• " + t))
     doc.add_paragraph(highlights_heading, style="Heading 1")
+    if highlights_subheading:
+        bold_para(doc, highlights_subheading)  # like the real template's "Professional summary and Key highlights"
     for i in range(3):
         add(doc, f"Sample highlight {i}")
         if spaced_highlights and i < 2:
