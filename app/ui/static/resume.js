@@ -8,7 +8,7 @@
   const TOKEN_KEY = "hr_token";
   const state = {
     token: sessionStorage.getItem(TOKEN_KEY), user: null, roles: [], tab: null, detail: null,
-    editing: null, addingFact: null, addingSkill: null, chat: [], busy: false,
+    editing: null, addingFact: null, addingSkill: null, scoreDelta: null, pendingTab: false, chat: [], busy: false,
   };
   if (!state.token) { location.replace("/"); return; }
 
@@ -76,7 +76,20 @@
       if (error.message !== "unauthorized") flash(error.message, "error");
     } finally {
       state.busy = false;
+      if (state.pendingTab) {  // a tab was clicked while something was loading: go there now
+        state.pendingTab = false;
+        attempt(renderTab);
+      }
     }
+  }
+
+  /* Switching tab is navigation, not an action that could be repeated by mistake, so a click made while the screen is
+     still loading is remembered and applied afterwards instead of being thrown away. */
+  function goToTab(id) {
+    state.tab = id;
+    flash("");
+    if (state.busy) state.pendingTab = true;
+    else attempt(renderTab);
   }
 
   /* ---------- notifications ---------- */
@@ -236,14 +249,21 @@
       state.editing = null;
       state.addingFact = null;
       state.addingSkill = null;
+      state.scoreDelta = null;
       state.chat = [];
       flash("");
       renderWorkspace();
     });
   }
 
+  const requiredScore = (d) => (d && d.changelog ? d.changelog.coverage.required_after : null);
+
   async function refreshDetail(detail) {
+    const before = requiredScore(state.detail);
     state.detail = detail || await call(`/resume/requests/${state.detail.id}`);
+    const after = requiredScore(state.detail);
+    // how far the score moved with this change, in points; null when there is nothing to compare yet
+    state.scoreDelta = before !== null && after !== null ? Math.round((after - before) * 100) : null;
     renderWorkspace();
     loadNotes();
   }
@@ -352,7 +372,7 @@
         h("button", { class: "btn", type: "button", on: { click: () => { state.editing = null; renderWorkspace(); } } }, "Cancel")));
     }
     const can = d.can.edit;
-    return h("li", { class: "rb-bullet" },
+    return h("li", { class: "rb-bullet", "data-path": path },
       h("span", { class: "text" }, item.text, " ", item.origin !== "original" ? badge(item.origin === "user_added" ? "added by you" : "reworded", `o-${item.origin}`) : null),
       can ? h("span", { class: "rb-tools" },
         h("button", { type: "button", class: "edit", "aria-label": `Edit: ${item.text}`, on: { click: () => { state.editing = path; renderWorkspace(); } } }, "Edit"),
@@ -463,7 +483,7 @@
       r.education.map((e) => h("p", { text: `${e.degree}, ${e.institution}${e.year ? " " + e.year : ""}` }))));
     sections.push(h("div", { class: "section" }, h("h4", { text: "Key highlights" }),
       h("ul", { class: "rb-bullets" }, r.highlights.map((item, i) => line(d, `highlights.${i}`, item))), factBox(d, "highlights")));
-    sections.push(h("div", { class: "section" }, h("h4", { text: "Projects" }), r.projects.map((p, pi) => h("div", { class: "rb-project" },
+    sections.push(h("div", { class: "section" }, h("h4", { text: "Projects" }), r.projects.map((p, pi) => h("div", { class: "rb-project", "data-path": `projects.${pi}` },
       h("div", { class: "pname" }, h("span", { text: p.name }), d.can.edit ? h("span", { class: "rb-tools" },
         mover("Move up project", { action: "move_project", index: pi, to: pi - 1 }), mover("Move down project", { action: "move_project", index: pi, to: pi + 1 })) : null),
       p.description ? h("ul", { class: "rb-bullets" }, line(d, `projects.${pi}.description`, p.description)) : null,
@@ -493,13 +513,52 @@
       d.warnings && d.warnings.length ? h("div", { class: "rb-warn", text: d.warnings.join(" ") }) : null,
       h("div", { class: "rb-card", id: "changes" }, h("h3", { text: "What changed" }),
         log ? h("p", { id: "change-summary", text: log.summary }) : h("p", { class: "rb-empty", text: "Nothing yet." }),
-        h("div", { class: "rb-log" }, entries.map((e) => h("div", { class: "entry" },
+        entries.length ? h("p", { class: "muted", text: "Use Show in resume to see which line a change is about." }) : null,
+        h("div", { class: "rb-log" }, entries.map((e) => h("div", { class: `entry${e.path ? " linked" : ""}`, "data-path": e.path || null },
           badge(KIND[e.kind] || e.kind, `k-${e.kind}`), h("div", { class: "where", text: e.where }),
           e.before ? h("div", { class: "before", text: e.before }) : null, e.after ? h("div", { class: "after", text: e.after }) : null,
-          h("div", { class: "reason", text: e.reason }))))),
+          h("div", { class: "reason", text: e.reason }),
+          e.path ? h("button", { type: "button", class: "rb-linkbtn show-in-resume", on: { click: () => showInResume(e.path) } }, "Show in resume")
+            : h("span", { class: "muted gone", text: "No longer in the resume" }))))),
       d.can.edit ? h("div", { class: "rb-card", id: "chat" }, h("h3", { text: "Ask for a change" }),
         h("div", { class: "rb-chat-log", "aria-live": "polite" }, state.chat.map((m) => h("div", { class: m.me ? "me" : "bot", text: m.text }))),
         h("div", { class: "rb-chat-form" }, input, h("div", { class: "rb-row" }, h("button", { id: "chat-send", class: "btn primary", type: "button", on: { click: send } }, "Send")))) : null);
+  }
+
+  /* Match a change to its line: a button scrolls to it and flashes it, and hovering either one highlights the other. */
+  const lineFor = (path) => document.querySelector(`#resume [data-path="${CSS.escape(path)}"]`);
+  const entriesFor = (path) => [...document.querySelectorAll("#changes .entry[data-path]")].filter((e) => e.dataset.path === path);
+
+  function showInResume(path) {
+    const target = lineFor(path);
+    if (!target) { flash("That line is no longer in the resume.", "error"); return; }
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    target.classList.add("rb-flash");
+    setTimeout(() => target.classList.remove("rb-flash"), 2600);
+  }
+
+  function wireLinks() {
+    for (const entry of document.querySelectorAll("#changes .entry.linked")) {
+      entry.addEventListener("mouseenter", () => lineFor(entry.dataset.path)?.classList.add("rb-linked"));
+      entry.addEventListener("mouseleave", () => lineFor(entry.dataset.path)?.classList.remove("rb-linked"));
+    }
+    for (const line of document.querySelectorAll("#resume [data-path]")) {
+      line.addEventListener("mouseenter", () => entriesFor(line.dataset.path).forEach((e) => e.classList.add("rb-linked")));
+      line.addEventListener("mouseleave", () => entriesFor(line.dataset.path).forEach((e) => e.classList.remove("rb-linked")));
+    }
+  }
+
+  /* One prominent score that follows every change: the share of required skills the resume shows. */
+  function scoreBlock(d) {
+    const cov = d.changelog && d.changelog.coverage;
+    if (!cov || cov.required_after === null) return null;
+    const total = d.jd.role.must_have.length;
+    const delta = state.scoreDelta;
+    return h("div", { class: "rb-score", id: "score", role: "status", "aria-live": "polite" },
+      h("span", { class: "num", text: pct(cov.required_after) }),
+      h("span", { class: "lab" }, h("strong", { text: "Match with the job" }), h("span", { text: `${total - cov.missing_required.length} of ${total} required skills` })),
+      delta === null ? null : h("span", { class: `delta ${delta > 0 ? "up" : delta < 0 ? "down" : "same"}`,
+        text: delta === 0 ? "no change" : `${delta > 0 ? "+" : "-"}${Math.abs(delta)} pts` }));
   }
 
   function renderWorkspace() {
@@ -510,11 +569,12 @@
         h("div", { class: "rb-titleblock" },
           h("h2", { text: `${d.jd.title}: ${d.associate.name}` }),
           h("span", { class: "muted", text: `Competency Lead: ${d.lead.name}` })),
-        statusBadge(d.status)),
+        scoreBlock(d), statusBadge(d.status)),
       d.decision_note ? h("p", { class: "rb-note", id: "decision-note-shown", text: `Competency Lead note: ${d.decision_note}` }) : null,
       actionBar(d), decisionCard(d),
       h("div", { class: "rb-grid rb-work" }, jdCard(d), resumeCard(d), changesCard(d)),
     ].filter(Boolean));
+    wireLinks();
   }
 
   /* ---------- tabs ---------- */
@@ -529,7 +589,7 @@
     const tab = TABS.find((t) => t.id === state.tab) || TABS[0];
     $("tabs").replaceChildren(...TABS.filter((t) => t.show()).map((t) => h("button", {
       class: "rb-tab", type: "button", "aria-current": t.id === tab.id ? "page" : null,
-      on: { click: () => { state.tab = t.id; flash(""); attempt(renderTab); } },
+      on: { click: () => goToTab(t.id) },
     }, t.label)));
     await tab.render();
     loadNotes();

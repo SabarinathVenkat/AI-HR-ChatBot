@@ -222,3 +222,40 @@ def test_a_skill_that_was_renamed_is_listed_as_reworded_with_before_and_after():
 
     assert e.kind in ("reworded", "emphasised") and e.before == "Kafka" and e.after == "Apache Kafka"
     assert e.where == "Skill 'Apache Kafka' in Backend"
+
+
+# --- each change says which line of the resume it is about --------------------------------------------------------------
+
+def test_a_reworded_item_points_at_its_line_in_the_tailored_resume():
+    t = tailored([UNCHANGED[0], payments([ORIGINAL.projects[1].bullets[0], reworded("Added tracing to every service.", "projects.1.bullets.1"),
+                                          ORIGINAL.projects[1].bullets[2]])])
+
+    [e] = log_for(t).entries
+
+    assert e.path == "projects.1.bullets.1"
+
+
+def test_a_moved_project_and_reordered_bullets_point_at_the_project_in_its_new_position():
+    moved = [e for e in log_for(tailored([UNCHANGED[1], UNCHANGED[0]])).entries if e.kind == "reordered"]
+    b = ORIGINAL.projects[1].bullets
+    bullets = log_for(tailored([UNCHANGED[0], payments([b[1], b[0], b[2]])])).entries
+
+    assert {e.where: e.path for e in moved} == {"Project 'Payments'": "projects.0", "Project 'Intranet'": "projects.1"}
+    assert [e.path for e in bullets] == ["projects.1"]
+
+
+def test_something_the_associate_added_and_something_grounding_refused_point_at_their_lines():
+    mine = Item(text="Hands-on Kubernetes administration.", origin=Origin.USER_ADDED)
+    t = tailored([UNCHANGED[0], payments([*ORIGINAL.projects[1].bullets, mine])])
+    added = build_change_log(ORIGINAL, t, ROLE, GroundingReport(violations=(), user_added=("projects.1.bullets.3",))).entries
+    refused = log_for(tailored(UNCHANGED), GroundingReport(violations=(Violation("new_term", "projects.1.bullets.1", "Terraform"),), user_added=())).entries
+
+    assert [e.path for e in added] == ["projects.1.bullets.3"] and [e.path for e in refused] == ["projects.1.bullets.1"]
+
+
+def test_a_dropped_item_has_no_line_in_the_resume_to_point_at():
+    t = tailored([UNCHANGED[0], payments([ORIGINAL.projects[1].bullets[0], ORIGINAL.projects[1].bullets[1]])])
+
+    [e] = log_for(t).entries
+
+    assert e.kind == "dropped" and e.path is None

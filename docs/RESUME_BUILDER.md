@@ -94,6 +94,20 @@ It checks that the instruction is flagged and ignored and that no fake skill rea
 - `people.py`, `demo.py`: RMG roles, the Lead mapping and demo accounts.
 - `app/api/resume_routes.py` and `app/ui/static/resume.*`: HTTP and screens.
 
+## Changes made after RMG's first feedback
+
+- **Paste a job description.** On the Requests tab, RMG can paste the text instead of uploading a file. It can be just a
+  list of skills (it becomes one role called "Requested skills").
+- **No draft mark inside the resume.** The file name says `_DRAFT` until the resume is approved and `_FINAL` after.
+- **Edit and add skills.** Each skill is a chip: click to edit, x to remove, "+ Add a skill" to add to a group, and
+  "+ Add a skill group" for a new group. A skill the associate adds is marked "added by you" for the Lead, and counts
+  towards the score. The chat assistant cannot add skills; only the associate can.
+- **One live score.** The match with the job (required skills covered) sits at the top of the request and shows how far
+  it moved after each change, for example "+20 pts".
+- **Changes are linked to their lines.** In "What changed", "Show in resume" scrolls to and flashes the line, and
+  hovering a change or a line highlights the other.
+- **The company template is the default.** There is no template choice for the associate; RMG changes the template.
+
 ## Job description download
 
 The original job description file is kept when RMG adds it (in the file store, outside the repository). The associate,

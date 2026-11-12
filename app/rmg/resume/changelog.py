@@ -35,6 +35,7 @@ class ChangeEntry:
     before: str | None
     after: str | None
     reason: str
+    path: str | None = None  # the line in the tailored resume this is about (None for something that is no longer there)
 
 
 @dataclass(frozen=True)
@@ -125,13 +126,13 @@ def build_change_log(original: Resume, tailored: Resume, role: Role, report: Gro
             reason = ((f"Covers {', '.join(skills)}, which the role asks for." if skills else "Moved up.")
                       if new_pos < old_pos else "Moved down so more relevant projects come first.")
             entries.append(ChangeEntry("reordered", f"Project '{project.name}'", None, f"Position {old_pos + 1}",
-                                       f"Position {new_pos + 1}", reason))
+                                       f"Position {new_pos + 1}", reason, f"projects.{new_pos}"))
         original_project = original.projects[old_pos]
         position = {b.source: i for i, b in enumerate(original_project.bullets)}
         sequence = [position[b.source] for b in project.bullets if b.source in position]
         if sequence != sorted(sequence):
             entries.append(ChangeEntry("reordered", f"Project '{project.name}', bullets", None, None, None,
-                                       "Most relevant bullets first."))
+                                       "Most relevant bullets first.", f"projects.{new_pos}"))
 
     # items whose wording changed
     for path, item in tailored.all_items():
@@ -145,7 +146,7 @@ def build_change_log(original: Resume, tailored: Resume, role: Role, report: Gro
             kind, reason = "condensed", "Shorter, so the strongest points stand out."
         else:
             kind, reason = "reworded", "Reworded for clarity."
-        entries.append(ChangeEntry(kind, _where(path, tailored), source.source, source.text, item.text, reason))
+        entries.append(ChangeEntry(kind, _where(path, tailored), source.source, source.text, item.text, reason, path))
 
     # original items that are gone, skills included (the baseline already has duplicate skills removed)
     kept_sources = {item.source for _, item in tailored.all_items() if item.origin is not Origin.USER_ADDED}
@@ -161,13 +162,13 @@ def build_change_log(original: Resume, tailored: Resume, role: Role, report: Gro
     for path, violations in by_path.items():
         kept = tailored_items.get(path)
         entries.append(ChangeEntry("rejected", _where(path, tailored), kept.source if kept else None,
-                                   kept.text if kept else None, None, _reason_for_rejection(violations)))
+                                   kept.text if kept else None, None, _reason_for_rejection(violations), path if kept else None))
 
     for path in report.user_added:
         item = tailored_items.get(path)
         if item is not None:
             entries.append(ChangeEntry("added_by_you", _where(path, tailored), None, None, item.text,
-                                       "Added by you; the Competency Lead will see it marked as yours."))
+                                       "Added by you; the Competency Lead will see it marked as yours.", path))
 
     coverage = Coverage(
         covered=tuple(m.skill for m in plan_after.matches), missing_required=plan_after.missing_required,

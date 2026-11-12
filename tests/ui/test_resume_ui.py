@@ -310,3 +310,67 @@ def test_the_lead_sees_the_skills_the_associate_added_marked_as_theirs(page, sta
 
     expect(page.locator("#skills-section .skill-chip", has_text="Terraform")).to_contain_text("added by you")
     expect(page.locator("#skills-section .skill-edit")).to_have_count(0)  # the Lead cannot edit the associate's skills
+
+
+def test_one_prominent_score_follows_every_change_and_says_how_far_it_moved(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+    score = page.locator("#score")
+    expect(score).to_contain_text("60%")
+    expect(score).to_contain_text("3 of 5 required skills")
+    assert page.locator("#score .delta").count() == 0  # nothing has changed since the draft was built
+
+    page.locator("#skills-section .skill-add").first.click()
+    page.get_by_label("New skill").fill("Spring Boot")
+    page.get_by_label("New skill").press("Enter")
+    expect(score).to_contain_text("80%")
+    expect(score).to_contain_text("4 of 5 required skills")
+    expect(score.locator(".delta")).to_have_text("+20 pts")
+
+    page.get_by_label("Remove skill Spring Boot").click()
+    expect(score).to_contain_text("60%")
+    expect(score.locator(".delta")).to_have_text("-20 pts")
+
+    page.locator("#skills-section .skill-edit").first.click()
+    box = page.get_by_label("Skill", exact=True)
+    box.fill("Python 3")
+    box.press("Enter")
+    expect(score.locator(".delta")).to_have_text("no change")  # a change that does not touch the job's skills
+
+
+def test_each_change_can_be_matched_to_its_line_in_the_resume(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+    page.locator("#resume .rb-project .edit").first.click()
+    page.get_by_label("New wording").fill("Wrote the Java services for payments.")
+    page.locator(".save-edit").click()
+
+    entry = page.locator("#changes .entry.linked", has_text="Wrote the Java services for payments.")
+    expect(entry).to_be_visible()
+    path = entry.get_attribute("data-path")
+    line = page.locator(f'#resume [data-path="{path}"]')
+
+    entry.hover()
+    expect(line).to_have_class(re.compile("rb-linked"))  # hovering the change highlights its line
+    entry.get_by_role("button", name="Show in resume").click()
+    expect(line).to_have_class(re.compile("rb-flash"))  # and the button flashes it
+    line.hover()
+    expect(entry).to_have_class(re.compile("rb-linked"))  # hovering the line highlights its change
+
+    page.locator("#resume .rb-project .remove").last.click()  # something removed has no line to point at
+    gone = page.locator("#changes .entry", has_text="No longer in the resume")
+    expect(gone.first).to_be_visible()
+    assert gone.first.get_by_role("button", name="Show in resume").count() == 0
+
+
+def test_a_tab_clicked_while_the_first_screen_is_still_loading_is_not_lost(page, start_server):
+    """A click on a tab while the page was loading used to be thrown away, leaving the person on the wrong tab. The
+    click is now remembered and applied when loading finishes."""
+    server = start_server([], resume=True)
+    sign_in(page, server, "Nancy")
+    page.get_by_role("link", name="Resume builder").click()
+
+    page.get_by_role("button", name="Setup").click()  # clicked straight away, while the board is still loading
+
+    expect(page.locator("#tpl-file")).to_be_visible()
+    expect(page.locator("#tabs .rb-tab[aria-current='page']")).to_have_text("Setup")
