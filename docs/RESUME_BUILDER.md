@@ -57,11 +57,11 @@ Use a private window per person or sign out between steps. Each step says who is
    box try: `make the first bullet shorter`, `what did you change?`, and `mention Kubernetes` (if it is not in the resume,
    the assistant should refuse and offer to add it as your own statement).
 6. Click **Save version**, then **Submit for review**. The editing controls disappear.
-7. **Shadrach** > Requests > Open > **Download draft**. Open the file: it has a red "DRAFT - pending approval" line in
-   the header and the file name ends with `_DRAFT.docx`.
+7. **Shadrach** > Requests > Open > **Download draft**. The file name ends with `_DRAFT.docx`. There is no draft mark
+   inside the document itself (RMG asked for that), so the file looks the same as the final one.
 8. **Veera** > Review > Open. Try **Send back** with no note (it asks for one), then with a note.
 9. **Sabari** sees "Changes requested" and the note, plus a notification (bell). Edit, save, submit again.
-10. **Veera** > **Approve**. **Shadrach** > Download: now it is the approved version with no DRAFT mark.
+10. **Veera** > **Approve**. **Shadrach** > Download: now it is the approved version and the file name ends with `_FINAL.docx`.
 11. **Sabari** > **Reopen to edit** shows that an approved resume can be changed; the next save is a new version.
 
 Also try as **Divya Menon**: open Sabari's request id by URL (`/resume/requests/1` through the API) and you get "not found".

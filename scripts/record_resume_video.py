@@ -95,7 +95,8 @@ NARRATION = {
         "does not add it, and asks whether the associate has really used it. It can reword, but it cannot invent. "
         "And the last change can be undone.",
     13: "A draft can be downloaded at any time, in the company template. Until the Lead approves, every download "
-        "carries a diagonal DRAFT watermark, so an unapproved resume cannot be mistaken for a final one.",
+        "has the word draft in its file name, so an unapproved resume cannot be mistaken for a final one. There is no mark "
+        "inside the document itself.",
     14: "Next, a version is saved, and the resume is submitted for review. Only the associate can submit. While the Lead "
         "reviews, editing is locked.",
     15: "Veera, the Competency Lead, signs in and gets a notification. Veera sees the resume, the change list, and "
@@ -107,7 +108,7 @@ NARRATION = {
         "revises, saves, and submits again.",
     18: "Veera reviews again, and approves.",
     19: "Shadrach sees on the board that it is approved, with its coverage, and downloads the final resume. This time "
-        "there is no watermark, and no draft mark in the file name. Only the approved version is clean.",
+        "the file name ends in final. Only the approved version is named final.",
     20: "If an approved resume needs to change, the associate can reopen it. The approval is cleared, and the next save "
         "becomes a new version, so the history is kept.",
     21: "That was the whole journey. The assistant rewords but never invents skills. Facts such as experience years are "
@@ -631,10 +632,10 @@ def walkthrough(browser, url: str, narrate: bool, template: Path,
         chat(page, "Undo my last change.")
 
         # 13 draft download
-        step(13, "Download a draft", "Every unapproved download carries a DRAFT watermark")
+        step(13, "Download a draft", "An unapproved download is named _DRAFT; the document itself has no mark")
         page.evaluate("window.scrollTo(0, 0)")
         page.wait_for_timeout(1200)
-        download("#download", "sabari_draft.docx", "Draft download: watermark on every page")
+        download("#download", "sabari_draft.docx", "Draft download: named _DRAFT, no mark inside")
 
         # 14 save and submit
         step(14, "Save a version and submit for review", "Only the associate can submit; editing is then locked")
@@ -697,12 +698,12 @@ def walkthrough(browser, url: str, narrate: bool, template: Path,
         logout(page)
 
         # 19 RMG downloads final
-        step(19, "RMG downloads the approved resume", "No watermark and no draft mark: only an approved resume is clean")
+        step(19, "RMG downloads the approved resume", "The approved resume is named _FINAL")
         login_as(page, "Shadrach")
         point(page, page.locator(".rb-table"), 600)
         page.wait_for_timeout(2500)
         open_request(page)
-        download("#download", "sabari_final.docx", "Approved download: no watermark")
+        download("#download", "sabari_final.docx", "Approved download: named _FINAL")
         logout(page)
 
         # 20 reopen

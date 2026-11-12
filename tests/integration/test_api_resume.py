@@ -108,7 +108,7 @@ def test_a_resume_goes_from_request_to_approved_download(client):
     assert decided.json() == {"status": "approved"}
 
     final = client.get(f"{base}/download", headers=hdr(client, STAFF))
-    assert final.headers["x-resume-draft"] == "false" and "DRAFT" not in final.headers["content-disposition"]
+    assert final.headers["x-resume-draft"] == "false" and "_FINAL.docx" in final.headers["content-disposition"]
     sections = Document(io.BytesIO(final.content)).sections
     assert "DRAFT" not in " ".join(p.text for s in sections for p in s.header.paragraphs)
     assert client.get("/resume/requests?scope=board", headers=hdr(client, STAFF)).json()["requests"][0]["status"] == "approved"

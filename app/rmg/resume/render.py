@@ -16,14 +16,11 @@ import re
 from dataclasses import dataclass
 
 from docx import Document
-from docx.enum.text import WD_COLOR_INDEX
-from docx.oxml import OxmlElement, parse_xml
-from docx.shared import RGBColor
+from docx.oxml import OxmlElement
 
 from app.rmg.resume.model import Resume
 from app.rmg.resume.template import W, TemplateMap, all_bold, analyse, is_blank, is_heading, run_is_bold, text_runs
 
-DRAFT_TEXT = "DRAFT - pending approval"
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]")
 _SPACE = "{http://www.w3.org/XML/1998/namespace}space"
 
@@ -239,47 +236,6 @@ def _remove_spacers_before(heading) -> None:
         previous = heading.getprevious()
 
 
-WATERMARK = (
-    '<w:p %s><w:pPr><w:pStyle w:val="Header"/></w:pPr><w:r><w:rPr><w:noProof/></w:rPr><w:pict>'
-    '<v:shapetype id="_x0000_t136" coordsize="21600,21600" o:spt="136" adj="10800" path="m@7,l@8,m@5,21600l@6,21600e">'
-    '<v:formulas><v:f eqn="sum #0 0 10800"/><v:f eqn="prod #0 2 1"/><v:f eqn="sum 21600 0 @1"/><v:f eqn="sum 0 0 @2"/>'
-    '<v:f eqn="sum 21600 0 @3"/><v:f eqn="if @0 @3 0"/><v:f eqn="if @0 21600 @1"/><v:f eqn="if @0 0 @2"/>'
-    '<v:f eqn="if @0 @4 21600"/><v:f eqn="mid @5 @6"/><v:f eqn="mid @8 @5"/><v:f eqn="mid @7 @8"/>'
-    '<v:f eqn="mid @6 @7"/><v:f eqn="sum @6 0 @5"/></v:formulas>'
-    '<v:path textpathok="t" o:connecttype="custom" o:connectlocs="@9,0;@10,10800;@11,21600;@12,10800" o:connectangles="270,180,90,0"/>'
-    '<v:textpath on="t" fitshape="t"/><v:handles><v:h position="#0,bottomRight" xrange="6629,14971"/></v:handles>'
-    '<o:lock v:ext="edit" text="t" shapetype="t"/></v:shapetype>'
-    '<v:shape id="PowerPlusWaterMarkObject%d" o:spid="_x0000_s20%02d" type="#_x0000_t136" '
-    'style="position:absolute;margin-left:0;margin-top:0;width:420pt;height:140pt;rotation:315;z-index:-251658752;'
-    'mso-position-horizontal:center;mso-position-horizontal-relative:margin;mso-position-vertical:center;'
-    'mso-position-vertical-relative:margin" o:allowincell="f" fillcolor="#c00000" stroked="f">'
-    '<v:fill opacity=".18"/><v:textpath style="font-family:&quot;Arial&quot;;font-size:1pt" string="DRAFT"/></v:shape>'
-    '</w:pict></w:r></w:p>'
-)
-_NAMESPACES = ('xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
-               'xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"')
-
-
-def _mark_draft(doc) -> None:
-    shape = 0
-    for number, section in enumerate(doc.sections):
-        headers = [section.header]
-        if section.different_first_page_header_footer:
-            headers.append(section.first_page_header)
-        for header in headers:
-            if header.is_linked_to_previous:
-                if number > 0:
-                    continue  # it shows the first section's header already
-                header.is_linked_to_previous = False
-            paragraph = header.paragraphs[0].insert_paragraph_before()
-            run = paragraph.add_run(DRAFT_TEXT)
-            run.bold = True
-            run.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
-            run.font.highlight_color = WD_COLOR_INDEX.YELLOW  # readable on a dark banner too
-            shape += 1
-            header._element.append(parse_xml(WATERMARK % (_NAMESPACES, shape, shape)))  # a diagonal DRAFT on the page
-
-
 # --- entry point ------------------------------------------------------------------------------------
 
 def _load(template: bytes):
@@ -298,7 +254,7 @@ def check_template(template: bytes) -> None:
     _load(template)
 
 
-def render_resume(template: bytes, resume: Resume, *, years_text: str = "", draft: bool = False) -> RenderResult:
+def render_resume(template: bytes, resume: Resume, *, years_text: str = "") -> RenderResult:
     doc, m = _load(template)
     problems: list[str] = []
     _render_header(m, resume, years_text)
@@ -313,8 +269,6 @@ def render_resume(template: bytes, resume: Resume, *, years_text: str = "", draf
             problems.append(f"{name}: the template has no such section, so they were not included")
     _render_list(m.highlights, [[(h.text, False)] for h in resume.highlights])
     problems += _render_projects(m, resume)
-    if draft:
-        _mark_draft(doc)
 
     out = io.BytesIO()
     doc.save(out)

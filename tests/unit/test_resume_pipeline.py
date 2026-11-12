@@ -92,9 +92,10 @@ def test_the_years_line_is_left_out_when_no_experience_could_be_computed():
     assert "Senior Backend Engineer" in lines(run_pipeline(deps(FakeResumeExtractor(no_dates)), request()))
 
 
-def test_a_download_is_marked_draft_unless_it_is_approved():
-    assert "DRAFT" in header(run_pipeline(deps(), request()))
-    assert "DRAFT" not in header(run_pipeline(deps(), request(draft=False)))
+def test_the_rendered_resume_has_no_draft_mark_in_the_document():
+    result = run_pipeline(deps(), request())
+
+    assert "DRAFT" not in header(result) and not [t for t in lines(result) if "DRAFT" in t.upper()]
 
 
 # --- the safety steps are in the path ------------------------------------------------------------------

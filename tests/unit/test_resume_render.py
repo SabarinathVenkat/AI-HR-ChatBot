@@ -166,19 +166,19 @@ def test_the_projects_heading_is_kept_with_the_first_project():
     assert heading.find(f"{W}pPr/{W}keepNext") is not None
 
 
-# --- the draft mark ------------------------------------------------------------------------------------
+# --- no draft mark inside the document ------------------------------------------------------------------------------------
 
 def header_text(result) -> str:
     doc = Document(io.BytesIO(result.docx))
     return " ".join(p.text for s in doc.sections for p in s.header.paragraphs)
 
 
-def test_a_draft_download_carries_a_draft_mark_in_the_header():
-    assert "DRAFT" in header_text(render(draft=True))
+def test_the_document_carries_no_draft_mark_in_its_header_or_body():
+    """RMG asked for the word DRAFT not to appear in the resume itself; the file name says draft or final instead."""
+    result = render()
 
-
-def test_an_approved_download_has_no_draft_mark():
-    assert "DRAFT" not in header_text(render(draft=False))
+    assert "DRAFT" not in header_text(result)
+    assert not [t for t in texts(result) if "DRAFT" in t.upper()]
 
 
 # --- content the template cannot hold, and bad templates ---------------------------------------------------
@@ -258,18 +258,5 @@ def header_xml(result) -> str:
     return " ".join(etree.tostring(s.header._element).decode() for s in doc.sections)
 
 
-def test_a_draft_also_carries_a_diagonal_watermark_that_shows_on_every_page():
-    xml = header_xml(render(draft=True))
-
-    assert 'string="DRAFT"' in xml and "textpath" in xml
-
-
-def test_an_approved_download_has_no_watermark():
-    assert "textpath" not in header_xml(render(draft=False))
-
-
-def test_the_draft_line_is_highlighted_so_it_can_be_read_on_a_dark_banner():
-    doc = Document(io.BytesIO(render(draft=True).docx))
-    runs = [r for s in doc.sections for p in s.header.paragraphs for r in p.runs if "DRAFT" in r.text]
-
-    assert runs and all(r.font.highlight_color is not None for r in runs)
+def test_there_is_no_watermark_in_the_document():
+    assert "textpath" not in header_xml(render()) and "WaterMark" not in header_xml(render())

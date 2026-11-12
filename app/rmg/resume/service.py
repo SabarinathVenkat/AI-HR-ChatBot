@@ -9,7 +9,7 @@ Lifecycle:  requested -> in_progress -> submitted -> approved
                               +-- changes_requested (the Lead sent it back with a note)
             approved -> in_progress again if the associate reopens it (a new version is made on the next save)
             any state except approved -> cancelled (RMG)
-Only the associate submits. Only the mapped Lead decides. An unapproved download is marked DRAFT.
+Only the associate submits. Only the mapped Lead decides. A download's file name says DRAFT or FINAL.
 """
 import json
 import re
@@ -579,7 +579,8 @@ class ResumeService:
 
     # ------------------------------------------------------------------------------------ download
     def download(self, request_id: int) -> tuple[str, bytes, bool]:
-        """(filename, .docx bytes, is_draft). Only an approved resume is rendered without the DRAFT mark."""
+        """(filename, .docx bytes, is_draft). The document itself has no draft mark; its file name ends in _DRAFT until the
+        resume is approved and in _FINAL after."""
         row = self._visible(request_id)
         draft = self._need_draft(request_id)
         approved = None
@@ -594,11 +595,10 @@ class ResumeService:
             raise ServiceError("no_template", "The resume template is not available.", 409)
         resume = Resume.model_validate_json(source["resume_json"] if approved is not None else draft["working_json"])
         try:
-            rendered = render_resume(self.files.get(template["file_key"]), resume, years_text=source["years_text"],
-                                     draft=approved is None)
+            rendered = render_resume(self.files.get(template["file_key"]), resume, years_text=source["years_text"])
         except TemplateError as e:
             raise ServiceError("template_" + e.code, str(e), 409) from None
-        suffix = "" if approved is not None else "_DRAFT"
+        suffix = "_FINAL" if approved is not None else "_DRAFT"
         name = f"{_safe_filename(self._name(row['associate_id']))}_{_safe_filename(self._jd_title(row['jd_id']))}{suffix}.docx"
         self._audit("resume_downloaded", {"request_id": request_id, "draft": approved is None})
         self.conn.commit()

@@ -11,7 +11,7 @@
   tailor           draft every project in parallel (the tailor graph), then put skills the JD wants first
   ground           put back the original wording of anything the resume does not support
   changelog        compare original and result, in code
-  render           clone the template's paragraphs; the download is marked DRAFT until it is approved
+  render           clone the template's paragraphs
 
 Every model is injected (PipelineDeps), so the whole run is testable with fakes. Expected failures end the run with a
 PipelineError that has the stage, a machine code and a friendly message.
@@ -62,7 +62,6 @@ class PipelineRequest:
     jd: JobDescription | None = None  # a job description that was already read (it is stored once and reused)
     role_index: int = 0  # which role of the JD to tailor for
     today: date | None = None  # for experience; defaults to today
-    draft: bool = True  # a download is a draft until it is approved
 
 
 class PipelineError(Exception):
@@ -154,7 +153,7 @@ def build_pipeline(deps: PipelineDeps):
         worked = state["experience"]
         years = worked.describe() if worked.months else ""
         try:
-            rendered = render_resume(state["request"].template, state["grounded"], years_text=years, draft=state["request"].draft)
+            rendered = render_resume(state["request"].template, state["grounded"], years_text=years)
         except TemplateError as e:
             raise PipelineError("template", e.code, str(e)) from None
         return {"rendered": rendered}

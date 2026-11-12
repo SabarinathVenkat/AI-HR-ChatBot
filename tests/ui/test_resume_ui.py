@@ -102,7 +102,7 @@ def test_a_resume_goes_from_request_to_approved_download(page, start_server):
     page.get_by_role("button", name="Open").click()
     with page.expect_download() as info:
         page.locator("#download").click()
-    assert info.value.suggested_filename.endswith(".docx") and "DRAFT" not in info.value.suggested_filename
+    assert info.value.suggested_filename.endswith("_FINAL.docx")
     assert page.console_errors == []
 
 

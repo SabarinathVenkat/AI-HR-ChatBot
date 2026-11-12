@@ -359,21 +359,21 @@ def header(data: bytes) -> str:
     return " ".join(p.text for s in Document(io.BytesIO(data)).sections for p in s.header.paragraphs)
 
 
-def test_an_unapproved_download_is_marked_draft_in_the_file_and_in_its_name(ready):
+def test_an_unapproved_download_says_draft_in_its_file_name_and_not_inside_the_document(ready):
     built(ready)
 
     name, data, is_draft = ready.as_(STAFF).download(ready.request_id)
 
-    assert is_draft and name.endswith("_DRAFT.docx") and "DRAFT" in header(data)
+    assert is_draft and name.endswith("_DRAFT.docx") and "DRAFT" not in header(data)
 
 
-def test_an_approved_download_has_no_draft_mark(ready):
+def test_an_approved_download_says_final_in_its_file_name_and_has_no_mark_inside(ready):
     submitted(ready)
     ready.as_(LEAD).decide(ready.request_id, "approve")
 
     name, data, is_draft = ready.as_(STAFF).download(ready.request_id)
 
-    assert not is_draft and "DRAFT" not in name and "DRAFT" not in header(data)
+    assert not is_draft and name.endswith("_FINAL.docx") and "DRAFT" not in name and "DRAFT" not in header(data)
 
 
 def test_the_associate_lead_and_rmg_can_download_and_nobody_else(ready):
