@@ -144,18 +144,42 @@ def _read_docx(data: bytes, max_uncompressed: int, max_entries: int, max_pages: 
 
 
 def _paragraph_text(p) -> str:
-    return "".join(t.text or "" for t in p.iter(W + "t"))
+    """The text of a paragraph. A line break inside it starts a new line and a tab is a space, so words are never glued."""
+    parts = []
+    for element in p.iter():
+        if element.tag == W + "t":
+            parts.append(element.text or "")
+        elif element.tag in (W + "br", W + "cr"):
+            parts.append("\n")
+        elif element.tag == W + "tab":
+            parts.append(" ")
+    return "".join(parts)
 
 
-def _body_lines(body):
-    """Paragraphs and table rows in the order they appear. A table row becomes 'cell | cell'."""
-    for child in body.iterchildren():
+def _body_lines(container):
+    """Paragraphs and tables in the order they appear, one paragraph per line (a body, a table cell, a content control)."""
+    for child in container.iterchildren():
         if child.tag == W + "p":
             yield _paragraph_text(child)
         elif child.tag == W + "tbl":
-            for row in child.iter(W + "tr"):
-                cells = [" ".join(_paragraph_text(p) for p in cell.iter(W + "p")).strip() for cell in row.findall(W + "tc")]
-                yield " | ".join(c for c in cells if c)
+            yield from _table_lines(child)
+        elif child.tag == W + "sdt":  # a content control wraps ordinary content
+            content = child.find(W + "sdtContent")
+            if content is not None:
+                yield from _body_lines(content)
+
+
+def _table_lines(table):
+    """A simple row ("Skills" | "Java, Kafka") becomes one line, 'cell | cell'. A cell with several paragraphs (a layout
+    table that holds a whole resume) gives one line per paragraph, so its text is not run together into one giant line.
+    Tables inside cells are read once, by their own rows."""
+    for row in table.findall(W + "tr"):
+        cells = [[line for line in _body_lines(cell) if line.strip()] for cell in row.findall(W + "tc")]
+        if all(len(lines) <= 1 for lines in cells):
+            yield " | ".join(lines[0].strip() for lines in cells if lines)
+        else:
+            for lines in cells:
+                yield from lines
 
 
 def _read_pdf(data: bytes, max_pages: int) -> tuple[str, int]:

@@ -298,3 +298,53 @@ def test_about_five_pages_of_text_is_allowed_and_more_is_not_by_default():
 
 def test_a_text_file_has_no_page_count():
     assert read_document("cv.txt", b"hello").pages is None
+
+
+# --- found with a real resume: the whole resume sat inside table cells and became one giant line -------------------------
+
+def docx_with_layout_table(paragraphs_in_cell, nested=None):
+    doc = Document()
+    table = doc.add_table(rows=1, cols=1)
+    cell = table.cell(0, 0)
+    cell.paragraphs[0].text = paragraphs_in_cell[0]
+    for text in paragraphs_in_cell[1:]:
+        cell.add_paragraph(text)
+    if nested:
+        inner = cell.add_table(rows=len(nested), cols=2)
+        for r, (a, b) in enumerate(nested):
+            inner.cell(r, 0).text, inner.cell(r, 1).text = a, b
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+def test_a_layout_table_whose_cell_holds_the_whole_resume_is_read_one_paragraph_per_line():
+    lines = ["Name Surname", "Senior Data Engineer", "SKILLS", "Python, SQL, Spark", "EXPERIENCE", "Built pipelines that process 2 TB a day."]
+
+    doc = read_document("cv.docx", docx_with_layout_table(lines))
+
+    assert doc.text.splitlines() == lines  # not one long line
+
+
+def test_a_table_inside_a_table_is_read_once_not_twice():
+    doc = read_document("cv.docx", docx_with_layout_table(["Intro paragraph", "Second paragraph"], nested=[("Backend", "Java"), ("Cloud", "AWS")]))
+
+    assert doc.text.count("Backend | Java") == 1 and doc.text.count("Cloud | AWS") == 1
+    assert doc.text.count("Intro paragraph") == 1
+
+
+def test_a_simple_label_and_value_row_is_still_one_line():
+    doc = read_document("cv.docx", docx_bytes(table=[["Skills", "Java, Kafka"], ["Cloud", "AWS"]]))
+
+    assert "Skills | Java, Kafka" in doc.text.splitlines() and "Cloud | AWS" in doc.text.splitlines()
+
+
+def test_a_line_break_inside_a_paragraph_starts_a_new_line_instead_of_gluing_the_words_together():
+    doc = Document()
+    paragraph = doc.add_paragraph("First line")
+    paragraph.add_run().add_break()
+    paragraph.add_run("Second line")
+    buf = io.BytesIO()
+    doc.save(buf)
+
+    assert read_document("cv.docx", buf.getvalue()).text.splitlines() == ["First line", "Second line"]

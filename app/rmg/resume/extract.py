@@ -176,11 +176,20 @@ def _resume_words(resume: Resume) -> list[str]:
 
 PROSE_WORDS = 10  # a line this long is compared by its 3-word runs; a shorter one (a skills or job line) by its words
 LINE_MATCH = 0.8
+LONG_LINE_WORDS = 40  # a line longer than this is checked in pieces: a file's line breaks say nothing about what was lost
+CHUNK_WORDS = 25
 
 
 def _is_heading(line: str) -> bool:
     text = line.strip()
     return bool(text) and text.isupper() and len(text.split()) <= 4
+
+
+def _pieces(words: list[str]) -> list[list[str]]:
+    """One line is one piece, unless it is very long (a resume read as a single line): then pieces of CHUNK_WORDS words."""
+    if len(words) <= LONG_LINE_WORDS:
+        return [words]
+    return [words[i:i + CHUNK_WORDS] for i in range(0, len(words), CHUNK_WORDS)]
 
 
 def coverage(source_text: str, resume: Resume) -> float | None:
@@ -189,7 +198,8 @@ def coverage(source_text: str, resume: Resume) -> float | None:
     Headings are not content. A long line (a bullet) must have its 3-word runs in the resume. A short structured line
     ("Languages: Java, SQL", "Engineer, Acme, Mar 2019 - Present") is split across fields in the resume, so its words
     are compared instead."""
-    lines = [w for line in source_text.splitlines() if not _is_heading(line) and (w := _words(line))]
+    lines = [chunk for line in source_text.splitlines() if not _is_heading(line) and (words := _words(line))
+             for chunk in _pieces(words)]
     if not lines:
         return None
     resume_words = _resume_words(resume)

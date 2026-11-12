@@ -274,3 +274,22 @@ def test_rows_that_have_nothing_in_them_are_left_out_instead_of_rejecting_the_re
 
 def test_the_extraction_shape_accepts_a_reply_that_leaves_those_fields_out():
     assert ExtractedEducation(degree="B.Tech").institution == "" and ExtractedJob(company="Acme").title == ""
+
+
+# --- the completeness check must not depend on how the file lines were broken up -------------------------------------------
+
+def test_one_very_long_line_is_checked_in_pieces_so_a_resume_read_as_a_single_line_is_not_rejected():
+    sentences = [f"Delivered service number {i} for an enterprise client with reliability focus." for i in range(30)]
+    resume = to_resume(extracted(projects=[ExtractedProject(name="P", description="", bullets=sentences[:20]),
+                                           ExtractedProject(name="Q", description="", bullets=sentences[20:])]))
+
+    assert coverage(" ".join(sentences), resume) == 1.0  # the whole text as a single 300-word line
+
+
+def test_a_very_long_line_with_a_third_of_it_missing_scores_about_two_thirds_not_zero_or_one():
+    sentences = [f"Delivered service number {i} for an enterprise client with reliability focus." for i in range(30)]
+    resume = to_resume(extracted(projects=[ExtractedProject(name="P", description="", bullets=sentences[:20])]))
+
+    score = coverage(" ".join(sentences), resume)
+
+    assert 0.55 <= score <= 0.8
