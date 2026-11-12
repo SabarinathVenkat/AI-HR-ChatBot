@@ -260,3 +260,18 @@ def header_xml(result) -> str:
 
 def test_there_is_no_watermark_in_the_document():
     assert "textpath" not in header_xml(render()) and "WaterMark" not in header_xml(render())
+
+
+def test_a_degree_without_an_institution_renders_cleanly_with_no_none_or_double_spaces():
+    thin = RESUME.model_copy(update={"education": [Education(degree="B.Tech Information Technology", year="2021")]})
+
+    lines = texts(render(thin))
+
+    assert "B.Tech Information Technology 2021" in lines
+    assert not [t for t in lines if "None" in t or "  " in t]
+
+
+def test_an_institution_without_a_degree_renders_too():
+    thin = RESUME.model_copy(update={"education": [Education(institution="Anna University", year="2014")]})
+
+    assert "Anna University 2014" in texts(render(thin))

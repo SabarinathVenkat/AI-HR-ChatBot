@@ -140,3 +140,11 @@ def test_deduplication_keeps_provenance_and_does_not_change_the_original():
 
     assert result.skill_groups[0].items[0].source == "skills.3"
     assert len(resume.skill_groups[0].items) == 2
+
+
+def test_a_job_without_a_company_still_counts_and_a_skipped_one_is_named_by_its_title():
+    jobs = [Job(title="Freelance developer", start="Jan 2020", end="Dec 2020"), Job(title="Consultant", start="sometime", end="later")]
+
+    result = experience(jobs, TODAY)
+
+    assert result.months == 12 and result.skipped == ("Consultant",)

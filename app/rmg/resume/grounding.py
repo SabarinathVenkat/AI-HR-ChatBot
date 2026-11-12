@@ -45,8 +45,8 @@ def _norm(text: str) -> str:
 def _resume_text(resume: Resume) -> str:
     parts = [resume.name, *(item.text for _, item in resume.all_items()), *resume.certifications]
     parts += [g.category for g in resume.skill_groups]
-    parts += [f"{e.degree} {e.institution}" for e in resume.education]
-    parts += [f"{j.company} {j.title}" for j in resume.jobs]
+    parts += [f"{e.degree or ''} {e.institution or ''}" for e in resume.education]
+    parts += [f"{j.company or ''} {j.title or ''}" for j in resume.jobs]
     parts += [p.name for p in resume.projects]
     return "\n".join(parts)
 

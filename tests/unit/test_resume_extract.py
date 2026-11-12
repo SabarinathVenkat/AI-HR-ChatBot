@@ -248,3 +248,29 @@ def test_headings_and_structured_lines_split_across_fields_still_count_as_covere
 
 def test_a_document_that_is_only_headings_has_no_content_to_compare():
     assert coverage("SKILLS" + chr(10) + "EDUCATION" + chr(10), to_resume(extracted())) is None
+
+
+# --- found with a thin resume and the real model: a missing college rejected the whole resume ------------------------------
+
+def test_an_education_entry_with_no_institution_is_kept_and_does_not_reject_the_resume():
+    x = extracted(education=[ExtractedEducation(degree="B.Tech Information Technology", institution="", year="2021")])
+
+    resume = to_resume(x)
+
+    assert resume.education[0].degree == "B.Tech Information Technology" and resume.education[0].institution is None
+
+
+def test_rows_that_have_nothing_in_them_are_left_out_instead_of_rejecting_the_resume():
+    x = extracted(
+        education=[ExtractedEducation(degree="", institution="", year="2020")],
+        jobs=[ExtractedJob(company="", title="", start="2020", end="2021"), ExtractedJob(company="Acme", title="", start="2019", end="2020")],
+        projects=[ExtractedProject(name="  ", description="", bullets=["Orphan bullet."]), ExtractedProject(name="Real", description="", bullets=[])],
+    )
+
+    resume = to_resume(x)
+
+    assert resume.education == [] and [j.company for j in resume.jobs] == ["Acme"] and [p.name for p in resume.projects] == ["Real"]
+
+
+def test_the_extraction_shape_accepts_a_reply_that_leaves_those_fields_out():
+    assert ExtractedEducation(degree="B.Tech").institution == "" and ExtractedJob(company="Acme").title == ""

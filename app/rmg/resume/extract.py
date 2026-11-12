@@ -48,14 +48,14 @@ class ExtractedSkillGroup(BaseModel):
 
 
 class ExtractedEducation(BaseModel):
-    degree: str
-    institution: str
+    degree: str = ""
+    institution: str = ""
     year: str = ""
 
 
 class ExtractedJob(BaseModel):
-    company: str
-    title: str
+    company: str = ""
+    title: str = ""
     start: str = ""
     end: str = ""
 
@@ -100,12 +100,15 @@ def to_resume(x: ExtractedResume) -> Resume:
             summary=_item(x.summary, "summary"),
             skill_groups=[SkillGroup(category=g.category.strip() or "Other", items=_items(g.items, f"skills.{n}"))
                           for n, g in enumerate(x.skills)],
-            education=[Education(degree=e.degree, institution=e.institution, year=_opt(e.year)) for e in x.education],
+            education=[Education(degree=_opt(e.degree), institution=_opt(e.institution), year=_opt(e.year))
+                       for e in x.education if _opt(e.degree) or _opt(e.institution)],
             certifications=[c for c in (c.strip() for c in x.certifications) if c],
             highlights=_items(x.highlights, "highlights"),
-            jobs=[Job(company=j.company, title=j.title, start=_opt(j.start), end=_opt(j.end)) for j in x.jobs],
+            jobs=[Job(company=_opt(j.company), title=_opt(j.title), start=_opt(j.start), end=_opt(j.end))
+                  for j in x.jobs if _opt(j.company) or _opt(j.title)],
             projects=[Project(name=p.name, description=_item(p.description, f"projects.{n}.description"),
-                              bullets=_items(p.bullets, f"projects.{n}.bullets")) for n, p in enumerate(x.projects)],
+                              bullets=_items(p.bullets, f"projects.{n}.bullets"))
+                      for n, p in enumerate(x.projects) if p.name.strip()],
         )
     except ValidationError:
         raise ExtractionError("invalid") from None
@@ -164,9 +167,9 @@ def _resume_words(resume: Resume) -> list[str]:
     for g in resume.skill_groups:
         parts.append(g.category)
     for e in resume.education:
-        parts += [e.degree, e.institution, e.year or ""]
+        parts += [e.degree or "", e.institution or "", e.year or ""]
     for j in resume.jobs:
-        parts += [j.company, j.title, j.start or "", j.end or ""]
+        parts += [j.company or "", j.title or "", j.start or "", j.end or ""]
     parts += [p.name for p in resume.projects]
     return [w for part in parts for w in _words(part)]
 

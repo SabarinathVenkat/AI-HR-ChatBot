@@ -480,7 +480,7 @@
         r.skill_groups.map((g, gi) => skillGroup(d, g, gi)), d.can.edit ? newGroupControl(d) : null));
     }
     if (r.education.length) sections.push(h("div", { class: "section" }, h("h4", { text: "Education" }),
-      r.education.map((e) => h("p", { text: `${e.degree}, ${e.institution}${e.year ? " " + e.year : ""}` }))));
+      r.education.map((e) => h("p", { text: [e.degree, e.institution].filter(Boolean).join(", ") + (e.year ? ` ${e.year}` : "") }))));
     sections.push(h("div", { class: "section" }, h("h4", { text: "Key highlights" }),
       h("ul", { class: "rb-bullets" }, r.highlights.map((item, i) => line(d, `highlights.${i}`, item))), factBox(d, "highlights")));
     sections.push(h("div", { class: "section" }, h("h4", { text: "Projects" }), r.projects.map((p, pi) => h("div", { class: "rb-project", "data-path": `projects.${pi}` },

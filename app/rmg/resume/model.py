@@ -65,16 +65,32 @@ class SkillGroup(_Model):
 
 
 class Education(_Model):
-    degree: ShortText
-    institution: ShortText
+    """A degree or an institution (or both): a resume may leave out the college, or give only the college."""
+
+    degree: ShortText | None = None
+    institution: ShortText | None = None
     year: ShortText | None = None
+
+    @model_validator(mode="after")
+    def _has_something(self) -> "Education":
+        if self.degree is None and self.institution is None:
+            raise ValueError("an education entry needs a degree or an institution")
+        return self
 
 
 class Job(_Model):
-    company: ShortText
-    title: ShortText
+    """A company or a title (or both): a resume may leave out either. The dates are what experience is computed from."""
+
+    company: ShortText | None = None
+    title: ShortText | None = None
     start: ShortText | None = None
     end: ShortText | None = None
+
+    @model_validator(mode="after")
+    def _has_something(self) -> "Job":
+        if self.company is None and self.title is None:
+            raise ValueError("a job needs a company or a title")
+        return self
 
 
 class Project(_Model):

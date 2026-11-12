@@ -79,7 +79,7 @@ def experience(jobs: list[Job], today: date) -> Experience:
         start = parse_month(job.start, today)
         end = parse_month(job.end, today, as_end=True) if job.end else (today.year, today.month)  # no end: current
         if start is None or end is None or _index(start) > now or _index(end) < _index(start):
-            skipped.append(job.company)
+            skipped.append(job.company or job.title or "an unnamed job")
             continue
         covered.update(range(_index(start), min(_index(end), now) + 1))
     return Experience(months=len(covered), skipped=tuple(skipped))

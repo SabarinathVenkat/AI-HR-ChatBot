@@ -144,3 +144,19 @@ def test_items_can_be_filtered_by_origin():
 
 def test_the_skills_can_be_read_as_a_flat_list():
     assert make_resume().skills_flat() == ["Java", "Spring Boot", "AWS"]
+
+
+# --- thin resumes: a missing college, company or title must not make the whole resume invalid -------------------------------
+
+def test_an_education_entry_needs_a_degree_or_an_institution_but_not_both():
+    assert Education(degree="B.Tech Information Technology", year="2021").institution is None
+    assert Education(institution="Anna University").degree is None
+    with pytest.raises(ValueError):
+        Education(year="2021")
+
+
+def test_a_job_needs_a_company_or_a_title_but_not_both():
+    assert Job(company="Brightline Solutions", start="Jun 2021").title is None
+    assert Job(title="Freelance developer").company is None
+    with pytest.raises(ValueError):
+        Job(start="2020", end="2021")

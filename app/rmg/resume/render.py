@@ -254,13 +254,20 @@ def check_template(template: bytes) -> None:
     _load(template)
 
 
+def _education_line(e) -> list[tuple[str, bool]]:
+    """The first part (the degree, or the institution if there is no degree) in bold, the rest in the regular style."""
+    first = e.degree or e.institution
+    rest = " ".join(part for part in ([e.institution] if e.degree else []) + [e.year or ""] if part)
+    return [(first, True)] + ([(" " + rest, False)] if rest else [])
+
+
 def render_resume(template: bytes, resume: Resume, *, years_text: str = "") -> RenderResult:
     doc, m = _load(template)
     problems: list[str] = []
     _render_header(m, resume, years_text)
     _render_skills(m, resume)
     for name, slot, entries in (
-        ("education", m.education, [[(e.degree, True), (f" {e.institution} {e.year or ''}".rstrip(), False)] for e in resume.education]),
+        ("education", m.education, [_education_line(e) for e in resume.education]),
         ("certifications", m.certifications, [[(c, False)] for c in resume.certifications]),
     ):
         if slot is not None:
