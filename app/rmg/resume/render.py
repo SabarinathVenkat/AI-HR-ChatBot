@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from docx import Document
 from docx.oxml import OxmlElement
 
+from app.rmg.resume.fit import capacity, fit
 from app.rmg.resume.model import Resume
 from app.rmg.resume.template import W, TemplateMap, all_bold, analyse, is_blank, is_heading, run_is_bold, text_runs
 
@@ -153,12 +154,13 @@ def _render_header(m: TemplateMap, resume: Resume, years_text: str) -> None:
     _fill(m.summary, [(resume.summary.text if resume.summary else "", False)])
 
 
-def _render_skills(m: TemplateMap, resume: Resume) -> None:
+def _render_skills(m: TemplateMap, resume: Resume) -> list:
     new = []
     for group in resume.skill_groups:
         new.append(_clone(m.skills.proto_label, [(group.category, True), (": ", False)]))
         new.append(_clone(m.skills.proto_value, [(", ".join(i.text for i in group.items), False)]))
     _replace(m.skills.region, new)
+    return new
 
 
 def _entry_span(region: list) -> list:
@@ -317,15 +319,20 @@ def render_resume(template: bytes, resume: Resume, *, years_text: str = "") -> R
     doc, m = _load(template)
     problems: list[str] = []
     _render_header(m, resume, years_text)
-    _render_skills(m, resume)
+    sample = list(m.skills.region)
+    for slot in (m.education, m.certifications):
+        sample += list(slot.region) if slot is not None else []
+    column = _render_skills(m, resume)
     for name, slot, entries in (
         ("education", m.education, [_education_line(e) for e in resume.education]),
         ("certifications", m.certifications, [[(c, False)] for c in resume.certifications]),
     ):
         if slot is not None:
-            _render_list(slot, entries)
+            column += _render_list(slot, entries)
         elif entries:
             problems.append(f"{name}: the template has no such section, so they were not included")
+    if not fit(column, capacity(sample, doc)):
+        problems.append("skills: the list is long for the side column of this template, so part of it may run onto the next page")
     new_highlights = _render_list(m.highlights, [[(h.text, False)] for h in resume.highlights])
     if resume.jobs:
         if m.highlights.subheading is not None:
