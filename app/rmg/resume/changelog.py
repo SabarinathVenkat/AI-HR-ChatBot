@@ -24,6 +24,7 @@ CONDENSED_RATIO = 0.8
 
 _PROJECT_ITEM = re.compile(r"^projects\.(\d+)\.(description|bullets\.(\d+))$")
 _HIGHLIGHT = re.compile(r"^highlights\.(\d+)$")
+_SKILL = re.compile(r"^skill_groups\.(\d+)\.items\.(\d+)$")
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,10 @@ def _where(path: str, resume: Resume) -> str:
             return f"Project '{name}', description" if m.group(2) == "description" else f"Project '{name}', bullet {int(m.group(3)) + 1}"
     if m := _HIGHLIGHT.match(path):
         return f"Highlight {int(m.group(1)) + 1}"
+    if m := _SKILL.match(path):
+        g, i = int(m.group(1)), int(m.group(2))
+        if g < len(resume.skill_groups) and i < len(resume.skill_groups[g].items):
+            return f"Skill '{resume.skill_groups[g].items[i].text}' in {resume.skill_groups[g].category}"
     return {"summary": "Summary", "role_title": "Role line"}.get(path, "Skills" if path.startswith("skill_groups.") else path)
 
 
@@ -142,10 +147,10 @@ def build_change_log(original: Resume, tailored: Resume, role: Role, report: Gro
             kind, reason = "reworded", "Reworded for clarity."
         entries.append(ChangeEntry(kind, _where(path, tailored), source.source, source.text, item.text, reason))
 
-    # original items that are gone (skills are left out: removing a duplicate skill is not a content change)
+    # original items that are gone, skills included (the baseline already has duplicate skills removed)
     kept_sources = {item.source for _, item in tailored.all_items() if item.origin is not Origin.USER_ADDED}
     for path, item in original.all_items():
-        if not path.startswith("skill_groups.") and item.source not in kept_sources:
+        if item.source not in kept_sources:
             entries.append(ChangeEntry("dropped", _where(path, original), item.source, item.text, None,
                                        "Left out to keep the resume focused on this role."))
 

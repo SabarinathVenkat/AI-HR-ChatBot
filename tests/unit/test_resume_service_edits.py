@@ -129,3 +129,66 @@ def test_a_submission_with_a_user_added_claim_is_allowed_because_it_is_marked_fo
 
     entries = ready.as_(LEAD).detail(ready.request_id)["changelog"]["entries"]
     assert any(e["kind"] == "added_by_you" for e in entries)
+
+
+# --- skills ----------------------------------------------------------------------------------------------------------------
+
+def skills_of(ravi, request_id):
+    return [[i["text"] for i in g["items"]] for g in ravi.detail(request_id)["resume"]["skill_groups"]]
+
+
+def test_the_associate_can_add_a_skill_and_it_counts_towards_the_score_and_is_marked_for_the_lead(ready):  # noqa: F811
+    ravi = built(ready)
+    before = ravi.detail(ready.request_id)["changelog"]["coverage"]
+    assert "Spring Boot" in before["missing_required"]  # the demo job wants it and the sample resume lacks it
+
+    result = ravi.edit(ready.request_id, EditCommand(action="add_skill", group=0, text="Spring Boot"))
+
+    after = result["detail"]["changelog"]
+    assert "Spring Boot" in skills_of(ravi, ready.request_id)[0]
+    assert "Spring Boot" not in after["coverage"]["missing_required"]
+    assert after["coverage"]["required_after"] > before["required_after"]  # the score moves up
+    assert any(e["kind"] == "added_by_you" and "Spring Boot" in e["where"] for e in after["entries"])
+
+
+def test_a_skill_can_be_edited_removed_and_the_change_undone(ready):  # noqa: F811
+    ravi = built(ready)
+    first = skills_of(ravi, ready.request_id)
+
+    ravi.edit(ready.request_id, EditCommand(action="remove", path="skill_groups.0.items.0"))
+    assert skills_of(ravi, ready.request_id)[0] == first[0][1:]
+    ravi.edit(ready.request_id, EditCommand(action="undo"))
+    assert skills_of(ravi, ready.request_id) == first
+    ravi.edit(ready.request_id, EditCommand(action="set_text", path="skill_groups.0.items.0", text="Python 3"))
+    assert skills_of(ravi, ready.request_id)[0][0] == "Python 3"
+
+
+def test_a_duplicate_or_missing_skill_gives_a_clear_error_and_changes_nothing(ready):  # noqa: F811
+    ravi = built(ready)
+    existing = skills_of(ravi, ready.request_id)[0][0]
+
+    with pytest.raises(ServiceError) as e:
+        ravi.edit(ready.request_id, EditCommand(action="add_skill", group=0, text=existing.lower()))
+    assert (e.value.code, e.value.status) == ("edit_duplicate", 422) and "already listed" in str(e.value)
+    with pytest.raises(ServiceError) as e:
+        ravi.edit(ready.request_id, EditCommand(action="add_skill", group=0))
+    assert e.value.code == "edit_empty_text"
+
+
+def test_chat_cannot_add_a_skill_even_if_the_model_asks_to(ready):  # noqa: F811
+    built(ready)
+    command = EditCommand(action="add_skill", group=0, text="Kubernetes")
+
+    result = with_interpreter(ready, command).as_(RAVI).chat(ready.request_id, "I know Kubernetes")
+
+    assert not result["changed"] and "Add a skill" in result["reply"]
+    assert "Kubernetes" not in sum(skills_of(ready.as_(RAVI), ready.request_id), [])
+
+
+def test_the_chat_prompt_tells_the_model_never_to_add_skills():
+    from app.rmg.resume.chat import build_prompt
+    from tests.unit.resume_fakes import RESUME
+
+    prompt = build_prompt("anything", RESUME)
+
+    assert "add_skill: NEVER use this" in prompt

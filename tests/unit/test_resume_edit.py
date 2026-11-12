@@ -144,3 +144,96 @@ def test_the_role_line_can_be_changed_and_is_theirs_if_the_resume_does_not_suppo
 def test_the_assistant_cannot_give_the_associate_a_title_the_resume_does_not_support():
     with pytest.raises(EditError):
         set_role_line(BASE, BASE, PLAN, "Principal Architect", by="assistant")
+
+
+# --- skills: the associate can add, edit and remove them -----------------------------------------------------------------
+
+from app.rmg.resume.edit import add_skill  # noqa: E402
+from app.rmg.resume.model import MAX_ITEMS_PER_GROUP, MAX_SKILL_GROUPS, SkillGroup  # noqa: E402
+
+
+def skill_texts(resume, group=0):
+    return [i.text for i in resume.skill_groups[group].items]
+
+
+def test_a_skill_can_be_added_to_an_existing_group_and_is_the_associates_own_statement():
+    result = add_skill(BASE, "Kubernetes", group=0)
+
+    added = result.skill_groups[0].items[-1]
+    assert (added.text, added.origin, added.source) == ("Kubernetes", Origin.USER_ADDED, None)
+    assert skill_texts(result)[:-1] == skill_texts(BASE)
+
+
+def test_a_skill_can_start_a_new_group_and_a_group_with_that_name_is_reused():
+    result = add_skill(BASE, "Terraform", category="Infrastructure")
+    again = add_skill(result, "Ansible", category="infrastructure")
+
+    assert [g.category for g in result.skill_groups][-1] == "Infrastructure"
+    assert skill_texts(again, len(again.skill_groups) - 1) == ["Terraform", "Ansible"]
+    assert len(again.skill_groups) == len(result.skill_groups)
+
+
+def test_a_skill_with_no_group_goes_to_other():
+    result = add_skill(BASE, "Terraform")
+
+    assert result.skill_groups[-1].category == "Other" and skill_texts(result, -1) == ["Terraform"]
+
+
+@pytest.mark.parametrize("text", ["java", "  JAVA  ", "pYTHON", "ka fka".replace(" ", "")])
+def test_a_skill_that_is_already_listed_in_any_group_is_refused_ignoring_case_and_spacing(text):
+    with pytest.raises(EditError) as e:
+        add_skill(BASE, text, group=0)
+    assert e.value.code == "duplicate"
+
+
+@pytest.mark.parametrize("text,code", [("   ", "empty_text"), ("x" * 150, "too_long")])
+def test_a_blank_or_oversized_skill_is_refused(text, code):
+    with pytest.raises(EditError) as e:
+        add_skill(BASE, text, group=0)
+    assert e.value.code == code
+
+
+def test_a_missing_group_and_full_lists_are_refused():
+    with pytest.raises(EditError) as e:
+        add_skill(BASE, "Terraform", group=9)
+    assert e.value.code == "no_such_item"
+    full_group = BASE.model_copy(update={"skill_groups": [SkillGroup(category="G", items=[
+        Item(text=f"Skill{i}", origin=Origin.USER_ADDED) for i in range(MAX_ITEMS_PER_GROUP)])]})
+    with pytest.raises(EditError) as e:
+        add_skill(full_group, "OneMore", group=0)
+    assert e.value.code == "full"
+    many_groups = BASE.model_copy(update={"skill_groups": [SkillGroup(category=f"G{i}", items=[
+        Item(text=f"S{i}", origin=Origin.USER_ADDED)]) for i in range(MAX_SKILL_GROUPS)]})
+    with pytest.raises(EditError) as e:
+        add_skill(many_groups, "Another", category="Brand new")
+    assert e.value.code == "full"
+
+
+def test_the_assistant_cannot_add_skills_only_the_associate_can():
+    from app.rmg.resume.edit import add_skill_as
+
+    with pytest.raises(EditError) as e:
+        add_skill_as(BASE, "Kubernetes", group=0, by="assistant")
+    assert e.value.code == "not_allowed" and "Add a skill" in str(e.value)
+    assert skill_texts(add_skill_as(BASE, "Kubernetes", group=0, by="user"))[-1] == "Kubernetes"
+
+
+def test_a_skill_can_be_edited_and_an_unsupported_new_name_becomes_the_associates_own():
+    path = "skill_groups.0.items.0"  # "Java"
+
+    renamed = set_text(BASE, BASE, PLAN, path, "Kubernetes", by="user")
+
+    item = renamed.skill_groups[0].items[0]
+    assert item.text == "Kubernetes" and item.origin is Origin.USER_ADDED and item.source is None
+
+
+def test_editing_a_skill_into_one_that_is_already_listed_is_refused():
+    with pytest.raises(EditError) as e:
+        set_text(BASE, BASE, PLAN, "skill_groups.0.items.0", "kafka", by="user")
+    assert e.value.code == "duplicate"
+
+
+def test_removing_the_last_skill_of_a_group_removes_the_group():
+    only = BASE.model_copy(update={"skill_groups": [SkillGroup(category="Solo", items=[Item(text="Rust", origin=Origin.USER_ADDED)])]})
+
+    assert remove_item(only, "skill_groups.0.items.0").skill_groups == []

@@ -21,7 +21,9 @@ from datetime import datetime
 from app.db.repositories import Employee
 from app.rmg.resume.changelog import build_change_log
 from app.rmg.resume.chat import EditCommand, explain
-from app.rmg.resume.edit import EditError, add_fact, move_bullet, move_project, remove_item, set_role_line, set_text
+from app.rmg.resume.edit import (
+    EditError, add_fact, add_skill_as, move_bullet, move_project, remove_item, set_role_line, set_text,
+)
 from app.rmg.resume.extract import ExtractionError
 from app.rmg.resume.facts import experience
 from app.rmg.resume.filestore import FileStore
@@ -533,6 +535,8 @@ class ResumeService:
                 return move_bullet(working, need(cmd.project), need(cmd.index, "bad_position"), need(cmd.to, "bad_position"))
             case "add_fact":
                 return add_fact(working, cmd.project, need(cmd.text, "empty_text"))
+            case "add_skill":
+                return add_skill_as(working, need(cmd.text, "empty_text"), group=cmd.group, category=cmd.category, by=by)
             case "set_role":
                 return set_role_line(working, base, plan, need(cmd.text, "empty_text"), by=by)
         raise EditError("no_such_item")

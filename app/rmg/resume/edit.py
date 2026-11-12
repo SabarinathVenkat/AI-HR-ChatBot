@@ -10,7 +10,10 @@ from typing import Literal
 
 from app.rmg.resume.grounding import check_grounding, rebuild_items
 from app.rmg.resume.match import MatchPlan
-from app.rmg.resume.model import MAX_BULLETS_PER_PROJECT, MAX_HIGHLIGHTS, MAX_ITEM_CHARS, Item, Origin, Project, Resume
+from app.rmg.resume.model import (
+    MAX_BULLETS_PER_PROJECT, MAX_HIGHLIGHTS, MAX_ITEM_CHARS, MAX_ITEMS_PER_GROUP, MAX_SKILL_GROUPS, Item, Origin, Project,
+    Resume, SkillGroup,
+)
 
 By = Literal["user", "assistant"]
 
@@ -21,7 +24,10 @@ MESSAGES = {
     "bad_position": "That position does not exist.",
     "full": "There is no room for another item there.",
     "ungrounded": "That wording is not supported by your original resume.",
+    "duplicate": "That skill is already listed.",
+    "not_allowed": "Please use the Add a skill button in the Skills section.",
 }
+MAX_SKILL_CHARS = 100
 
 
 class EditError(Exception):
@@ -39,6 +45,18 @@ def _clean(text: str) -> str:
     return text
 
 
+def _skill_key(text: str) -> str:
+    return " ".join(text.casefold().split())
+
+
+def _check_skill(resume: Resume, text: str, ignore_path: str | None = None) -> None:
+    if len(text) > MAX_SKILL_CHARS:
+        raise EditError("too_long", f"A skill should be short: please keep it under {MAX_SKILL_CHARS} characters.")
+    for path, item in resume.all_items():
+        if path.startswith("skill_groups.") and path != ignore_path and _skill_key(item.text) == _skill_key(text):
+            raise EditError("duplicate")
+
+
 def _replace(resume: Resume, path: str, item: Item | None) -> Resume:
     return rebuild_items(resume, lambda p, i: item if p == path else i)
 
@@ -48,6 +66,8 @@ def set_text(resume: Resume, base: Resume, plan: MatchPlan, path: str, text: str
     current = dict(resume.all_items()).get(path)
     if current is None:
         raise EditError("no_such_item")
+    if path.startswith("skill_groups."):
+        _check_skill(resume, text, ignore_path=path)
     if current.origin is Origin.USER_ADDED:
         return _replace(resume, path, Item(text=text, origin=Origin.USER_ADDED))
     original = next((i for _, i in base.all_items() if i.source == current.source), None)
@@ -116,3 +136,35 @@ def set_role_line(resume: Resume, base: Resume, plan: MatchPlan, text: str, *, b
     if by == "assistant":
         raise EditError("ungrounded", "I cannot give you a role title that is not in your original resume.")
     return resume.model_copy(update={"role_title": Item(text=_clean(text), origin=Origin.USER_ADDED)})
+
+
+def add_skill(resume: Resume, text: str, *, group: int | None = None, category: str | None = None) -> Resume:
+    """A skill the associate adds. It is their own statement (user_added), so the Lead can see it. It goes into the group
+    at index `group`, or into the group called `category` (made if it does not exist), or into "Other"."""
+    text = _clean(text)
+    _check_skill(resume, text)
+    item = Item(text=text, origin=Origin.USER_ADDED)
+    groups = list(resume.skill_groups)
+    if group is not None:
+        if not 0 <= group < len(groups):
+            raise EditError("no_such_item")
+        target = group
+    else:
+        name = " ".join((category or "Other").split())[:200] or "Other"
+        target = next((i for i, g in enumerate(groups) if _skill_key(g.category) == _skill_key(name)), None)
+        if target is None:
+            if len(groups) >= MAX_SKILL_GROUPS:
+                raise EditError("full")
+            groups.append(SkillGroup(category=name, items=[]))
+            target = len(groups) - 1
+    if len(groups[target].items) >= MAX_ITEMS_PER_GROUP:
+        raise EditError("full")
+    groups[target] = SkillGroup(category=groups[target].category, items=[*groups[target].items, item])
+    return resume.model_copy(update={"skill_groups": groups})
+
+
+def add_skill_as(resume: Resume, text: str, *, group: int | None = None, category: str | None = None, by: By) -> Resume:
+    """Only the associate adds skills. The assistant may not: a skill is a claim, and only the associate can make it."""
+    if by == "assistant":
+        raise EditError("not_allowed")
+    return add_skill(resume, text, group=group, category=category)

@@ -189,3 +189,36 @@ def test_the_log_is_immutable_and_the_resumes_are_untouched():
     assert ORIGINAL == before
     with pytest.raises(Exception):  # noqa: B017  frozen
         log.summary = "x"
+
+
+# --- skills in the change list -------------------------------------------------------------------------------------------
+
+def with_skills(items):
+    return ORIGINAL.model_copy(update={"skill_groups": [SkillGroup(category="Backend", items=items)]})
+
+
+def test_a_skill_the_associate_removed_is_listed_as_dropped_with_where_it_was():
+    t = with_skills([ORIGINAL.skill_groups[0].items[0]])  # Kafka is gone
+
+    [e] = [e for e in log_for(t).entries if e.kind == "dropped"]
+
+    assert e.before == "Kafka" and e.after is None and e.where == "Skill 'Kafka' in Backend"
+
+
+def test_a_skill_the_associate_added_is_listed_as_theirs_with_where_it_is():
+    mine = Item(text="Terraform", origin=Origin.USER_ADDED)
+    t = with_skills([*ORIGINAL.skill_groups[0].items, mine])
+
+    [e] = build_change_log(ORIGINAL, t, ROLE, GroundingReport(violations=(), user_added=("skill_groups.0.items.2",))).entries
+
+    assert e.kind == "added_by_you" and e.after == "Terraform" and e.where == "Skill 'Terraform' in Backend"
+
+
+def test_a_skill_that_was_renamed_is_listed_as_reworded_with_before_and_after():
+    renamed = reworded("Apache Kafka", "skills.0.1")
+    t = with_skills([ORIGINAL.skill_groups[0].items[0], renamed])
+
+    [e] = log_for(t).entries
+
+    assert e.kind in ("reworded", "emphasised") and e.before == "Kafka" and e.after == "Apache Kafka"
+    assert e.where == "Skill 'Apache Kafka' in Backend"

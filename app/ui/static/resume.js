@@ -8,7 +8,7 @@
   const TOKEN_KEY = "hr_token";
   const state = {
     token: sessionStorage.getItem(TOKEN_KEY), user: null, roles: [], tab: null, detail: null,
-    editing: null, addingFact: null, chat: [], busy: false,
+    editing: null, addingFact: null, addingSkill: null, chat: [], busy: false,
   };
   if (!state.token) { location.replace("/"); return; }
 
@@ -235,6 +235,7 @@
       state.detail = await call(`/resume/requests/${id}`);
       state.editing = null;
       state.addingFact = null;
+      state.addingSkill = null;
       state.chat = [];
       flash("");
       renderWorkspace();
@@ -364,6 +365,7 @@
       const result = await post(`/resume/requests/${state.detail.id}/edit`, command);
       state.editing = null;
       state.addingFact = null;
+      state.addingSkill = null;
       flash(result.message, "ok");
       await refreshDetail(result.detail);
     });
@@ -384,6 +386,67 @@
       h("button", { class: "btn", type: "button", on: { click: () => { state.addingFact = null; renderWorkspace(); } } }, "Cancel")));
   }
 
+  /* Skills are short, so each is a chip: click to edit, x to remove. A skill the associate adds is marked as theirs. */
+  function skillChip(d, gi, i, item) {
+    const path = `skill_groups.${gi}.items.${i}`;
+    if (state.editing === path) {
+      const input = h("input", { type: "text", class: "rb-skill-input", "aria-label": "Skill", value: item.text, maxlength: "100" });
+      const save = () => doEdit({ action: "set_text", path, text: input.value });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); save(); }
+        if (e.key === "Escape") { state.editing = null; renderWorkspace(); }
+      });
+      setTimeout(() => input.focus(), 0);
+      return h("span", { class: "rb-skill-edit" }, input,
+        h("button", { type: "button", class: "rb-linkbtn skill-save", on: { click: save } }, "Save"),
+        h("button", { type: "button", class: "rb-linkbtn", on: { click: () => { state.editing = null; renderWorkspace(); } } }, "Cancel"));
+    }
+    const mine = item.origin === "user_added";
+    return h("span", { class: `chip skill-chip${mine ? " mine" : ""}`, "data-path": path },
+      d.can.edit
+        ? h("button", { type: "button", class: "skill-edit", "aria-label": `Edit skill ${item.text}`, title: "Click to edit", on: { click: () => { state.editing = path; renderWorkspace(); } } }, item.text)
+        : item.text,
+      mine ? h("span", { class: "skill-mine", text: "added by you" }) : null,
+      d.can.edit ? h("button", { type: "button", class: "skill-remove", "aria-label": `Remove skill ${item.text}`, title: "Remove", on: { click: () => doEdit({ action: "remove", path }) } }, "×") : null);
+  }
+
+  function skillAdder(d, key, command) {
+    if (!d.can.edit) return null;
+    if (state.addingSkill !== key) {
+      return h("button", { type: "button", class: "rb-linkbtn skill-add", on: { click: () => { state.addingSkill = key; renderWorkspace(); } } }, "+ Add a skill");
+    }
+    const input = h("input", { type: "text", class: "rb-skill-input", "aria-label": "New skill", placeholder: "For example: Terraform", maxlength: "100" });
+    const save = () => doEdit({ ...command, text: input.value });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); save(); }
+      if (e.key === "Escape") { state.addingSkill = null; renderWorkspace(); }
+    });
+    setTimeout(() => input.focus(), 0);
+    return h("span", { class: "rb-skill-edit" }, input,
+      h("button", { type: "button", class: "rb-linkbtn skill-save", on: { click: save } }, "Add"),
+      h("button", { type: "button", class: "rb-linkbtn", on: { click: () => { state.addingSkill = null; renderWorkspace(); } } }, "Cancel"));
+  }
+
+  function skillGroup(d, g, gi) {
+    return h("div", { class: "rb-skillgroup" },
+      h("strong", { class: "rb-skillcat", text: `${g.category}:` }),
+      h("span", { class: "rb-skillchips" }, g.items.map((item, i) => skillChip(d, gi, i, item)), skillAdder(d, gi, { action: "add_skill", group: gi })));
+  }
+
+  function newGroupControl(d) {
+    if (state.addingSkill !== "group") {
+      return h("button", { type: "button", class: "rb-linkbtn skill-new-group", on: { click: () => { state.addingSkill = "group"; renderWorkspace(); } } }, "+ Add a skill group");
+    }
+    const category = h("input", { type: "text", class: "rb-skill-input", "aria-label": "Group name", placeholder: "Group name, for example Infrastructure", maxlength: "100" });
+    const skill = h("input", { type: "text", class: "rb-skill-input", "aria-label": "First skill", placeholder: "First skill", maxlength: "100" });
+    const save = () => doEdit({ action: "add_skill", category: category.value, text: skill.value });
+    for (const input of [category, skill]) input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } });
+    setTimeout(() => category.focus(), 0);
+    return h("div", { class: "rb-skill-edit new-group" }, category, skill,
+      h("button", { type: "button", class: "rb-linkbtn skill-save", on: { click: save } }, "Add"),
+      h("button", { type: "button", class: "rb-linkbtn", on: { click: () => { state.addingSkill = null; renderWorkspace(); } } }, "Cancel"));
+  }
+
   function resumeCard(d) {
     const r = d.resume;
     if (!r) {
@@ -392,9 +455,9 @@
     }
     const sections = [];
     if (r.summary) sections.push(h("div", { class: "section" }, h("h4", { text: "Summary" }), h("ul", { class: "rb-bullets" }, line(d, "summary", r.summary))));
-    if (r.skill_groups.length) {
-      sections.push(h("div", { class: "section" }, h("h4", { text: "Skills" }),
-        r.skill_groups.map((g) => h("p", {}, h("strong", { text: `${g.category}: ` }), g.items.map((i) => i.text).join(", ")))));
+    if (r.skill_groups.length || d.can.edit) {
+      sections.push(h("div", { class: "section", id: "skills-section" }, h("h4", { text: "Skills" }),
+        r.skill_groups.map((g, gi) => skillGroup(d, g, gi)), d.can.edit ? newGroupControl(d) : null));
     }
     if (r.education.length) sections.push(h("div", { class: "section" }, h("h4", { text: "Education" }),
       r.education.map((e) => h("p", { text: `${e.degree}, ${e.institution}${e.year ? " " + e.year : ""}` }))));

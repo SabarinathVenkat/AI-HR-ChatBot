@@ -228,3 +228,85 @@ def test_a_job_description_can_be_pasted_instead_of_uploaded(page, start_server)
 
     expect(page.locator("#message")).to_contain_text("Job description added")
     expect(page.locator("#tag-jd option").first).to_have_text("Quick skills request")
+
+
+def build_as_ravi(page, server):
+    """The template is uploaded, Ravi is tagged and has built a draft. Leaves Ravi on his request screen."""
+    open_builder(page, server, "Nancy")
+    page.get_by_role("button", name="Setup").click()
+    page.locator("#tpl-file").set_input_files({"name": "template.docx", "mimeType": "application/octet-stream", "buffer": template_bytes()})
+    page.locator("#tpl-go").click()
+    expect(page.locator("#message")).to_contain_text("Template uploaded")
+    page.goto(server.url)
+    sign_out(page)
+    open_builder(page, server, "Shadrach")
+    page.get_by_label(re.compile("Ravi Kumar")).check()
+    page.locator("#tag-go").click()
+    expect(page.locator("#message")).to_contain_text("Tagged 1")
+    page.goto(server.url)
+    sign_out(page)
+    open_builder(page, server, "Ravi Kumar")
+    page.get_by_role("button", name="Open").first.click()
+    page.locator("#resume-file").set_input_files({"name": "cv.txt", "mimeType": "text/plain", "buffer": b"Ravi"})
+    page.locator("#upload-resume").click()
+    page.locator("#build").click()
+    expect(page.locator("#skills-section")).to_be_visible()
+
+
+def test_the_associate_can_add_edit_and_remove_skills_and_the_score_follows(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+    score = page.locator("#coverage h3")
+    expect(score).to_contain_text("60%")  # the demo job wants five skills; the sample resume shows three of them
+
+    # add a skill the job wants: it is marked as theirs and the score goes up
+    page.locator("#skills-section .skill-add").first.click()
+    page.get_by_label("New skill").fill("Spring Boot")
+    page.get_by_label("New skill").press("Enter")
+    expect(page.locator("#skills-section .skill-chip", has_text="Spring Boot")).to_contain_text("added by you")
+    expect(score).to_contain_text("80%")
+
+    # edit it: click the skill, change the text
+    page.locator("#skills-section .skill-edit", has_text="Spring Boot").click()
+    box = page.get_by_label("Skill", exact=True)
+    box.fill("Spring Boot 3")
+    box.press("Enter")
+    expect(page.locator("#skills-section .skill-chip", has_text="Spring Boot 3")).to_be_visible()
+
+    # remove it again: the chip goes and the score drops back
+    page.get_by_label("Remove skill Spring Boot 3").click()
+    expect(page.locator("#skills-section .skill-chip", has_text="Spring Boot")).to_have_count(0)
+    expect(score).to_contain_text("60%")
+
+    # a whole new group
+    page.locator("#skills-section .skill-new-group").click()
+    page.get_by_label("Group name").fill("Infrastructure")
+    page.get_by_label("First skill").fill("Ansible")
+    page.locator("#skills-section .new-group .skill-save").click()
+    expect(page.locator("#skills-section .rb-skillgroup", has_text="Infrastructure:")).to_contain_text("Ansible")
+
+    # a duplicate gets a clear message
+    page.locator("#skills-section .skill-add").first.click()
+    page.get_by_label("New skill").fill("java")
+    page.get_by_label("New skill").press("Enter")
+    expect(page.locator("#message")).to_contain_text("already listed")
+    assert [e for e in page.console_errors if "422" not in e] == []
+
+
+def test_the_lead_sees_the_skills_the_associate_added_marked_as_theirs(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+    page.locator("#skills-section .skill-add").first.click()
+    page.get_by_label("New skill").fill("Terraform")
+    page.get_by_label("New skill").press("Enter")
+    expect(page.locator("#changes")).to_contain_text("Skill 'Terraform'")
+    page.locator("#submit").click()
+    expect(page.locator("#message")).to_contain_text("Submitted")
+    page.goto(server.url)
+    sign_out(page)
+
+    open_builder(page, server, "Veera")
+    page.get_by_role("button", name="Open").click()
+
+    expect(page.locator("#skills-section .skill-chip", has_text="Terraform")).to_contain_text("added by you")
+    expect(page.locator("#skills-section .skill-edit")).to_have_count(0)  # the Lead cannot edit the associate's skills

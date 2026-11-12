@@ -292,3 +292,16 @@ def test_pasting_checks_who_you_are_and_what_you_send(client):
     assert blank.status_code == 422 and blank.json()["error"]["code"] == "empty"
     assert client.post("/resume/jds/text", json={}, headers=hdr(client, STAFF)).status_code == 422
     assert client.post("/resume/jds/text", json={"text": "x" * 40001}, headers=hdr(client, STAFF)).status_code == 422
+
+
+def test_a_skill_can_be_added_over_http_and_only_by_the_associate(client):
+    request_id = built_request(client)
+    base = f"/resume/requests/{request_id}"
+
+    added = client.post(f"{base}/edit", json={"action": "add_skill", "group": 0, "text": "Terraform"}, headers=hdr(client, RAVI))
+    assert added.status_code == 200 and added.json()["changed"]
+    skills = [i["text"] for g in added.json()["detail"]["resume"]["skill_groups"] for i in g["items"]]
+    assert "Terraform" in skills
+    assert client.post(f"{base}/edit", json={"action": "add_skill", "group": 0, "text": "Ansible"}, headers=hdr(client, STAFF)).status_code == 403
+    duplicate = client.post(f"{base}/edit", json={"action": "add_skill", "group": 0, "text": "terraform"}, headers=hdr(client, RAVI))
+    assert duplicate.status_code == 422 and duplicate.json()["error"]["code"] == "edit_duplicate"

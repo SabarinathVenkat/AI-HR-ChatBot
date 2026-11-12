@@ -19,9 +19,11 @@ MAX_EXPLAINED = 10
 
 
 class EditCommand(BaseModel):
-    action: Literal["set_text", "remove", "move_project", "move_bullet", "add_fact", "set_role", "undo", "explain", "none"]
+    action: Literal["set_text", "remove", "move_project", "move_bullet", "add_fact", "add_skill", "set_role", "undo", "explain", "none"]
     path: str | None = None  # for set_text and remove, for example "projects.1.bullets.0"
     project: int | None = None  # for move_bullet and add_fact (None adds to the highlights)
+    group: int | None = None  # for add_skill: the skill group; or give a category to use or make one
+    category: str | None = None  # for add_skill
     index: int | None = None  # the item to move
     to: int | None = None  # where to move it
     text: str | None = None  # the new wording (set_text, set_role) or the fact (add_fact)
@@ -56,6 +58,8 @@ Commands:
   A request to "mention", "add" or "include" a skill, tool or technology WITHOUT saying that they have that experience is
   NOT a fact ("add Kubernetes to my skills", "mention Terraform"): use none, and in reply ask whether they have used it and
   where, so they can state it themselves. Never turn a bare skill name into a fact.
+- add_skill: NEVER use this. Skills are added by the associate with the Add a skill button, because a skill is a claim only
+  they can make.
 - set_role: change the role line under the name. Give text.
 - undo: undo the last change.
 - explain: the associate asks what was changed or why.
