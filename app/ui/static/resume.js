@@ -8,7 +8,7 @@
   const TOKEN_KEY = "hr_token";
   const state = {
     token: sessionStorage.getItem(TOKEN_KEY), user: null, roles: [], tab: null, detail: null,
-    editing: null, addingFact: null, addingSkill: null, scoreDelta: null, pendingTab: false, chat: [], busy: false,
+    editing: null, addingFact: null, addingSkill: null, scoreDelta: null, listedDelta: null, pendingTab: false, chat: [], busy: false,
   };
   if (!state.token) { location.replace("/"); return; }
 
@@ -250,6 +250,7 @@
       state.addingFact = null;
       state.addingSkill = null;
       state.scoreDelta = null;
+      state.listedDelta = null;
       state.chat = [];
       flash("");
       renderWorkspace();
@@ -258,12 +259,17 @@
 
   const requiredScore = (d) => (d && d.changelog ? d.changelog.coverage.required_after : null);
 
+  const listedCount = (d) => (d && d.changelog ? d.changelog.coverage.listed_required.length : null);
+
   async function refreshDetail(detail) {
     const before = requiredScore(state.detail);
+    const listedBefore = listedCount(state.detail);
     state.detail = detail || await call(`/resume/requests/${state.detail.id}`);
     const after = requiredScore(state.detail);
     // how far the score moved with this change, in points; null when there is nothing to compare yet
     state.scoreDelta = before !== null && after !== null ? Math.round((after - before) * 100) : null;
+    const listedAfter = listedCount(state.detail);
+    state.listedDelta = listedBefore !== null && listedAfter !== null ? listedAfter - listedBefore : null;
     renderWorkspace();
     loadNotes();
   }
@@ -554,9 +560,13 @@
     if (!cov || cov.required_after === null) return null;
     const total = d.jd.role.must_have.length;
     const delta = state.scoreDelta;
+    const listed = cov.listed_required.length, moved = state.listedDelta;
     return h("div", { class: "rb-score", id: "score", role: "status", "aria-live": "polite" },
       h("span", { class: "num", text: pct(cov.required_after) }),
-      h("span", { class: "lab" }, h("strong", { text: "Match with the job" }), h("span", { text: `${total - cov.missing_required.length} of ${total} required skills` })),
+      h("span", { class: "lab" }, h("strong", { text: "Match with the job" }),
+        h("span", { text: `${total - cov.missing_required.length} of ${total} required skills shown in the resume` }),
+        h("span", { id: "score-listed", class: "listed", title: "Required skills that are listed in the Skills section itself" },
+          `${listed} of ${total} listed in Skills`, moved ? h("b", { class: moved > 0 ? "up" : "down", text: ` ${moved > 0 ? "+" : "-"}${Math.abs(moved)}` }) : null)),
       delta === null ? null : h("span", { class: `delta ${delta > 0 ? "up" : delta < 0 ? "down" : "same"}`,
         text: delta === 0 ? "no change" : `${delta > 0 ? "+" : "-"}${Math.abs(delta)} pts` }));
   }

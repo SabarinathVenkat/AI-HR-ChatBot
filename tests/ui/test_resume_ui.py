@@ -374,3 +374,27 @@ def test_a_tab_clicked_while_the_first_screen_is_still_loading_is_not_lost(page,
 
     expect(page.locator("#tpl-file")).to_be_visible()
     expect(page.locator("#tabs .rb-tab[aria-current='page']")).to_have_text("Setup")
+
+
+def test_removing_a_listed_skill_moves_the_listed_figure_even_when_the_resume_text_still_shows_the_skill(page, start_server):
+    """A person removed every skill from the Skills section and the score stayed at 100%, because the resume text still
+    proved each skill. The score now also says how many required skills are listed in the Skills section itself."""
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+    score, listed = page.locator("#score"), page.locator("#score-listed")
+    expect(score).to_contain_text("60%")
+    expect(listed).to_have_text("2 of 5 listed in Skills")  # Java and Kafka are in the Skills section
+
+    page.get_by_label("Remove skill Java", exact=True).click()
+
+    expect(listed).to_contain_text("1 of 5 listed in Skills")
+    expect(listed).to_contain_text("-1")
+    expect(score).to_contain_text("60%")  # "Wrote Java services" still proves Java, so the main score is unchanged
+
+    page.locator("#skills-section .skill-add").first.click()
+    page.get_by_label("New skill").fill("Spring Boot")
+    page.get_by_label("New skill").press("Enter")
+
+    expect(listed).to_contain_text("2 of 5 listed in Skills")
+    expect(listed).to_contain_text("+1")
+    expect(score).to_contain_text("80%")

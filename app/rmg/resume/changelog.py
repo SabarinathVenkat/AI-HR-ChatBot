@@ -46,6 +46,7 @@ class Coverage:
     required_before: float | None
     required_after: float | None
     meets_min_years: bool | None
+    listed_required: tuple[str, ...] = ()  # required skills that are listed in the Skills section itself
 
 
 @dataclass(frozen=True)
@@ -173,5 +174,6 @@ def build_change_log(original: Resume, tailored: Resume, role: Role, report: Gro
     coverage = Coverage(
         covered=tuple(m.skill for m in plan_after.matches), missing_required=plan_after.missing_required,
         missing_nice=plan_after.missing_nice, required_before=plan_before.required_coverage,
-        required_after=plan_after.required_coverage, meets_min_years=plan_after.meets_min_years)
+        required_after=plan_after.required_coverage, meets_min_years=plan_after.meets_min_years,
+        listed_required=tuple(m.skill for m in plan_after.matches if m.required and m.in_skills))
     return ChangeLog(entries=tuple(entries), summary=_summary(entries, coverage, len(role.must_have)), coverage=coverage)

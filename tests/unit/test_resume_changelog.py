@@ -259,3 +259,22 @@ def test_a_dropped_item_has_no_line_in_the_resume_to_point_at():
     [e] = log_for(t).entries
 
     assert e.kind == "dropped" and e.path is None
+
+
+# --- the score has two figures: shown anywhere in the resume, and listed in the Skills section ------------------------------
+
+def test_the_coverage_also_says_which_required_skills_are_listed_in_the_skills_section():
+    cov = log_for(tailored(UNCHANGED)).coverage
+
+    # the job wants Java and Kubernetes; the resume lists Java and Kafka in its skills
+    assert cov.listed_required == ("Java",)
+
+
+def test_removing_a_listed_skill_lowers_the_listed_figure_but_not_the_shown_anywhere_figure_when_the_text_still_proves_it():
+    no_java = with_skills([ORIGINAL.skill_groups[0].items[1]])  # only Kafka is left in the Skills section
+    t = tailored(UNCHANGED).model_copy(update={"skill_groups": no_java.skill_groups})
+
+    cov = log_for(t).coverage
+
+    assert cov.listed_required == ()
+    assert "Java" in cov.covered  # the project text still says Java, so it is still shown in the resume
