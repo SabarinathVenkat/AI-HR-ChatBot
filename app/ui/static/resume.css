@@ -20,11 +20,11 @@ body.rb { display: flex; flex-direction: column; height: auto; min-height: 100%;
 .rb-message.error { background: var(--bad-soft); color: var(--bad); }
 .rb-message.ok { background: var(--ok-soft); color: var(--ok); }
 
-.rb-main { padding: 20px 24px 48px; max-width: 1500px; width: 100%; margin: 0 auto; }
+.rb-main { padding: 20px 24px 48px; width: 100%; }  /* the whole width, with the same side margin as the top bar */
 .rb-main h2 { font-size: 20px; margin-bottom: 12px; }
 .rb-main h3 { font-size: 16px; margin: 0 0 8px; }
 .rb-grid { display: grid; gap: 20px; }
-.rb-two { grid-template-columns: minmax(280px, 380px) 1fr; }
+.rb-two { grid-template-columns: minmax(300px, 26%) minmax(0, 1fr); }
 .rb-work { grid-template-columns: minmax(240px, 300px) minmax(360px, 1fr) minmax(280px, 360px); align-items: start; }
 @media (max-width: 1100px) { .rb-two, .rb-work { grid-template-columns: 1fr; } }
 
@@ -168,7 +168,7 @@ progress.rb-progress { width: 100%; height: 12px; }
 
 /* ---------- layout fixes (found with long, sentence-style requirements at several window widths) ---------- */
 .rb-grid > * { min-width: 0; }                       /* a grid cell may shrink below its widest child, so nothing spills out */
-@media (min-width: 1101px) { .rb-work { grid-template-columns: minmax(260px, 340px) minmax(340px, 1fr) minmax(280px, 380px); } }
+@media (min-width: 1101px) { .rb-work { grid-template-columns: minmax(260px, 22%) minmax(0, 1fr) minmax(300px, 26%); } }  /* the resume gets the most room, the side panels grow with the screen */
 .rb-chips .chip {
   white-space: normal; overflow-wrap: anywhere;      /* the chat app's citation chips never wrap; requirement chips must */
   max-width: 100%; line-height: 1.3; border-radius: 12px; padding: 3px 10px;

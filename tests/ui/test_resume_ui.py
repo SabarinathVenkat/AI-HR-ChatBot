@@ -398,3 +398,35 @@ def test_removing_a_listed_skill_moves_the_listed_figure_even_when_the_resume_te
     expect(listed).to_contain_text("2 of 5 listed in Skills")
     expect(listed).to_contain_text("+1")
     expect(score).to_contain_text("80%")
+
+
+def test_the_content_uses_the_full_width_of_the_page_at_every_screen_size(page, start_server):
+    """On a wide screen the content stopped at 1500 pixels and floated in the middle, with a wide empty margin on each
+    side while the top bar used the whole width. The content now reaches the same edges as the top bar."""
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+
+    for width in (2560, 1873, 1440, 1280, 1100, 900):
+        page.set_viewport_size({"width": width, "height": 900})
+        page.wait_for_timeout(250)
+        edges = page.evaluate("""() => {
+            const header = document.querySelector('.rb-head').getBoundingClientRect();
+            const grid = document.querySelector('.rb-work').getBoundingClientRect();
+            return { left: Math.round(grid.left), right: Math.round(window.innerWidth - grid.right),
+                     headerPad: Math.round(header.left), overflow: document.documentElement.scrollWidth - window.innerWidth };
+        }""")
+        assert edges["left"] <= 40 and edges["right"] <= 40, (width, edges)  # the same small margin as the top bar
+        assert edges["overflow"] == 0, (width, edges)
+
+
+def test_the_three_columns_share_a_wide_screen_instead_of_leaving_the_middle_cramped(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+    page.set_viewport_size({"width": 1873, "height": 900})
+    page.wait_for_timeout(250)
+
+    widths = page.evaluate("() => [...document.querySelector('.rb-work').children].map(c => Math.round(c.getBoundingClientRect().width))")
+
+    left, middle, right = widths
+    assert middle > left and middle > right  # the resume itself gets the most room
+    assert left >= 300 and right >= 340  # and the side panels use the extra width too
