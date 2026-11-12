@@ -2,7 +2,7 @@
 
     .venv\\Scripts\\python.exe scripts\\make_demo_documents.py
 
-Writes scripts/demo_data/sabari_resume.docx, senior_java_developer_jd.docx (contains a planted line that tries to
+Writes scripts/demo_data/sabari_resume.docx (detailed), sabari_resume_basic.docx (few details), senior_java_developer_jd.docx (contains a planted line that tries to
 instruct an AI assistant, to show that it is flagged and ignored) and payments_platform_jd.docx (a plain, realistic job
 description with nothing planted).
 """
@@ -17,7 +17,7 @@ RESUME = [
     ("title", "Sabari"),
     ("sub", "Senior Java Developer"),
     ("h", "SUMMARY"),
-    ("p", "Backend engineer with 10 years of experience building payment and banking platforms for retail banks and "
+    ("p", "Backend engineer with over 12 years of experience building payment and banking platforms for retail banks and "
           "fintech companies. Strong in Java and Spring Boot, event-driven design on Kafka, and database performance."),
     ("h", "SKILLS"),
     ("p", "Languages: Java, SQL, Python"),
@@ -58,6 +58,30 @@ RESUME = [
     ("p", "Maintained the internal portal used by the HR team."),
     ("b", "Fixed defects reported by the support team."),
     ("b", "Wrote the monthly release notes."),
+]
+
+# A deliberately thin resume for the same person, to show how the builder treats gaps: few skills, short project notes,
+# nothing about Spring Boot, REST or Kafka. Against the sample job it covers only some of the required skills.
+RESUME_BASIC = [
+    ("title", "Sabari"),
+    ("sub", "Software Developer"),
+    ("h", "SUMMARY"),
+    ("p", "Developer with 5 years of experience working on web applications."),
+    ("h", "SKILLS"),
+    ("p", "Languages: Java, SQL"),
+    ("p", "Web: HTML, CSS"),
+    ("h", "EDUCATION"),
+    ("p", "B.Tech Information Technology, 2021"),
+    ("h", "EXPERIENCE"),
+    ("p", "Developer, Brightline Solutions, Jun 2021 - Present"),
+    ("h", "PROJECTS"),
+    ("proj", "Customer Support Portal"),
+    ("p", "A web portal for the support team."),
+    ("b", "Fixed bugs reported by users."),
+    ("b", "Wrote SQL queries for reports."),
+    ("proj", "Internal Reporting Tool"),
+    ("p", "Monthly reports for managers."),
+    ("b", "Created report screens."),
 ]
 
 JD = [
@@ -126,6 +150,7 @@ def build(path: Path, lines: list[tuple[str, str]]) -> None:
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     build(OUT / "sabari_resume.docx", RESUME)
+    build(OUT / "sabari_resume_basic.docx", RESUME_BASIC)
     build(OUT / "senior_java_developer_jd.docx", JD)
     build(OUT / "payments_platform_jd.docx", JD_CLEAN)
     print("Wrote", *sorted(p.name for p in OUT.iterdir()))
