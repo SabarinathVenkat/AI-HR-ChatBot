@@ -202,6 +202,15 @@ class ResumeService:
         self.conn.commit()
         return self._jd_view(cursor.lastrowid)
 
+    def create_jd_from_text(self, text: str, title: str | None = None) -> dict:
+        """A job description pasted as text. It can be sentences, or just a list of skills. It is stored as a text file,
+        so it is read, kept and downloaded exactly like an uploaded one."""
+        self._need(*RMG)
+        cleaned = (text or "").strip()
+        if not cleaned:
+            raise ServiceError("empty", "Paste the job description, or a list of skills, first.", 422)
+        return self.create_jd("pasted-job-description.txt", cleaned.encode("utf-8"), title)
+
     def _jd_view(self, jd_id: int) -> dict:
         row = self.conn.execute("SELECT * FROM job_descriptions WHERE id = ?", (jd_id,)).fetchone()
         jd = JobDescription.model_validate_json(row["jd_json"])

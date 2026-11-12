@@ -134,3 +134,33 @@ def test_an_older_database_without_the_file_column_is_upgraded_and_keeps_its_row
     row = conn.execute("SELECT title, file_key FROM job_descriptions WHERE id = 1").fetchone()
     assert row["title"] == "Old JD" and row["file_key"] is None
     assert init_schema is not None
+
+
+# --- a job description pasted as text (it can be just a list of skills) ----------------------------------------------
+
+def test_a_pasted_job_description_is_read_stored_and_can_be_downloaded_as_the_text_that_was_pasted(world):  # noqa: F811
+    pasted = "Java, Spring Boot, Kafka, SQL"
+
+    created = world.as_(STAFF).create_jd_from_text(pasted, title="Skills for the payments team")
+
+    assert created["title"] == "Skills for the payments team" and created["id"]
+    name, data, media_type = world.as_(STAFF).jd_file(created["id"])
+    assert data == pasted.encode() and name.endswith(".txt") and media_type.startswith("text/plain")
+
+
+def test_pasted_text_is_trimmed_and_blank_text_is_refused_with_a_clear_message(world):  # noqa: F811
+    with pytest.raises(ServiceError) as e:
+        world.as_(STAFF).create_jd_from_text("   \n  ")
+    assert (e.value.code, e.value.status) == ("empty", 422) and "Paste" in str(e.value)
+
+    created = world.as_(STAFF).create_jd_from_text("  \n We need a Java developer.  \n ")
+    assert world.as_(STAFF).jd_file(created["id"])[1] == b"We need a Java developer."
+
+
+def test_only_rmg_can_paste_a_job_description_and_a_huge_paste_is_refused(world):  # noqa: F811
+    with pytest.raises(ServiceError) as e:
+        world.as_(RAVI).create_jd_from_text("Java, Kafka")
+    assert e.value.code == "forbidden"
+    with pytest.raises(ServiceError) as e:
+        world.as_(STAFF).create_jd_from_text("word " * 6000)
+    assert (e.value.code, e.value.status) == ("text_too_long", 422)

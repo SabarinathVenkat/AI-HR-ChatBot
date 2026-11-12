@@ -275,3 +275,20 @@ def test_only_the_rmg_head_can_upload_a_template_over_http(client):
     assert client.post("/resume/template?filename=t.docx", content=template_bytes()).status_code == 401
     assert client.post("/resume/template?filename=t.docx", content=template_bytes(), headers=hdr(client, HEAD)).status_code == 200
     assert client.get("/resume/template", headers=hdr(client, STAFF)).json()["template"]["filename"] == "t.docx"  # staff can see it
+
+
+def test_a_job_description_can_be_pasted_as_text_over_http(client):
+    response = client.post("/resume/jds/text", json={"text": "Java, Spring Boot, Kafka", "title": "Quick skills"}, headers=hdr(client, STAFF))
+
+    assert response.status_code == 200 and response.json()["title"] == "Quick skills"
+    downloaded = client.get(f"/resume/jds/{response.json()['id']}/file", headers=hdr(client, STAFF))
+    assert downloaded.content == b"Java, Spring Boot, Kafka"
+
+
+def test_pasting_checks_who_you_are_and_what_you_send(client):
+    assert client.post("/resume/jds/text", json={"text": "Java"}, headers=hdr(client, RAVI)).status_code == 403
+    assert client.post("/resume/jds/text", json={"text": "Java"}).status_code == 401
+    blank = client.post("/resume/jds/text", json={"text": "   "}, headers=hdr(client, STAFF))
+    assert blank.status_code == 422 and blank.json()["error"]["code"] == "empty"
+    assert client.post("/resume/jds/text", json={}, headers=hdr(client, STAFF)).status_code == 422
+    assert client.post("/resume/jds/text", json={"text": "x" * 40001}, headers=hdr(client, STAFF)).status_code == 422

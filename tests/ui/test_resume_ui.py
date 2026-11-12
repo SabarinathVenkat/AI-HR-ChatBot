@@ -213,3 +213,18 @@ def test_only_the_rmg_head_sees_the_setup_tab(page, start_server):
     assert "Setup" in seen["Nancy"]
     assert "Setup" not in seen["Shadrach"] and "Requests" in seen["Shadrach"]
     assert seen["Ravi Kumar"] == ["My requests"]
+
+
+def test_a_job_description_can_be_pasted_instead_of_uploaded(page, start_server):
+    server = start_server([], resume=True)
+    open_builder(page, server, "Shadrach")
+
+    page.locator("#jd-paste-go").click()
+    expect(page.locator("#message")).to_contain_text("Paste the job description")  # nothing pasted yet
+
+    page.locator("#jd-title").fill("Quick skills request")
+    page.locator("#jd-paste").fill("Java, Spring Boot, Kafka, SQL")
+    page.locator("#jd-paste-go").click()
+
+    expect(page.locator("#message")).to_contain_text("Job description added")
+    expect(page.locator("#tag-jd option").first).to_have_text("Quick skills request")

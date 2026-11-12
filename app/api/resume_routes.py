@@ -39,6 +39,11 @@ class DecideBody(BaseModel):
     note: str | None = Field(default=None, max_length=1000)
 
 
+class PasteBody(BaseModel):
+    text: str = Field(min_length=1, max_length=40000)
+    title: str | None = Field(default=None, max_length=150)
+
+
 class ChatEditBody(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
 
@@ -121,6 +126,10 @@ def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Cal
     @app.get("/resume/requests/{request_id}/jd")
     def request_jd(request_id: int, svc: ResumeService = Depends(service)):
         return as_attachment(svc.download_jd(request_id))
+
+    @app.post("/resume/jds/text")
+    def create_jd_from_text(body: PasteBody, svc: ResumeService = Depends(service)):
+        return svc.create_jd_from_text(body.text, body.title)
 
     @app.get("/resume/associates")
     def associates(svc: ResumeService = Depends(service)):

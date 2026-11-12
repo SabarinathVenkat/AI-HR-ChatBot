@@ -140,6 +140,7 @@
     const blocked = associates.filter((a) => !a.lead);
     const jdFile = h("input", { id: "jd-file", type: "file", accept: ".docx,.pdf,.txt", "aria-label": "Job description file" });
     const jdTitle = h("input", { id: "jd-title", type: "text", placeholder: "Title (optional)" });
+    const jdPaste = h("textarea", { id: "jd-paste", "aria-label": "Pasted job description", placeholder: "Paste the job description, or a list of skills such as: Java, Spring Boot, Kafka, SQL" });
 
     const form = h("div", { class: "rb-card" },
       h("h3", { text: "New request" }),
@@ -173,7 +174,16 @@
           flash("Job description added.", "ok");
           await renderTab();
         }, "Reading the job description…") } }, "Upload")),
-      h("p", { class: "muted", text: "A Word, PDF or text file. It is read once and stored, and can be used for many associates." }));
+      h("p", { class: "muted", text: "A Word, PDF or text file. It is read once and stored, and can be used for many associates." }),
+      h("label", { class: "rb-field", for: "jd-paste", text: "Or paste it here (it can be just a list of skills)" }),
+      jdPaste,
+      h("div", { class: "rb-row" }, h("button", { id: "jd-paste-go", class: "btn", type: "button", on: { click: () => attempt(async () => {
+        const text = jdPaste.value.trim();
+        if (!text) { flash("Paste the job description, or a list of skills, first.", "error"); return; }
+        await post("/resume/jds/text", { text, title: jdTitle.value.trim() || null });
+        flash("Job description added.", "ok");
+        await renderTab();
+      }, "Reading the job description…") } }, "Add pasted text")));
 
     const table = h("table", { class: "rb-table" },
       h("thead", {}, h("tr", {}, ["Job description", "Associate", "Lead", "Status", "Required covered", ""].map((t) => h("th", { text: t })))),

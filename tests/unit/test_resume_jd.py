@@ -110,3 +110,14 @@ def test_the_instructions_ask_for_short_skill_names_not_sentences_and_keep_years
     prompt = model.structured.messages[0].content
     assert "ONE short skill" in prompt and "Never copy a whole sentence" in prompt and "min_years" in prompt
     assert '"Kafka", not "Apache Kafka"' in prompt and "not skills" in prompt
+
+
+def test_the_instructions_cover_a_job_description_that_is_only_a_list_of_skills():
+    """RMG: a job description can be just a list of skills, so it has no role title or sentences to read."""
+    model = FakeModel(parsed=jd())
+    extractor, _ = extractor_for(model, JDExtractor)
+
+    extractor.extract(doc("Java, Spring Boot, Kafka, SQL"))
+
+    prompt = model.structured.messages[0].content
+    assert "only a list of skills" in prompt and "Requested skills" in prompt
