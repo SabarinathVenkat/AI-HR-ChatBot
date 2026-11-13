@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from docx import Document
 from docx.oxml import OxmlElement
 
+from app.rmg.resume.emphasis import emphasise, terms_of
 from app.rmg.resume.fit import MAX_PAGES, capacity, compact_document, fit
 from app.rmg.resume.model import Resume
 from app.rmg.resume.repair import repair_layout
@@ -73,6 +74,7 @@ def _fill(p, segments: list[tuple[str, bool]]) -> None:
     """Replace the runs of a paragraph with new text, keeping its paragraph properties and the prototype's run formatting."""
     regular, bold = _run_properties(p)
     keep_bold = all_bold(p)  # a prototype that is bold throughout (a project name) stays bold
+    allows_bold = any(run_is_bold(r) for r in text_runs(p))  # a prototype with no bold anywhere gets no bold: that is the template's style
     glyph = typed_glyph(p)  # a bullet the template typed by hand is typed again
     if glyph and segments:
         segments = [(f"{glyph} {segments[0][0]}", segments[0][1]), *segments[1:]]
@@ -81,7 +83,7 @@ def _fill(p, segments: list[tuple[str, bool]]) -> None:
             p.remove(child)
     for text, is_bold in segments:
         run = OxmlElement("w:r")
-        rpr = copy.deepcopy(bold if (is_bold or keep_bold) else regular)
+        rpr = copy.deepcopy(bold if ((is_bold and allows_bold) or keep_bold) else regular)
         if rpr is not None:
             run.append(rpr)
         t = OxmlElement("w:t")
@@ -256,6 +258,7 @@ def _project_span(slot) -> list:
 
 def _render_projects(m: TemplateMap, resume: Resume) -> list[str]:
     slot, new, problems = m.projects, [], []
+    terms = terms_of(resume)
     if not resume.projects:
         _drop([*_project_span(slot), slot.heading])
         return []
@@ -263,13 +266,13 @@ def _render_projects(m: TemplateMap, resume: Resume) -> list[str]:
         new.append(_clone(slot.proto_name, [(project.name, False)]))
         if project.description is not None:
             if slot.proto_desc is not None:
-                new.append(_clone(slot.proto_desc, [(project.description.text, False)]))
+                new.append(_clone(slot.proto_desc, emphasise(project.description.text, terms) if slot.desc_emphasis else [(project.description.text, False)]))
             else:
                 problems.append("project descriptions: the template has no place for them, so they were not included")
         count = len(project.bullets)
         for i, bullet in enumerate(project.bullets):
             proto = slot.proto_first if i == 0 else slot.proto_last if i == count - 1 else slot.proto_mid
-            new.append(_clone(proto, [(bullet.text, False)]))
+            new.append(_clone(proto, emphasise(bullet.text, terms) if slot.emphasis else [(bullet.text, False)]))
         new.append(_blank_like(slot.proto_blank if slot.proto_blank is not None else slot.proto_name))
     _replace(_project_span(slot), new)
     _remove_spacers_before(slot.heading)
@@ -358,7 +361,9 @@ def render_resume(template: bytes, resume: Resume, *, years_text: str = "") -> R
             problems.append(f"{name}: the template has no such section, so they were not included")
     if not fit(column, capacity(sample, doc), doc):
         problems.append("skills: the list is long for the side column of this template, so part of it may run onto the next page")
-    new_highlights = _render_list(m.highlights, [[(h.text, False)] for h in resume.highlights])
+    terms = terms_of(resume)
+    new_highlights = _render_list(m.highlights, [emphasise(h.text, terms) if m.highlights.emphasis else [(h.text, False)]
+                                                 for h in resume.highlights])
     if resume.jobs and not new_highlights:  # the Experience section holds key highlights; a job list only fills in when there are none
         if m.highlights.subheading is not None:
             _render_work_history(m.highlights, resume.jobs, m.highlights.subheading)

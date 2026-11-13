@@ -71,6 +71,26 @@ def text_runs(p):
     return [r for r in p.iter(W + "r") if "".join(t.text or "" for t in r.iter(W + "t"))]
 
 
+def _run_text(r) -> str:
+    return "".join(t.text or "" for t in r.iter(W + "t"))
+
+
+def has_emphasis(paragraphs) -> bool:
+    """True if some of these paragraphs have only part of their text in bold ("Proven expertise in **modernizing
+    enterprise applications**, converting..."): the template emphasises key words. A bold label at the start
+    ("Backend:") is a label, and all-bold or all-plain paragraphs say nothing about emphasis."""
+    for p in paragraphs:
+        runs = text_runs(p)
+        bold = [r for r in runs if run_is_bold(r)]
+        plain = [r for r in runs if not run_is_bold(r) and _run_text(r).strip()]
+        if not bold or not plain:
+            continue
+        if len(bold) == 1 and bold[0] is runs[0] and _run_text(bold[0]).rstrip().endswith(":"):
+            continue
+        return True
+    return False
+
+
 def all_bold(p) -> bool:
     runs = text_runs(p)
     return bool(runs) and all(run_is_bold(r) for r in runs)
@@ -114,6 +134,7 @@ class ListSlot:
     proto: object  # the first entry, cloned for every new entry
     separator: object | None = None  # a blank line the template keeps between entries, if it does
     subheading: object | None = None  # a line under the section heading that is not an entry ("Professional summary and Key highlights")
+    emphasis: bool = False  # the template bolds key words inside these entries
 
 
 @dataclass(eq=False)
@@ -133,6 +154,8 @@ class ProjectsSlot:
     proto_mid: object
     proto_last: object
     proto_blank: object | None  # the separator between projects
+    emphasis: bool = False  # the template bolds key words inside the bullets
+    desc_emphasis: bool = False  # the template bolds key words inside the project description lines
 
 
 @dataclass(eq=False)
@@ -292,7 +315,7 @@ def analyse(doc: DocxDocument) -> TemplateMap:
         if bullets:
             subheading = next((p for p in paras if not is_blank(p) and not is_bullet(p)), None)
             m.highlights = ListSlot(heading=heading, region=bullets, proto=bullets[0], separator=_separator_between(bullets),
-                                    subheading=subheading)
+                                    subheading=subheading, emphasis=has_emphasis(bullets))
             m.notes.append(f"highlights: {len(bullets)} bullets")
     if found := first("projects"):
         heading, paras = found
@@ -303,6 +326,8 @@ def analyse(doc: DocxDocument) -> TemplateMap:
             m.projects = ProjectsSlot(
                 heading=heading, blocks=blocks, proto_name=richest.name, proto_desc=richest.desc,
                 proto_first=bullets[0], proto_mid=bullets[len(bullets) // 2] if len(bullets) > 2 else bullets[0],
-                proto_last=bullets[-1], proto_blank=next((p for p in paras if is_blank(p)), None))
+                proto_last=bullets[-1], proto_blank=next((p for p in paras if is_blank(p)), None),
+                emphasis=has_emphasis([b for block in blocks for b in block.bullets]),
+                desc_emphasis=has_emphasis([block.desc for block in blocks if block.desc is not None]))
             m.notes.append(f"projects: {len(blocks)} blocks")
     return m
