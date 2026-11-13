@@ -196,12 +196,13 @@ def test_the_chat_prompt_tells_the_model_never_to_add_skills():
 
 # --- what the Word file cannot hold is said on screen ------------------------------------------------------------------------
 
-def test_the_request_says_what_the_template_has_no_place_for(ready):  # noqa: F811
+def test_the_request_says_what_the_template_has_no_place_for(ready, monkeypatch):  # noqa: F811
     ravi = built(ready)
+    monkeypatch.setattr("app.rmg.resume.service.template_gaps", lambda template, resume: ["Certifications are not in the Word file."])
 
     notes = ravi.detail(ready.request_id)["render_notes"]
 
-    assert any("Work history" in n for n in notes)  # the sample template has no subheading to hang it under
+    assert notes == ["Certifications are not in the Word file."]
 
 
 def test_a_template_that_can_hold_everything_gives_no_notes(ready):  # noqa: F811

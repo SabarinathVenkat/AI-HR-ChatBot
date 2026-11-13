@@ -231,7 +231,7 @@ def template_gaps(template: bytes, resume: Resume) -> list[str]:
         gaps.append("Certifications are not in the Word file: the template has no place for them.")
     if resume.education and m.education is None:
         gaps.append("Education is not in the Word file: the template has no place for it.")
-    if resume.jobs and m.highlights.subheading is None:
+    if resume.jobs and not resume.highlights and m.highlights.subheading is None:
         gaps.append("Work history is not in the Word file: the template has no place for it.")
     if any(p.description for p in resume.projects) and m.projects.proto_desc is None:
         gaps.append("Project descriptions are not in the Word file: the template has no place for them.")
@@ -359,9 +359,9 @@ def render_resume(template: bytes, resume: Resume, *, years_text: str = "") -> R
     if not fit(column, capacity(sample, doc), doc):
         problems.append("skills: the list is long for the side column of this template, so part of it may run onto the next page")
     new_highlights = _render_list(m.highlights, [[(h.text, False)] for h in resume.highlights])
-    if resume.jobs:
+    if resume.jobs and not new_highlights:  # the Experience section holds key highlights; a job list only fills in when there are none
         if m.highlights.subheading is not None:
-            _render_work_history(m.highlights, resume.jobs, new_highlights[-1] if new_highlights else m.highlights.subheading)
+            _render_work_history(m.highlights, resume.jobs, m.highlights.subheading)
         else:
             problems.append("work history: the template has no place for it, so it was not included")
     if not new_highlights and not (resume.jobs and m.highlights.subheading is not None):

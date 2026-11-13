@@ -314,13 +314,22 @@ def right_column(result):
     return lines[lines.index("KEY HIGHLIGHTS") + 1:lines.index("PROJECT DETAILS")]
 
 
-def test_work_history_follows_the_highlights_under_its_own_subheading_in_the_templates_styles():
+def test_when_there_are_highlights_the_template_gets_them_and_no_work_history_list():
     result = render(WITH_JOBS, template=make_template(certifications=True, highlights_subheading=SUB))
 
     column = right_column(result)
-    assert column[0] == SUB  # the template's own subheading is still first
+    assert column[0] == SUB and "Work history" not in column
+    assert [t for t in column if t.startswith("Highlight number")] == [f"Highlight number {i}" for i in range(5)]
+    assert not any(t.startswith("Senior Data Scientist, Ideas2IT") for t in texts(result))
+
+
+def test_work_history_stands_in_for_missing_highlights_in_the_templates_styles():
+    bare = WITH_JOBS.model_copy(update={"highlights": []})
+    result = render(bare, template=make_template(certifications=True, highlights_subheading=SUB))
+
+    column = right_column(result)
+    assert column[0] == SUB
     start = column.index("Work history")
-    assert column[start - 2:start] == ["Highlight number 4", ""]  # a blank line sets the new block apart
     assert column[start + 1:start + 5] == ["Senior Data Scientist, Ideas2IT (May 2025 – Present)", "Lead Data Scientist, Photon (Jan 2024 – May 2025)",
                                            "Freelance developer (from 2020)", "Acme"]
     bullets = [p for p in paragraphs(result) if paragraph_text(p).startswith(("Senior Data Scientist, Ideas2IT", "Acme"))]
@@ -328,7 +337,8 @@ def test_work_history_follows_the_highlights_under_its_own_subheading_in_the_tem
 
 
 def test_the_template_spacing_between_bullets_is_kept_in_the_work_history():
-    result = render(WITH_JOBS, template=make_template(certifications=True, spaced_highlights=True, highlights_subheading=SUB))
+    bare = WITH_JOBS.model_copy(update={"highlights": []})
+    result = render(bare, template=make_template(certifications=True, spaced_highlights=True, highlights_subheading=SUB))
 
     column = right_column(result)
     first = column.index("Senior Data Scientist, Ideas2IT (May 2025 – Present)")
@@ -344,7 +354,7 @@ def test_a_resume_with_no_highlights_still_shows_its_work_history():
 
 
 def test_a_template_with_no_subheading_cannot_hold_work_history_and_says_so():
-    result = render(WITH_JOBS)
+    result = render(WITH_JOBS.model_copy(update={"highlights": []}))
 
     assert "Work history" not in texts(result)
     assert any(p.startswith("work history:") for p in result.problems)
@@ -357,10 +367,12 @@ def test_no_jobs_means_no_work_history_block():
 def test_the_gaps_say_in_plain_words_what_the_template_has_no_place_for():
     thin = RESUME.model_copy(update={"jobs": JOBS, "certifications": ["AWS Certified"]})
 
-    gaps = template_gaps(save(make_template()), thin)
+    gaps = template_gaps(save(make_template()), thin.model_copy(update={"highlights": []}))
 
     assert any("Certifications" in g for g in gaps) and any("Work history" in g for g in gaps)
-    assert template_gaps(save(make_template(certifications=True, highlights_subheading=SUB)), thin) == []
+    assert template_gaps(save(make_template(certifications=True, highlights_subheading=SUB)), thin) == []  # the highlights fill that section
+    no_highlights = thin.model_copy(update={"highlights": []})
+    assert template_gaps(save(make_template(certifications=True, highlights_subheading=SUB)), no_highlights) == []
 
 
 # --- an unusable template still produces a resume (the standard layout) ----------------------------------------------------

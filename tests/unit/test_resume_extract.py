@@ -314,3 +314,35 @@ def test_a_project_label_in_the_source_does_not_count_as_lost_content():
     resume = to_resume(extracted(projects=[ExtractedProject(name="Project: Foo Bar", description="", bullets=[])]))
 
     assert coverage("Project: Foo Bar", resume) == 1.0
+
+
+# --- a resume with no key-highlights section: its summary sentences stand in --------------------------------------------------
+
+from app.rmg.resume.extract import summary_points  # noqa: E402
+
+SUMMARY_TEXT = ("Senior Data Scientist with 9+ years of experience delivering production-oriented AI/ML solutions. "
+                "Strong in Python, SQL and Pandas. Built healthcare and enterprise ML solutions, including a churn "
+                "propensity model evaluated across 89K accounts. Experienced in translating complex data into insights.")
+
+
+def test_the_summary_sentences_become_the_highlights_when_the_resume_has_none():
+    points = summary_points(SUMMARY_TEXT)
+
+    assert len(points) == 3 and points[0].startswith("Senior Data Scientist") and points[1].startswith("Built healthcare")
+
+
+def test_a_short_sentence_is_joined_to_the_one_before_it():
+    assert "Strong in Python, SQL and Pandas." in summary_points(SUMMARY_TEXT)[0]
+
+
+def test_a_single_sentence_summary_is_not_repeated_as_a_highlight():
+    assert summary_points("One long sentence that describes the person and stops here without another one.") == []
+    assert summary_points("") == []
+
+
+def test_extraction_uses_the_summary_points_only_when_the_resume_has_no_highlights():
+    without = to_resume(ExtractedResume(name="A", summary=SUMMARY_TEXT))
+    with_own = to_resume(ExtractedResume(name="A", summary=SUMMARY_TEXT, highlights=["My own highlight written in the resume."]))
+
+    assert len(without.highlights) == 3 and all(h.source.startswith("highlights.") for h in without.highlights)
+    assert [h.text for h in with_own.highlights] == ["My own highlight written in the resume."]

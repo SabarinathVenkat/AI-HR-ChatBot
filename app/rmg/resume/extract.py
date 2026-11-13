@@ -95,6 +95,26 @@ def _project_name(name: str) -> str:
     return _PROJECT_LABEL.sub("", name).strip() or name.strip()
 
 
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
+MAX_DERIVED_HIGHLIGHTS = 6
+MIN_HIGHLIGHT_CHARS = 40
+
+
+def summary_points(summary: str) -> list[str]:
+    """A resume with no key-highlights section: the sentences of its own summary stand in as the highlights, because the
+    template's Experience section is a list of such points. Nothing is written or changed, the sentences are only split;
+    a short one is joined to the one before. A single sentence is not split (it would only repeat the summary)."""
+    points: list[str] = []
+    for sentence in (x.strip() for x in _SENTENCE_END.split(" ".join(summary.split()))):
+        if not sentence:
+            continue
+        if points and len(sentence) < MIN_HIGHLIGHT_CHARS:
+            points[-1] += " " + sentence
+        else:
+            points.append(sentence)
+    return points[:MAX_DERIVED_HIGHLIGHTS] if len(points) >= 2 else []
+
+
 def _opt(text: str) -> str | None:
     return text.strip() or None
 
@@ -111,7 +131,7 @@ def to_resume(x: ExtractedResume) -> Resume:
             education=[Education(degree=_opt(e.degree), institution=_opt(e.institution), year=_opt(e.year))
                        for e in x.education if _opt(e.degree) or _opt(e.institution)],
             certifications=[c for c in (c.strip() for c in x.certifications) if c],
-            highlights=_items(x.highlights, "highlights"),
+            highlights=_items(x.highlights or summary_points(x.summary), "highlights"),
             jobs=[Job(company=_opt(j.company), title=_opt(j.title), start=_opt(j.start), end=_opt(j.end))
                   for j in x.jobs if _opt(j.company) or _opt(j.title)],
             projects=[Project(name=_project_name(p.name), description=_item(p.description, f"projects.{n}.description"),
