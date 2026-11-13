@@ -76,14 +76,12 @@ def test_step_by_step_what_happens_when_the_template_is_replaced(ready):  # noqa
 
 
 @pytest.mark.parametrize("name,data,code", [
-    ("typed.docx", template_bytes(numbered_bullets=False), "template_incomplete"),
-    ("notitle.docx", template_bytes(title_style=False), "template_incomplete"),
     ("macro.docx", with_extra_entry(template_bytes(), "word/vbaProject.bin", b"macro"), "macros_not_allowed"),
     ("fake.docx", b"this is not a docx", "type_mismatch"),
     ("real.pdf", blank_pdf(), "unsupported_type"),  # a genuine PDF is the wrong kind of file for a template
     ("broken.pdf", b"%PDF-1.4 not a template", "corrupt"),
     ("run.exe", b"MZ", "unsupported_type"),
-], ids=["typed-bullets", "no-title-styles", "macros", "not-really-a-docx", "real-pdf", "broken-pdf", "exe"])
+], ids=["macros", "not-really-a-docx", "real-pdf", "broken-pdf", "exe"])
 def test_a_template_that_cannot_be_used_is_refused_and_the_active_template_is_unchanged(ready, name, data, code):  # noqa: F811
     before = ready.db.execute("SELECT id FROM resume_templates WHERE status = 'active'").fetchone()["id"]
 
@@ -96,11 +94,10 @@ def test_a_template_that_cannot_be_used_is_refused_and_the_active_template_is_un
     assert ready.db.execute("SELECT count(*) FROM resume_templates").fetchone()[0] == 1  # nothing was stored
 
 
-def test_a_refused_template_names_what_is_missing(ready):  # noqa: F811
-    with pytest.raises(ServiceError) as e:
-        ready.as_(HEAD).upload_template("typed.docx", template_bytes(numbered_bullets=False))
+def test_an_incomplete_template_names_what_is_missing_in_its_warning(ready):  # noqa: F811
+    result = ready.as_(HEAD).upload_template("noprojects.docx", template_bytes(omit_projects=True))
 
-    assert "highlights" in str(e.value) and "projects" in str(e.value)
+    assert "projects" in result["warning"]
 
 
 def test_building_without_any_template_is_a_clear_error(world):  # noqa: F811

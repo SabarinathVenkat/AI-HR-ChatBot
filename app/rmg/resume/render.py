@@ -18,9 +18,12 @@ from dataclasses import dataclass
 from docx import Document
 from docx.oxml import OxmlElement
 
-from app.rmg.resume.fit import capacity, fit
+from app.rmg.resume.fit import MAX_PAGES, capacity, compact_document, fit
 from app.rmg.resume.model import Resume
-from app.rmg.resume.template import W, TemplateMap, all_bold, analyse, is_blank, is_heading, run_is_bold, text_runs
+from app.rmg.resume.repair import repair_layout
+from app.rmg.resume.template import (
+    W, TemplateMap, all_bold, analyse, is_blank, is_heading, run_is_bold, text_runs, typed_glyph,
+)
 
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]")
 _SPACE = "{http://www.w3.org/XML/1998/namespace}space"
@@ -70,6 +73,9 @@ def _fill(p, segments: list[tuple[str, bool]]) -> None:
     """Replace the runs of a paragraph with new text, keeping its paragraph properties and the prototype's run formatting."""
     regular, bold = _run_properties(p)
     keep_bold = all_bold(p)  # a prototype that is bold throughout (a project name) stays bold
+    glyph = typed_glyph(p)  # a bullet the template typed by hand is typed again
+    if glyph and segments:
+        segments = [(f"{glyph} {segments[0][0]}", segments[0][1]), *segments[1:]]
     for child in list(p):
         if child.tag != W + "pPr":
             p.remove(child)
@@ -185,6 +191,17 @@ def _render_list(slot, entries: list[list[tuple[str, bool]]]) -> list:
     return new
 
 
+def _drop(elements) -> None:
+    for element in elements:
+        if element is not None and element.getparent() is not None:
+            element.getparent().remove(element)
+
+
+def _drop_section(heading, body: list, extra=()) -> None:
+    """A section with nothing to show goes completely: a heading with nothing under it looks like a mistake."""
+    _drop([heading, *body, *extra])
+
+
 def _job_line(job) -> str:
     """"Senior Data Scientist, Ideas2IT (May 2025 – Present)"; whatever part is missing is simply left out."""
     text = ", ".join(part for part in (job.title, job.company) if part)
@@ -239,6 +256,9 @@ def _project_span(slot) -> list:
 
 def _render_projects(m: TemplateMap, resume: Resume) -> list[str]:
     slot, new, problems = m.projects, [], []
+    if not resume.projects:
+        _drop([*_project_span(slot), slot.heading])
+        return []
     for project in resume.projects:
         new.append(_clone(slot.proto_name, [(project.name, False)]))
         if project.description is not None:
@@ -279,7 +299,8 @@ def _start_on_new_page(heading) -> None:
         ppr = OxmlElement("w:pPr")
         heading.insert(0, ppr)
     _ensure_ppr_child(ppr, "keepNext")
-    _ensure_ppr_child(ppr, "pageBreakBefore")
+    if heading.getparent().tag != W + "tc":  # a page break inside a table cell moves the whole table row, leaving a blank page
+        _ensure_ppr_child(ppr, "pageBreakBefore")
 
 
 def _remove_spacers_before(heading) -> None:
@@ -323,15 +344,19 @@ def render_resume(template: bytes, resume: Resume, *, years_text: str = "") -> R
     for slot in (m.education, m.certifications):
         sample += list(slot.region) if slot is not None else []
     column = _render_skills(m, resume)
+    if not resume.skill_groups:
+        _drop_section(m.skills.heading, [])
     for name, slot, entries in (
         ("education", m.education, [_education_line(e) for e in resume.education]),
         ("certifications", m.certifications, [[(c, False)] for c in resume.certifications]),
     ):
         if slot is not None:
             column += _render_list(slot, entries)
+            if not entries:
+                _drop_section(slot.heading, [])
         elif entries:
             problems.append(f"{name}: the template has no such section, so they were not included")
-    if not fit(column, capacity(sample, doc)):
+    if not fit(column, capacity(sample, doc), doc):
         problems.append("skills: the list is long for the side column of this template, so part of it may run onto the next page")
     new_highlights = _render_list(m.highlights, [[(h.text, False)] for h in resume.highlights])
     if resume.jobs:
@@ -339,8 +364,38 @@ def render_resume(template: bytes, resume: Resume, *, years_text: str = "") -> R
             _render_work_history(m.highlights, resume.jobs, new_highlights[-1] if new_highlights else m.highlights.subheading)
         else:
             problems.append("work history: the template has no place for it, so it was not included")
+    if not new_highlights and not (resume.jobs and m.highlights.subheading is not None):
+        _drop_section(m.highlights.heading, [], [m.highlights.subheading])
     problems += _render_projects(m, resume)
+    repair_layout(doc)
+    pages = compact_document(doc).pages
+    if pages > MAX_PAGES:
+        problems.append(f"the resume is long: it will run to about {pages} pages, and {MAX_PAGES} is the limit, so some of it should be shortened")
 
     out = io.BytesIO()
     doc.save(out)
     return RenderResult(docx=out.getvalue(), problems=tuple(problems))
+
+
+def render_best(template: bytes, resume: Resume, *, years_text: str = "") -> RenderResult:
+    """Always produce a resume. If the template cannot be used (it has no recognisable sections, or is damaged), the
+    standard layout is used instead and the result says so, so a mistake in a template never blocks an associate."""
+    try:
+        return render_resume(template, resume, years_text=years_text)
+    except TemplateError as e:
+        from app.rmg.resume.demo_template import make_demo_template  # imported here: it is only needed on this path
+
+        standard = render_resume(make_demo_template(), resume, years_text=years_text)
+        reason = f"it is missing {', '.join(e.missing)}" if e.missing else "it could not be read"
+        return RenderResult(docx=standard.docx, problems=(
+            f"The company template could not be used ({reason}), so the standard layout was used instead.", *standard.problems))
+
+
+def template_warning(template: bytes) -> str | None:
+    """A sentence for the person uploading a template if resumes made from it will use the standard layout, else None."""
+    try:
+        check_template(template)
+    except TemplateError as e:
+        reason = f"it is missing {', '.join(e.missing)}" if e.missing else "it could not be read"
+        return f"This template will not be used as it is ({reason}); resumes will use the standard layout instead."
+    return None

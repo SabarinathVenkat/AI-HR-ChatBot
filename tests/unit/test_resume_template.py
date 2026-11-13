@@ -67,14 +67,20 @@ def test_a_complete_template_has_nothing_missing():
     assert analyse(make_template()).missing() == []
 
 
-def test_a_template_without_title_styles_reports_the_header_as_missing_instead_of_guessing():
-    assert "name" in analyse(make_template(title_style=False)).missing()
+def test_a_template_without_title_styles_has_its_header_guessed_from_the_first_lines():
+    m = analyse(make_template(title_style=False))
+
+    assert text_of(m.name) == "Sample Name" and text_of(m.role) == "Sample Role 5 years" and m.missing() == []
 
 
-def test_bullets_typed_as_a_character_are_not_recognised_so_highlights_and_projects_are_reported_missing():
-    missing = analyse(make_template(numbered_bullets=False)).missing()
+def test_bullets_typed_as_a_character_are_recognised_like_numbered_ones():
+    m = analyse(make_template(numbered_bullets=False))
 
-    assert "highlights" in missing and "projects" in missing
+    assert m.missing() == [] and len(m.highlights.region) == 3 and len(m.projects.blocks) == 2
+
+
+def test_a_template_with_no_projects_section_reports_projects_as_missing():
+    assert analyse(make_template(omit_projects=True)).missing() == ["projects"]
 
 
 def test_analysing_does_not_change_the_document():

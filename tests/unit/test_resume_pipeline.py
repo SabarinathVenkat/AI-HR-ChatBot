@@ -122,13 +122,19 @@ def test_a_project_whose_draft_fails_is_kept_and_the_run_reports_a_warning():
 
 # --- failures stop the run with a clear error -----------------------------------------------------------
 
-def test_a_template_that_cannot_be_used_stops_the_run_before_any_model_is_called():
+def test_a_template_with_missing_sections_still_gives_a_resume_in_the_standard_layout():
+    result = run_pipeline(deps(), request(template=template_bytes(omit_projects=True)))
+
+    assert any("standard layout" in p for p in result.rendered.problems)
+
+
+def test_a_template_that_is_not_a_word_file_stops_the_run_before_any_model_is_called():
     r, j = FakeResumeExtractor(), FakeJDExtractor()
 
     with pytest.raises(PipelineError) as e:
-        run_pipeline(deps(r, j), request(template=template_bytes(numbered_bullets=False)))
+        run_pipeline(deps(r, j), request(template=b"not a docx"))
 
-    assert (e.value.stage, e.value.code) == ("template", "incomplete") and "projects" in str(e.value)
+    assert (e.value.stage, e.value.code) == ("template", "unreadable")
     assert r.calls == [] and j.calls == []
 
 

@@ -195,7 +195,7 @@ def test_a_template_with_everything_reports_no_problems():
 
 def test_a_template_with_missing_slots_is_refused_with_the_list():
     with pytest.raises(TemplateError) as e:
-        render(template=make_template(numbered_bullets=False))
+        render(template=make_template(omit_projects=True))
 
     assert e.value.code == "incomplete" and "projects" in e.value.missing
 
@@ -361,3 +361,68 @@ def test_the_gaps_say_in_plain_words_what_the_template_has_no_place_for():
 
     assert any("Certifications" in g for g in gaps) and any("Work history" in g for g in gaps)
     assert template_gaps(save(make_template(certifications=True, highlights_subheading=SUB)), thin) == []
+
+
+# --- an unusable template still produces a resume (the standard layout) ----------------------------------------------------
+
+from app.rmg.resume.render import render_best  # noqa: E402
+
+
+def test_a_template_that_cannot_be_used_gives_a_resume_in_the_standard_layout_and_says_so():
+    result = render_best(save(make_template(omit_projects=True)), RESUME)
+
+    assert any("standard layout" in p and "projects" in p for p in result.problems)
+    body = " ".join(texts(result))
+    assert "Anil Verma" in body and "Payments" in body and "Highlight number 4" in body
+
+
+def test_something_that_is_not_a_docx_also_gives_a_resume_in_the_standard_layout():
+    result = render_best(b"not a docx", RESUME)
+
+    assert any("could not be read" in p for p in result.problems) and "Anil Verma" in " ".join(texts(result))
+
+
+def test_a_usable_template_is_used_as_it_is_with_no_standard_layout_notice():
+    assert not any("standard layout" in p for p in render_best(save(make_template(certifications=True)), RESUME).problems)
+
+
+# --- sections with nothing to show are removed, and breaks that would leave a blank page are not used ---------------------
+
+def headings(result) -> list[str]:
+    return [t for t in texts(result) if t.isupper()]
+
+
+def test_a_resume_with_no_projects_has_no_empty_projects_heading_and_no_page_break():
+    result = render(Resume(name="Nora", skill_groups=RESUME.skill_groups, highlights=RESUME.highlights))
+
+    assert "PROJECT DETAILS" not in headings(result) and "pageBreakBefore" not in Document(io.BytesIO(result.docx)).element.xml
+
+
+def test_a_resume_with_no_skills_education_or_highlights_has_none_of_those_headings():
+    result = render(Resume(name="Sam", projects=RESUME.projects))
+
+    assert headings(result) == ["PROJECT DETAILS"]
+
+
+def test_highlights_stay_when_there_is_only_work_history_to_show():
+    from app.rmg.resume.model import Job
+
+    result = render(Resume(name="Joe", jobs=[Job(company="Acme", title="Engineer", start="Jan 2020", end="Dec 2021")],
+                           projects=RESUME.projects), template=make_template(highlights_subheading="Professional summary and Key highlights"))
+
+    assert "KEY HIGHLIGHTS" in headings(result) and any("Engineer, Acme" in t for t in texts(result))
+
+
+def test_a_projects_heading_inside_a_table_cell_gets_no_page_break_because_that_leaves_a_blank_page():
+    doc = make_template()
+    body = doc.element.body
+    table = doc.add_table(rows=1, cols=1)
+    cell = table.cell(0, 0)._tc
+    start = next(p for p in body.iter(W + "p") if paragraph_text(p) == "PROJECT DETAILS")
+    moving = [start, *list(start.itersiblings())]
+    for element in moving:
+        if element.tag == W + "p":
+            cell.insert(len(cell) - 1, element)
+    result = render_resume(save(doc), RESUME)
+
+    assert "pageBreakBefore" not in Document(io.BytesIO(result.docx)).element.xml

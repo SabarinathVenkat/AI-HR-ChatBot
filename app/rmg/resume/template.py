@@ -48,6 +48,20 @@ def has_numbering(p) -> bool:
     return p.find(f"{W}pPr/{W}numPr") is not None
 
 
+_TYPED_BULLET = re.compile(r"^\s*([•●▪◦‣·–*-])\s+\S")
+
+
+def typed_glyph(p) -> str | None:
+    """The bullet character a template typed by hand at the start of a line, if it did."""
+    found = _TYPED_BULLET.match(paragraph_text(p))
+    return found.group(1) if found else None
+
+
+def is_bullet(p) -> bool:
+    """A bullet, whether the template made it with Word's numbering or typed the character itself."""
+    return has_numbering(p) or typed_glyph(p) is not None
+
+
 def run_is_bold(r) -> bool:
     b = r.find(f"{W}rPr/{W}b")
     return b is not None and b.get(W + "val") not in ("0", "false")
@@ -179,13 +193,31 @@ def _find_header(doc: DocxDocument, m: TemplateMap) -> None:
         m.notes.append(f"header found in {label}")
         break
     else:
-        m.notes.append("no header: no Title-style paragraphs")
+        _guess_header(doc, m)
     if m.summary is None:  # last resort: the first long, unnumbered paragraph that is not a heading
         for _, container in _containers(doc):
             m.summary = next((p for p in _paragraphs(container) if len(paragraph_text(p)) > SUMMARY_MIN_CHARS
-                              and not has_numbering(p) and not is_heading(p)), None)
+                              and not is_bullet(p) and not is_heading(p)), None)
             if m.summary is not None:
                 break
+
+
+def _guess_header(doc: DocxDocument, m: TemplateMap) -> None:
+    """No Title-style paragraphs: take the first short line as the name, a short line after it as the role, and the
+    first long line as the summary."""
+    for _, container in _containers(doc):
+        lines = [p for p in _paragraphs(container) if paragraph_text(p).strip()]
+        if not lines or is_heading(lines[0]) or is_bullet(lines[0]) or len(paragraph_text(lines[0]).split()) > 6:
+            continue
+        m.name = lines[0]
+        rest = lines[1:]
+        if rest and not is_heading(rest[0]) and not is_bullet(rest[0]) and len(paragraph_text(rest[0])) <= 80:
+            m.role = rest[0]
+            rest = rest[1:]
+        m.summary = next((p for p in rest if not is_heading(p) and not is_bullet(p) and len(paragraph_text(p)) >= 40), None)
+        m.notes.append("header guessed: no Title-style paragraphs")
+        return
+    m.notes.append("no header: no Title-style paragraphs")
 
 
 def _find_sections(doc: DocxDocument) -> dict[str, list]:
@@ -209,7 +241,7 @@ def _find_blocks(paras: list) -> list[Block]:
             if current is not None and current.bullets:
                 blocks.append(current)
                 current = None
-        elif has_numbering(p):
+        elif is_bullet(p):
             if current is not None:
                 current.bullets.append(p)
         elif all_bold(p) and len(paragraph_text(p)) < MAX_PROJECT_NAME_CHARS:
@@ -256,9 +288,9 @@ def analyse(doc: DocxDocument) -> TemplateMap:
                 m.notes.append(f"{kind}: {len(region)} entries")
     if found := first("highlights"):
         heading, paras = found
-        bullets = [p for p in paras if has_numbering(p)]
+        bullets = [p for p in paras if is_bullet(p)]
         if bullets:
-            subheading = next((p for p in paras if not is_blank(p) and not has_numbering(p)), None)
+            subheading = next((p for p in paras if not is_blank(p) and not is_bullet(p)), None)
             m.highlights = ListSlot(heading=heading, region=bullets, proto=bullets[0], separator=_separator_between(bullets),
                                     subheading=subheading)
             m.notes.append(f"highlights: {len(bullets)} bullets")

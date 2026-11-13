@@ -1,10 +1,13 @@
-"""Keep the side column (skills and education) on the first page.
+"""Keep the layout from spilling: the side column onto a second page, and a few stray lines onto a last page.
 
-Word is not available here, so the height of the new text is estimated from its length, font size and line spacing, and
-compared with what the template's own sample text took up. If it is too tall, the new paragraphs are tightened in steps:
-first the line spacing, then the font a little. Only the new paragraphs change, never the template's, and nothing is dropped.
+Word is not available here, so heights are estimated from text length, font size, line spacing and page size. Two uses:
+  fit()               the side column (skills and education) is compared with what the template's own sample text took
+  compact_document()  the whole document: if a few lines spill onto an almost empty last page, or it is too long, the
+                      spacing is tightened in steps (line spacing first, then the font a little)
+Nothing is ever dropped, and text is never made bigger.
 """
 import math
+from dataclasses import dataclass
 
 from app.rmg.resume.template import W
 
@@ -14,15 +17,66 @@ HEADROOM = 1.1  # the template's sample does not fill the column, so the new tex
 PAGE_SHARE = 0.55  # a column may always use at least this share of the usable page height
 LEVELS = ((1.0, 0.0), (0.85, 0.0), (0.77, 1.0), (0.7, 2.0))  # (line spacing scale, points to take off the font)
 MIN_PT = 9.0
+MAX_PAGES = 5  # the limit RMG asked for on resumes
+LAST_PAGE_MIN_FILL = 0.25  # a last page less full than this looks like a mistake
+AVERAGE_CHAR_EM = 0.55  # an average character is about this wide, in ems
 
 
-def _font_pt(p) -> float:
+class Styles:
+    """What a paragraph's style says about its font size and spacing, following "based on" and the document defaults.
+    Without this a template that sets its spacing in styles (most do) would be measured as if it had none."""
+
+    def __init__(self, doc):
+        root = doc.styles.element
+        self._by_id = {s.get(W + "styleId"): s for s in root.findall(W + "style")}
+        defaults = root.find(W + "docDefaults")
+        self._default_spacing = self._attrs(defaults.find(f"{W}pPrDefault/{W}pPr/{W}spacing")) if defaults is not None else {}
+        size = defaults.find(f"{W}rPrDefault/{W}rPr/{W}sz") if defaults is not None else None
+        self._default_pt = _half_points(size) or DEFAULT_PT
+        self._normal = next((s for s in self._by_id.values() if s.get(W + "type") == "paragraph" and s.get(W + "default") in ("1", "true")), None)
+
+    @staticmethod
+    def _attrs(spacing) -> dict:
+        return {k.split("}")[1]: v for k, v in spacing.attrib.items()} if spacing is not None else {}
+
+    def _chain(self, p):
+        ref = p.find(f"{W}pPr/{W}pStyle")
+        style = self._by_id.get(ref.get(W + "val")) if ref is not None else self._normal
+        seen = 0
+        while style is not None and seen < 10:
+            yield style
+            based = style.find(W + "basedOn")
+            style = self._by_id.get(based.get(W + "val")) if based is not None else None
+            seen += 1
+
+    def spacing(self, p) -> dict:
+        merged = dict(self._default_spacing)
+        for style in reversed(list(self._chain(p))):
+            merged.update(self._attrs(style.find(f"{W}pPr/{W}spacing")))
+        merged.update(self._attrs(_spacing(p)))
+        return merged
+
+    def size(self, p) -> float:
+        for style in self._chain(p):
+            found = _half_points(style.find(f"{W}rPr/{W}sz"))
+            if found:
+                return found
+        return self._default_pt
+
+
+def _half_points(size) -> float | None:
+    try:
+        return int(size.get(W + "val")) / 2 if size is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _font_pt(p, styles: "Styles | None" = None) -> float:
     for size in p.iter(W + "sz"):
-        try:
-            return int(size.get(W + "val")) / 2
-        except (TypeError, ValueError):
-            continue
-    return DEFAULT_PT
+        found = _half_points(size)
+        if found:
+            return found
+    return styles.size(p) if styles is not None else DEFAULT_PT
 
 
 def _spacing(p):
@@ -40,20 +94,31 @@ def _text(p) -> str:
     return "".join(t.text or "" for t in p.iter(W + "t"))
 
 
-def _height(p, scale: float, drop: float) -> float:
-    pt = max(_font_pt(p) - drop, MIN_PT) if drop else _font_pt(p)
-    chars = max(CHARS_ACROSS_AT_10PT * 10 / pt, 1)
+def _smaller(pt: float, drop: float) -> float:
+    """The font size after taking `drop` points off, but never below the minimum and never bigger than it was."""
+    return min(pt, max(pt - drop, MIN_PT)) if drop else pt
+
+
+def _height(p, scale: float, drop: float, width: float | None = None, styles: "Styles | None" = None) -> float:
+    pt = _smaller(_font_pt(p, styles), drop)
+    chars = max(width / (pt * AVERAGE_CHAR_EM), 1) if width else max(CHARS_ACROSS_AT_10PT * 10 / pt, 1)
     lines = max(1, math.ceil(len(_text(p)) / chars))
-    spacing = _spacing(p)
-    line = _number(spacing, "line")
-    rule = spacing.get(W + "lineRule") if spacing is not None else None
-    pitch = line / 20 if (line and rule == "exact") else pt * 1.2 * ((line or 240) / 240)
-    return lines * pitch * scale + (_number(spacing, "before") + _number(spacing, "after")) / 20 * scale
+    spacing = styles.spacing(p) if styles is not None else Styles._attrs(_spacing(p))
+    line = _value(spacing, "line")
+    pitch = line / 20 if (line and spacing.get("lineRule") == "exact") else pt * 1.2 * ((line or 240) / 240)
+    return lines * pitch * scale + (_value(spacing, "before") + _value(spacing, "after")) / 20 * scale
 
 
-def estimate(paragraphs, level: int = 0) -> float:
+def _value(spacing: dict, name: str) -> float:
+    try:
+        return float(spacing.get(name, 0) or 0)
+    except ValueError:
+        return 0.0
+
+
+def estimate(paragraphs, level: int = 0, styles: "Styles | None" = None) -> float:
     scale, drop = LEVELS[level]
-    return sum(_height(p, scale, drop) for p in paragraphs)
+    return sum(_height(p, scale, drop, None, styles) for p in paragraphs)
 
 
 def capacity(sample: list, doc) -> float:
@@ -63,7 +128,7 @@ def capacity(sample: list, doc) -> float:
         usable = (section.page_height - section.top_margin - section.bottom_margin) / 12700
     except Exception:
         usable = 700.0
-    return max(estimate(sample) * HEADROOM, usable * PAGE_SHARE)
+    return max(estimate(sample, 0, Styles(doc)) * HEADROOM, usable * PAGE_SHARE)
 
 
 def _tighten(p, scale: float, drop: float) -> None:
@@ -74,7 +139,7 @@ def _tighten(p, scale: float, drop: float) -> None:
     spacing = _spacing(p)
     if spacing is None:
         spacing = ppr.makeelement(W + "spacing")
-        _insert_spacing(ppr, spacing)
+        insert_spacing(ppr, spacing)
     rule = spacing.get(W + "lineRule")
     line = _number(spacing, "line") or 240.0
     spacing.set(W + "line", str(round(line * scale)))
@@ -89,14 +154,14 @@ def _tighten(p, scale: float, drop: float) -> None:
                 half = int(size.get(W + "val"))
             except (TypeError, ValueError):
                 continue
-            size.set(W + "val", str(max(half - round(drop * 2), round(MIN_PT * 2))))
+            size.set(W + "val", str(round(_smaller(half / 2, drop) * 2)))
 
 
 _AFTER_SPACING = ("ind", "contextualSpacing", "mirrorIndents", "suppressOverlap", "jc", "textDirection", "textAlignment",
                   "textboxTightWrap", "outlineLvl", "divId", "cnfStyle", "rPr", "sectPr", "pPrChange")
 
 
-def _insert_spacing(ppr, spacing) -> None:
+def insert_spacing(ppr, spacing) -> None:
     """w:spacing has a fixed place inside w:pPr (Word rejects the file otherwise): before indentation, alignment and the rest."""
     for index, child in enumerate(ppr):
         if child.tag.split("}")[-1] in _AFTER_SPACING:
@@ -105,13 +170,102 @@ def _insert_spacing(ppr, spacing) -> None:
     ppr.append(spacing)
 
 
-def fit(new: list, limit: float) -> bool:
+def fit(new: list, limit: float, doc) -> bool:
     """Tighten `new` paragraphs until their estimated height is within `limit`. Returns False if even the tightest is too tall."""
+    styles = Styles(doc)
     for level in range(len(LEVELS)):
-        if estimate(new, level) <= limit or level == len(LEVELS) - 1:
+        if estimate(new, level, styles) <= limit or level == len(LEVELS) - 1:
             scale, drop = LEVELS[level]
             if level:
                 for p in new:
                     _tighten(p, scale, drop)
-            return estimate(new, level) <= limit
+            return estimate(new, level, styles) <= limit
     return True
+
+
+# --- the whole document ------------------------------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class PageEstimate:
+    pages: int
+    last_fill: float  # how full the last page is, 0 to 1
+
+
+def _geometry(doc) -> tuple[float, float]:
+    """(usable width, usable height) in points."""
+    try:
+        s = doc.sections[0]
+        return ((s.page_width - s.left_margin - s.right_margin) / 12700,
+                (s.page_height - s.top_margin - s.bottom_margin) / 12700)
+    except Exception:
+        return 468.0, 648.0
+
+
+def _indent(p) -> float:
+    ind = p.find(f"{W}pPr/{W}ind")
+    return _number(ind, "left") / 20 if ind is not None else 0.0
+
+
+def _paragraph_height(p, width: float, level: int, styles) -> float:
+    scale, drop = LEVELS[level]
+    return _height(p, scale, drop, max(width - _indent(p), 40.0), styles)
+
+
+def _table_height(table, width: float, level: int, styles) -> float:
+    total = 0.0
+    for row in table.findall(W + "tr"):
+        cells = row.findall(W + "tc")
+        minimum = 0.0
+        height = row.find(f"{W}trPr/{W}trHeight")
+        if height is not None:
+            minimum = _number(height, "val") / 20
+        tallest = 0.0
+        for cell in cells:
+            cell_width = _number(cell.find(f"{W}tcPr/{W}tcW"), "w") / 20 or width / max(len(cells), 1)
+            inner = sum(_paragraph_height(p, cell_width, level, styles) for p in cell.findall(W + "p"))
+            tallest = max(tallest, inner)
+        total += max(minimum, tallest)
+    return total
+
+
+def estimate_pages(doc, level: int = 0) -> PageEstimate:
+    width, capacity_pt = _geometry(doc)
+    styles = Styles(doc)
+    pages, y = 1, 0.0
+
+    def add(height: float) -> None:
+        nonlocal pages, y
+        y += height
+        while y > capacity_pt:
+            pages += 1
+            y -= capacity_pt
+
+    for child in doc.element.body:
+        if child.tag == W + "p":
+            before = child.find(f"{W}pPr/{W}pageBreakBefore")
+            if before is not None and before.get(W + "val") not in ("0", "false") and y > 0:
+                pages, y = pages + 1, 0.0
+            add(_paragraph_height(child, width, level, styles))
+        elif child.tag == W + "tbl":
+            add(_table_height(child, width, level, styles))
+    return PageEstimate(pages=pages, last_fill=y / capacity_pt)
+
+
+def compact_document(doc) -> PageEstimate:
+    """Tighten the spacing of the whole document if that saves a page worth saving. Returns the estimate afterwards."""
+    base = estimate_pages(doc)
+    too_long = base.pages > MAX_PAGES
+    stray_last_page = base.pages > 1 and base.last_fill < LAST_PAGE_MIN_FILL
+    if not (too_long or stray_last_page):
+        return base
+    options = [(level, estimate_pages(doc, level)) for level in range(1, len(LEVELS))]
+    if too_long:
+        chosen = next((o for o in options if o[1].pages <= MAX_PAGES), min(options, key=lambda o: o[1].pages))
+    else:
+        chosen = next((o for o in options if o[1].pages < base.pages), None)
+    if chosen is None or chosen[1].pages >= base.pages:
+        return base
+    scale, drop = LEVELS[chosen[0]]
+    for p in doc.element.body.iter(W + "p"):
+        _tighten(p, scale, drop)
+    return chosen[1]

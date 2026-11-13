@@ -33,7 +33,8 @@ def label_value(container, label, value):
 
 def make_template(*, education_first=False, header_in_table=False, numbered_bullets=True, certifications=False, title_style=True,
                   spaced_highlights=False, blanks_before_projects=0, skills_heading="SKILLS",
-                  highlights_heading="KEY HIGHLIGHTS", projects_heading="PROJECT DETAILS", highlights_subheading=None):
+                  highlights_heading="KEY HIGHLIGHTS", projects_heading="PROJECT DETAILS", highlights_subheading=None,
+                  omit_projects=False):
     doc = Document()
     holder = doc
     if header_in_table:
@@ -72,11 +73,12 @@ def make_template(*, education_first=False, header_in_table=False, numbered_bull
             doc.add_paragraph("")  # the real template puts a blank line between highlight bullets
     for _ in range(blanks_before_projects):
         doc.add_paragraph("")  # spacer lines the real template puts before the projects heading
-    doc.add_paragraph(projects_heading, style="Heading 1")
-    for n in range(2):
-        bold_para(doc, f"Sample Project {n}")
-        doc.add_paragraph(f"Sample description {n}.")
-        for i in range(4 if n == 0 else 2):
-            add(doc, f"Sample bullet {n}.{i}")
-        doc.add_paragraph("")
+    if not omit_projects:
+        doc.add_paragraph(projects_heading, style="Heading 1")
+        for n in range(2):
+            bold_para(doc, f"Sample Project {n}")
+            doc.add_paragraph(f"Sample description {n}.")
+            for i in range(4 if n == 0 else 2):
+                add(doc, f"Sample bullet {n}.{i}")
+            doc.add_paragraph("")
     return doc

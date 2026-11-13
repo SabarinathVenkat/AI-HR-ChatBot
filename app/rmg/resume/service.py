@@ -34,7 +34,7 @@ from app.rmg.resume.match import build_match_plan
 from app.rmg.resume.model import Resume
 from app.rmg.resume.people import lead_of, roles_of
 from app.rmg.resume.pipeline import PipelineDeps, PipelineError, PipelineRequest, run_pipeline
-from app.rmg.resume.render import TemplateError, check_template, render_resume, template_gaps
+from app.rmg.resume.render import TemplateError, check_template, render_best, template_gaps, template_warning
 
 TEMPLATE_LIMITS = dict(max_bytes=40_000_000, max_uncompressed=150_000_000, max_entries=2000, max_pages=50,
                        max_text_chars=200_000)
@@ -144,7 +144,8 @@ class ResumeService:
         except IngestError as e:
             raise ServiceError(e.code, str(e), 422) from None
         except TemplateError as e:
-            raise ServiceError("template_" + e.code, str(e), 422) from None
+            if e.code == "unreadable":  # missing sections are allowed: the standard layout is used and the uploader is told
+                raise ServiceError("template_" + e.code, str(e), 422) from None
         key = self.files.put(data, ".docx")
         self.conn.execute("UPDATE resume_templates SET status = 'archived' WHERE status = 'active'")
         cursor = self.conn.execute(
@@ -153,7 +154,10 @@ class ResumeService:
                                                   self.actor.id, self._iso()))
         self._audit("template_uploaded", {"template_id": cursor.lastrowid, "filename": document.filename})
         self.conn.commit()
-        return {"id": cursor.lastrowid, "name": (name or document.filename)[:100], "status": "active"}
+        result = {"id": cursor.lastrowid, "name": (name or document.filename)[:100], "status": "active"}
+        if warning := template_warning(data):
+            result["warning"] = warning
+        return result
 
     def active_template(self):
         return self.conn.execute("SELECT * FROM resume_templates WHERE status = 'active' ORDER BY id DESC").fetchone()
@@ -410,7 +414,8 @@ class ResumeService:
             template = self.conn.execute("SELECT * FROM resume_templates WHERE id = ?", (draft["template_id"],)).fetchone() or self.active_template()
             if template is None:
                 return []
-            return template_gaps(self.files.get(template["file_key"]), Resume.model_validate_json(draft["working_json"]))
+            data = self.files.get(template["file_key"])
+            return [w for w in [template_warning(data)] if w] or template_gaps(data, Resume.model_validate_json(draft["working_json"]))
         except (TemplateError, FileNotFoundError, ValueError):
             return []  # a notice must never stop the page from opening
 
@@ -617,10 +622,7 @@ class ResumeService:
         if template is None:
             raise ServiceError("no_template", "The resume template is not available.", 409)
         resume = Resume.model_validate_json(source["resume_json"] if approved is not None else draft["working_json"])
-        try:
-            rendered = render_resume(self.files.get(template["file_key"]), resume, years_text=source["years_text"])
-        except TemplateError as e:
-            raise ServiceError("template_" + e.code, str(e), 409) from None
+        rendered = render_best(self.files.get(template["file_key"]), resume, years_text=source["years_text"])
         suffix = "_FINAL" if approved is not None else "_DRAFT"
         name = f"{_safe_filename(self._name(row['associate_id']))}_{_safe_filename(self._jd_title(row['jd_id']))}{suffix}.docx"
         self._audit("resume_downloaded", {"request_id": request_id, "draft": approved is None})

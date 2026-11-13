@@ -3,7 +3,7 @@
     check_template -> extract_resume ─┐
                    -> extract_jd ─────┴-> join -> analyse -> tailor -> ground -> changelog -> render
 
-  check_template   refuses an unusable template first, before anything costly happens
+  check_template   refuses a template that is not a readable Word file before anything costly happens
   extract_*        read and extract the resume and the JD at the same time (two static parallel branches); an
                    expected failure is recorded in state instead of raised, so a branch never hides the other one
   join             waits for both, then stops the run with the most relevant error (resume before JD) if there is one
@@ -32,7 +32,7 @@ from app.rmg.resume.ingest import IngestError, SourceDocument, read_document
 from app.rmg.resume.jd import JobDescription, Role
 from app.rmg.resume.match import MatchPlan, build_match_plan, order_skills
 from app.rmg.resume.model import Resume
-from app.rmg.resume.render import RenderResult, TemplateError, check_template, render_resume
+from app.rmg.resume.render import RenderResult, TemplateError, check_template, render_best
 from app.rmg.resume.tailor import Drafter, tailor_projects
 
 STAGE_ORDER = {"resume": 0, "job_description": 1}
@@ -106,7 +106,8 @@ def build_pipeline(deps: PipelineDeps):
         try:
             check_template(state["request"].template)
         except TemplateError as e:
-            raise PipelineError("template", e.code, str(e)) from None
+            if e.code == "unreadable":  # a template with missing sections is fine: the standard layout is used instead
+                raise PipelineError("template", e.code, str(e)) from None
         return {}
 
     def extract_resume(state: State):
@@ -152,11 +153,7 @@ def build_pipeline(deps: PipelineDeps):
     def render(state: State):
         worked = state["experience"]
         years = worked.describe() if worked.months else ""
-        try:
-            rendered = render_resume(state["request"].template, state["grounded"], years_text=years)
-        except TemplateError as e:
-            raise PipelineError("template", e.code, str(e)) from None
-        return {"rendered": rendered}
+        return {"rendered": render_best(state["request"].template, state["grounded"], years_text=years)}
 
     graph = StateGraph(State)
     for name, node in (("check_template", check_template_node), ("extract_resume", extract_resume), ("extract_jd", extract_jd),

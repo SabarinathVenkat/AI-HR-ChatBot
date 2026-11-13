@@ -95,10 +95,14 @@ def test_a_new_template_becomes_active_and_the_old_one_is_archived(world):
     assert [(r["id"], r["status"]) for r in rows] == [(first["id"], "archived"), (second["id"], "active")]
 
 
-def test_a_template_with_missing_slots_is_refused_with_a_reason(world):
-    with pytest.raises(ServiceError) as e:
-        world.as_(HEAD).upload_template("t.docx", template_bytes(numbered_bullets=False))
-    assert code_of(e) == "template_incomplete" and "projects" in str(e.value)
+def test_a_template_with_missing_slots_is_accepted_with_a_warning_that_the_standard_layout_will_be_used(world):
+    result = world.as_(HEAD).upload_template("t.docx", template_bytes(omit_projects=True))
+
+    assert result["status"] == "active" and "projects" in result["warning"] and "standard layout" in result["warning"]
+
+
+def test_a_complete_template_is_accepted_without_a_warning(world):
+    assert "warning" not in world.as_(HEAD).upload_template("t.docx", template_bytes())
 
 
 @pytest.mark.parametrize("name,data", [("t.pdf", b"%PDF-1.4 x"), ("t.docx", b"not a zip"), ("t.exe", b"x")])
