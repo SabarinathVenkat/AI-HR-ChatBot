@@ -140,3 +140,21 @@ works. Older databases gain the new `file_key` column automatically when the app
   voice service), Word installed (the downloaded files are opened in Word to show them), and `ANTHROPIC_API_KEY`.
   `--no-voice` records a silent video; `--demo-template` uses the generic template instead of the Ideas2IT one.
   The narration text is the `NARRATION` dictionary at the top of the script; edit it and run again.
+
+## The issue log (where to look when something goes wrong)
+
+Open `var/logs/resume_builder.log` (set `RESUME_LOG_FILE` to put it elsewhere; the server prints the path when it starts).
+One line per event: time, level, what happened, then details. Search for these words:
+
+- `build_started`, `build_succeeded` (with `duration_ms`, `read_coverage`, `warnings`): every build, so a build that
+  never reaches `build_succeeded` is easy to see.
+- `build_failed`: a known failure, with `stage` (template, resume, jd, tailor...), `code` and the message the user saw.
+- `build_crashed`, `request_crashed`: something unexpected. The full traceback follows the line. The user is shown a
+  trace id; search the log for `trace=<that id>`.
+- `upload_failed`, `template_rejected`: a file that could not be read, with its name, size and reason.
+- `template_unusable`, `render_fallback`: a template the builder could not use, so the standard layout was used.
+- `render_notes`: what the template had no place for (for example certifications).
+- `request_rejected`: any refused request (wrong person, bad input), with who, which address and the reason.
+
+Every line carries `user`, `user_id` and, where there is one, `request_id`. The log holds names, ids, file names, sizes and
+messages, never the text of a resume or a password. It rotates at 5 MB and keeps 5 old files.

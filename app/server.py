@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from langgraph.checkpoint.sqlite import SqliteSaver
 
+from app import issue_log
 from app.agent.factory import build_live_agent
 from app.api.main import create_app
 from app.bootstrap import bootstrap
@@ -30,6 +31,8 @@ log = logging.getLogger("hr_chat")
 def create_production_app(settings: Settings | None = None) -> FastAPI:
     load_dotenv()
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
+    issue_file = issue_log.configure(os.environ.get("RESUME_LOG_FILE", issue_log.DEFAULT_PATH))
+    log.info("issue log: %s", issue_file)
     settings = settings or Settings.from_env()
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise RuntimeError("ANTHROPIC_API_KEY is not set.")

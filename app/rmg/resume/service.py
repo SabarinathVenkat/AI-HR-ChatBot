@@ -14,10 +14,12 @@ Only the associate submits. Only the mapped Lead decides. A download's file name
 import json
 import re
 import sqlite3
+import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import datetime
 
+from app import issue_log
 from app.db.repositories import Employee
 from app.rmg.resume.changelog import build_change_log
 from app.rmg.resume.chat import EditCommand, explain
@@ -77,6 +79,17 @@ class ResumeService:
     def _need(self, *roles: str) -> None:
         if not self.roles & set(roles):
             raise ServiceError("forbidden", "You do not have access to that.", 403)
+
+    def _log(self, what: str, level: str = "info", **fields) -> None:
+        """One line in the issue log, always with who did it."""
+        issue_log.event(what, level=level, user=self.actor.name, user_id=self.actor.id, **fields)
+
+    def _log_render(self, request_id: int, rendered, where: str) -> None:
+        if rendered.used_standard_layout:
+            self._log("render_fallback", "warning", request_id=request_id, where=where, message=rendered.problems[0])
+        notes = [p for p in rendered.problems if not p.startswith("The company template")]
+        if notes:
+            self._log("render_notes", "warning", request_id=request_id, where=where, notes="; ".join(notes))
 
     def _audit(self, action: str, detail: dict) -> None:
         self.conn.execute(
@@ -142,9 +155,11 @@ class ResumeService:
                 raise ServiceError("unsupported_type", "A template must be a Word (.docx) file.", 422)
             check_template(data)
         except IngestError as e:
+            self._log("template_rejected", "warning", filename=filename, size=len(data), code=e.code, message=str(e))
             raise ServiceError(e.code, str(e), 422) from None
         except TemplateError as e:
-            if e.code == "unreadable":  # missing sections are allowed: the standard layout is used and the uploader is told
+            if e.code == "unreadable":
+                self._log("template_rejected", "warning", filename=filename, size=len(data), code=e.code, message=str(e))  # missing sections are allowed: the standard layout is used and the uploader is told
                 raise ServiceError("template_" + e.code, str(e), 422) from None
         key = self.files.put(data, ".docx")
         self.conn.execute("UPDATE resume_templates SET status = 'archived' WHERE status = 'active'")
@@ -155,8 +170,10 @@ class ResumeService:
         self._audit("template_uploaded", {"template_id": cursor.lastrowid, "filename": document.filename})
         self.conn.commit()
         result = {"id": cursor.lastrowid, "name": (name or document.filename)[:100], "status": "active"}
+        self._log("template_uploaded", template_id=cursor.lastrowid, filename=document.filename, size=len(data))
         if warning := template_warning(data):
             result["warning"] = warning
+            self._log("template_unusable", "warning", template_id=cursor.lastrowid, filename=document.filename, message=warning)
         return result
 
     def active_template(self):
@@ -320,6 +337,7 @@ class ResumeService:
         try:
             document = read_document(filename, data)  # reject a bad file now, with a friendly reason
         except IngestError as e:
+            self._log("upload_failed", "warning", request_id=request_id, filename=filename, size=len(data), code=e.code, message=str(e))
             raise ServiceError(e.code, str(e), 422) from None
         suffix = {"docx": ".docx", "pdf": ".pdf", "txt": ".txt"}[document.kind]
         if row["base_file_key"]:
@@ -329,6 +347,7 @@ class ResumeService:
                           (document.filename, key, self._iso(), request_id))
         self._audit("resume_uploaded", {"request_id": request_id, "filename": document.filename})
         self.conn.commit()
+        self._log("resume_uploaded", request_id=request_id, filename=document.filename, size=len(data), kind=document.kind, pages=document.pages)
         return {"filename": document.filename}
 
     def build(self, request_id: int, force: bool = False) -> dict:
@@ -343,10 +362,19 @@ class ResumeService:
         request = PipelineRequest(
             resume_file=(row["base_filename"], self.files.get(row["base_file_key"])), jd=self._jd(row["jd_id"]),
             template=self.files.get(template["file_key"]), role_index=row["role_index"], today=self._now().date())
+        started = time.perf_counter()
+        context = {"request_id": request_id, "filename": row["base_filename"], "size": len(request.resume_file[1]),
+                   "template": template["filename"], "jd_id": row["jd_id"], "role_index": row["role_index"]}
+        self._log("build_started", forced=force, **context)
         try:
             result = run_pipeline(self.engine.deps, request)
         except PipelineError as e:
+            self._log("build_failed", "error", stage=e.stage, code=e.code, message=str(e),
+                      duration_ms=round((time.perf_counter() - started) * 1000), **context)
             raise ServiceError(f"{e.stage}_{e.code}", str(e), 422) from None
+        except Exception as e:  # noqa: BLE001 - recorded with its traceback, then handled as an unexpected error
+            self._log("build_crashed", "error", error=e, duration_ms=round((time.perf_counter() - started) * 1000), **context)
+            raise
         years = result.experience.describe() if result.experience.months else ""
         self.conn.execute(
             "INSERT INTO resume_drafts (request_id, base_json, working_json, undo_json, warnings_json, years_text,"
@@ -359,6 +387,12 @@ class ResumeService:
         self._set_status(request_id, "in_progress")
         self._audit("resume_built", {"request_id": request_id, "forced": force})
         self.conn.commit()
+        self._log("build_succeeded", request_id=request_id, duration_ms=round((time.perf_counter() - started) * 1000),
+                  read_coverage=result.read_coverage, warnings=len(result.warnings), projects=len(result.tailored.projects),
+                  highlights=len(result.tailored.highlights), missing_required=len(result.plan.missing_required))
+        for warning in result.warnings:
+            self._log("build_warning", "warning", request_id=request_id, message=warning)
+        self._log_render(request_id, result.rendered, "build")
         return self.detail(request_id)
 
     # ------------------------------------------------------------------------------------ viewing
@@ -623,6 +657,7 @@ class ResumeService:
             raise ServiceError("no_template", "The resume template is not available.", 409)
         resume = Resume.model_validate_json(source["resume_json"] if approved is not None else draft["working_json"])
         rendered = render_best(self.files.get(template["file_key"]), resume, years_text=source["years_text"])
+        self._log_render(request_id, rendered, "download")
         suffix = "_FINAL" if approved is not None else "_DRAFT"
         name = f"{_safe_filename(self._name(row['associate_id']))}_{_safe_filename(self._jd_title(row['jd_id']))}{suffix}.docx"
         self._audit("resume_downloaded", {"request_id": request_id, "draft": approved is None})

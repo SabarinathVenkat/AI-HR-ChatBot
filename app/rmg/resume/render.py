@@ -42,6 +42,7 @@ class TemplateError(Exception):
 class RenderResult:
     docx: bytes
     problems: tuple[str, ...]  # content the template could not hold
+    used_standard_layout: bool = False  # the company template could not be used
 
 
 # --- cloning ----------------------------------------------------------------------------------------
@@ -392,7 +393,7 @@ def render_best(template: bytes, resume: Resume, *, years_text: str = "") -> Ren
 
         standard = render_resume(make_demo_template(), resume, years_text=years_text)
         reason = f"it is missing {', '.join(e.missing)}" if e.missing else "it could not be read"
-        return RenderResult(docx=standard.docx, problems=(
+        return RenderResult(docx=standard.docx, used_standard_layout=True, problems=(
             f"The company template could not be used ({reason}), so the standard layout was used instead.", *standard.problems))
 
 

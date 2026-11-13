@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from app.db import repositories as repo
 from app.rmg.resume.chat import EditCommand
 from app.rmg.resume.filestore import FileStore
+from app import issue_log
 from app.rmg.resume.service import ResumeEngine, ResumeService, ServiceError
 
 MAX_RESUME_UPLOAD = 6_000_000
@@ -69,16 +70,36 @@ async def read_upload(request: Request, limit: int) -> bytes:
 
 def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Callable[[], datetime],
                            engine: ResumeEngine | None, files: FileStore | None) -> None:
+    def who(request: Request) -> dict:
+        return {"user": getattr(request.state, "actor_name", None), "user_id": getattr(request.state, "actor_id", None),
+                "roles": getattr(request.state, "actor_roles", None)}
+
     @app.exception_handler(ServiceError)
     async def service_error(request: Request, exc: ServiceError):
         trace_id = getattr(request.state, "trace_id", "-")
+        issue_log.event("request_rejected", level="error" if exc.status >= 500 else "warning", trace=trace_id, method=request.method,
+                        path=request.url.path, status=exc.status, code=exc.code, message=str(exc), **who(request))
         return JSONResponse(status_code=exc.status, headers={"X-Trace-Id": trace_id},
                             content={"error": {"code": exc.code, "message": str(exc), "trace_id": trace_id}})
 
-    def service(employee: repo.Employee = Depends(current_employee), conn: sqlite3.Connection = Depends(get_conn)) -> ResumeService:
+    @app.exception_handler(Exception)
+    async def unexpected_error(request: Request, exc: Exception):
+        """Anything not planned for: the full traceback goes to the log, and the user gets a trace id to quote."""
+        trace_id = getattr(request.state, "trace_id", "-")
+        issue_log.event("request_crashed", level="error", error=exc, trace=trace_id, method=request.method,
+                        path=request.url.path, **who(request))
+        return JSONResponse(status_code=500, headers={"X-Trace-Id": trace_id}, content={"error": {
+            "code": "internal_error", "message": "Something went wrong on our side. Please quote the trace id to support.",
+            "trace_id": trace_id}})
+
+    def service(request: Request, employee: repo.Employee = Depends(current_employee),
+                conn: sqlite3.Connection = Depends(get_conn)) -> ResumeService:
         if engine is None or files is None:
             raise HTTPException(503, "The resume builder is not available right now.")
-        return ResumeService(conn, files, engine, now, employee)
+        svc = ResumeService(conn, files, engine, now, employee)
+        request.state.actor_name, request.state.actor_id = employee.name, employee.id
+        request.state.actor_roles = ",".join(sorted(svc.roles)) or None
+        return svc
 
     @app.get("/resume/me")
     def resume_me(employee: repo.Employee = Depends(current_employee), conn: sqlite3.Connection = Depends(get_conn)):
