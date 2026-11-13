@@ -26,8 +26,11 @@ USER appuser
 # Bake the embedding model into the image so the first start needs no download.
 RUN python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5', cache_dir='models_cache')"
 
-# The database lives on a volume so it survives container restarts.
+# Everything that must survive a restart lives on the /data volume: the database, the uploaded resumes and
+# templates, and the issue log.
 ENV DB_PATH=/data/hr_chat.db \
+    RESUME_STORE_DIR=/data/resume_files \
+    RESUME_LOG_FILE=/data/logs/resume_builder.log \
     LOG_LEVEL=INFO
 
 EXPOSE 8000
