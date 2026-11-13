@@ -93,3 +93,12 @@ def test_a_page_break_before_a_paragraph_starts_a_new_page():
     (ppr if ppr is not None else last.makeelement(W + "pPr", {})).append(OxmlElement("w:pageBreakBefore"))
 
     assert estimate_pages(doc).pages == 2
+
+
+def test_a_last_page_that_is_almost_exactly_full_is_given_room_because_the_estimate_cannot_be_trusted_to_the_line():
+    doc = document(42)  # about 43 lines fit: a little error in the estimate and a stray line lands on a new page
+
+    compact_document(doc)
+
+    assert estimate_pages(doc).last_fill <= 0.85
+    assert any(v and int(v) < 240 for v in line_values(doc))

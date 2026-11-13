@@ -19,7 +19,11 @@ LEVELS = ((1.0, 0.0), (0.85, 0.0), (0.77, 1.0), (0.7, 2.0))  # (line spacing sca
 MIN_PT = 9.0
 MAX_PAGES = 5  # the limit RMG asked for on resumes
 LAST_PAGE_MIN_FILL = 0.25  # a last page less full than this looks like a mistake
-AVERAGE_CHAR_EM = 0.55  # an average character is about this wide, in ems
+LAST_PAGE_MAX_FILL = 0.88  # a last page fuller than this may really spill by a line or two, so it is given room
+ROOMY_FILL = 0.8
+AVERAGE_CHAR_EM = 0.5   # an average character is about this wide, in ems
+CELL_PADDING_PT = 10.8  # Word's default: 5.4pt of padding on each side of a table cell
+SAFETY = 0.95  # the estimate is not exact, so a page is treated as this full when it is deciding whether text fits
 
 
 class Styles:
@@ -99,14 +103,19 @@ def _smaller(pt: float, drop: float) -> float:
     return min(pt, max(pt - drop, MIN_PT)) if drop else pt
 
 
-def _height(p, scale: float, drop: float, width: float | None = None, styles: "Styles | None" = None) -> float:
+def _parts(p, scale: float, drop: float, width: float | None = None, styles: "Styles | None" = None) -> tuple[float, float, float]:
+    """(space before, the lines themselves, space after) in points."""
     pt = _smaller(_font_pt(p, styles), drop)
     chars = max(width / (pt * AVERAGE_CHAR_EM), 1) if width else max(CHARS_ACROSS_AT_10PT * 10 / pt, 1)
     lines = max(1, math.ceil(len(_text(p)) / chars))
     spacing = styles.spacing(p) if styles is not None else Styles._attrs(_spacing(p))
     line = _value(spacing, "line")
     pitch = line / 20 if (line and spacing.get("lineRule") == "exact") else pt * 1.2 * ((line or 240) / 240)
-    return lines * pitch * scale + (_value(spacing, "before") + _value(spacing, "after")) / 20 * scale
+    return _value(spacing, "before") / 20 * scale, lines * pitch * scale, _value(spacing, "after") / 20 * scale
+
+
+def _height(p, scale: float, drop: float, width: float | None = None, styles: "Styles | None" = None) -> float:
+    return sum(_parts(p, scale, drop, width, styles))
 
 
 def _value(spacing: dict, name: str) -> float:
@@ -128,7 +137,7 @@ def capacity(sample: list, doc) -> float:
         usable = (section.page_height - section.top_margin - section.bottom_margin) / 12700
     except Exception:
         usable = 700.0
-    return max(estimate(sample, 0, Styles(doc)) * HEADROOM, usable * PAGE_SHARE)
+    return max(estimate(sample, 0, Styles(doc)) * HEADROOM, usable * PAGE_SHARE) * SAFETY
 
 
 def _tighten(p, scale: float, drop: float) -> None:
@@ -206,9 +215,20 @@ def _indent(p) -> float:
     return _number(ind, "left") / 20 if ind is not None else 0.0
 
 
-def _paragraph_height(p, width: float, level: int, styles) -> float:
+def _parts_of(p, width: float, level: int, styles) -> tuple[float, float, float]:
     scale, drop = LEVELS[level]
-    return _height(p, scale, drop, max(width - _indent(p), 40.0), styles)
+    return _parts(p, scale, drop, max(width - _indent(p), 40.0), styles)
+
+
+def _stack(paragraphs, width: float, level: int, styles) -> float:
+    """Height of paragraphs one under another. Between two of them Word leaves the larger of the first one's space
+    after and the second one's space before, not both added together."""
+    total, previous_after = 0.0, None
+    for p in paragraphs:
+        before, content, after = _parts_of(p, width, level, styles)
+        total += content + after + (before if previous_after is None else max(before - previous_after, 0.0))
+        previous_after = after
+    return total
 
 
 def _table_height(table, width: float, level: int, styles) -> float:
@@ -222,7 +242,7 @@ def _table_height(table, width: float, level: int, styles) -> float:
         tallest = 0.0
         for cell in cells:
             cell_width = _number(cell.find(f"{W}tcPr/{W}tcW"), "w") / 20 or width / max(len(cells), 1)
-            inner = sum(_paragraph_height(p, cell_width, level, styles) for p in cell.findall(W + "p"))
+            inner = _stack(cell.findall(W + "p"), cell_width - CELL_PADDING_PT, level, styles)
             tallest = max(tallest, inner)
         total += max(minimum, tallest)
     return total
@@ -230,8 +250,9 @@ def _table_height(table, width: float, level: int, styles) -> float:
 
 def estimate_pages(doc, level: int = 0) -> PageEstimate:
     width, capacity_pt = _geometry(doc)
+    capacity_pt *= SAFETY
     styles = Styles(doc)
-    pages, y = 1, 0.0
+    pages, y, previous_after = 1, 0.0, None
 
     def add(height: float) -> None:
         nonlocal pages, y
@@ -244,10 +265,13 @@ def estimate_pages(doc, level: int = 0) -> PageEstimate:
         if child.tag == W + "p":
             before = child.find(f"{W}pPr/{W}pageBreakBefore")
             if before is not None and before.get(W + "val") not in ("0", "false") and y > 0:
-                pages, y = pages + 1, 0.0
-            add(_paragraph_height(child, width, level, styles))
+                pages, y, previous_after = pages + 1, 0.0, None
+            space_before, content, space_after = _parts_of(child, width, level, styles)
+            add(content + space_after + (space_before if previous_after is None else max(space_before - previous_after, 0.0)))
+            previous_after = space_after
         elif child.tag == W + "tbl":
             add(_table_height(child, width, level, styles))
+            previous_after = None
     return PageEstimate(pages=pages, last_fill=y / capacity_pt)
 
 
@@ -256,14 +280,17 @@ def compact_document(doc) -> PageEstimate:
     base = estimate_pages(doc)
     too_long = base.pages > MAX_PAGES
     stray_last_page = base.pages > 1 and base.last_fill < LAST_PAGE_MIN_FILL
-    if not (too_long or stray_last_page):
+    nearly_full = base.last_fill > LAST_PAGE_MAX_FILL
+    if not (too_long or stray_last_page or nearly_full):
         return base
     options = [(level, estimate_pages(doc, level)) for level in range(1, len(LEVELS))]
     if too_long:
         chosen = next((o for o in options if o[1].pages <= MAX_PAGES), min(options, key=lambda o: o[1].pages))
-    else:
+    elif stray_last_page:
         chosen = next((o for o in options if o[1].pages < base.pages), None)
-    if chosen is None or chosen[1].pages >= base.pages:
+    else:  # fewer pages, or the same number with room to spare on the last one
+        chosen = next((o for o in options if o[1].pages < base.pages or o[1].last_fill <= ROOMY_FILL), None)
+    if chosen is None or (chosen[1].pages >= base.pages and not nearly_full):
         return base
     scale, drop = LEVELS[chosen[0]]
     for p in doc.element.body.iter(W + "p"):
