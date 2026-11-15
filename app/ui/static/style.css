@@ -159,6 +159,7 @@ label { font-weight: 600; font-size: 0.9rem; display: block; margin: 16px 0 6px;
   background: linear-gradient(180deg, var(--navy-900), var(--navy-950));
 }
 .rail .brand-name { font-size: 1.05rem; }
+a.rail-new { text-decoration: none; }
 .rail-new {
   width: 100%; justify-content: flex-start; background: rgba(255, 255, 255, 0.08); color: #fff;
   border-color: rgba(255, 255, 255, 0.18); padding: 11px 14px;

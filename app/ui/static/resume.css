@@ -255,3 +255,7 @@ input[type="file"]::file-selector-button:hover { background: #d7e5ff; }
 .rb-check-row.pass .rb-check-mark { color: #1f7a45; }
 .rb-check-row.warn .rb-check-mark { color: #8a5a00; }
 .rb-check-row.fail .rb-check-mark { color: #a32020; }
+
+.rb-brand h1 { font-size: 1.15rem; }
+.rb-brand-link { color: inherit; text-decoration: none; opacity: 0.75; }
+.rb-brand-link:hover, .rb-brand-link:focus-visible { opacity: 1; text-decoration: underline; }
