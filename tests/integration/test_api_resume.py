@@ -305,3 +305,45 @@ def test_a_skill_can_be_added_over_http_and_only_by_the_associate(client):
     assert client.post(f"{base}/edit", json={"action": "add_skill", "group": 0, "text": "Ansible"}, headers=hdr(client, STAFF)).status_code == 403
     duplicate = client.post(f"{base}/edit", json={"action": "add_skill", "group": 0, "text": "terraform"}, headers=hdr(client, RAVI))
     assert duplicate.status_code == 422 and duplicate.json()["error"]["code"] == "edit_duplicate"
+
+
+# --- the template check ---------------------------------------------------------------------------------------------------
+
+def built_base(client):
+    request_id = tagged_request(client)
+    base = f"/resume/requests/{request_id}"
+    client.post(f"{base}/resume?filename=cv.txt", content=b"Ravi Kumar backend engineer", headers=hdr(client, RAVI))
+    assert client.post(f"{base}/build", headers=hdr(client, RAVI)).status_code == 200
+    return base
+
+
+def test_the_template_check_says_how_well_the_resume_matches_the_template(client):
+    base = built_base(client)
+
+    reply = client.get(f"{base}/conformance", headers=hdr(client, RAVI))
+
+    assert reply.status_code == 200
+    report = reply.json()
+    assert report["status"] in ("pass", "warn", "fail") and report["summary"]
+    assert {"template", "sections", "complete", "pages"} <= {c["name"] for c in report["checks"]}
+
+
+def test_the_download_says_in_a_header_whether_the_check_passed(client):
+    base = built_base(client)
+
+    reply = client.get(f"{base}/download", headers=hdr(client, STAFF))
+
+    assert reply.status_code == 200 and reply.headers["X-Resume-Check"] in ("pass", "warn", "fail")
+
+
+def test_only_people_who_can_see_the_request_can_see_its_check(client):
+    base = built_base(client)
+
+    assert client.get(f"{base}/conformance", headers=hdr(client, DIVYA)).status_code in (403, 404)
+    assert client.get(f"{base}/conformance").status_code == 401
+
+
+def test_the_check_needs_a_draft_to_look_at(client):
+    request_id = tagged_request(client)
+
+    assert client.get(f"/resume/requests/{request_id}/conformance", headers=hdr(client, RAVI)).status_code in (404, 409)

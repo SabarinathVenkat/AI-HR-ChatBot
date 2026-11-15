@@ -17,6 +17,7 @@ from pathlib import Path
 import pypdfium2 as pdfium
 from docx import Document
 
+from app.rmg.resume.conformance import check_conformance
 from app.rmg.resume.render import render_best
 from app.rmg.resume.template import W, is_heading, paragraph_text
 from scripts.layout_lab.resumes import RESUMES
@@ -59,7 +60,8 @@ def generate() -> dict[str, dict]:
             target = LAB / "docx" / f"{name}.docx"
             if not target.exists() or target.read_bytes() != result.docx:  # unchanged files keep their converted PDF
                 target.write_bytes(result.docx)
-            cases[name] = {"problems": result.problems}
+            report = check_conformance(t_bytes, result.docx, resume, used_standard_layout=result.used_standard_layout)
+            cases[name] = {"problems": result.problems, "report": report}
     return cases
 
 
@@ -138,8 +140,11 @@ def main() -> int:
         found = [failures[name]] if name in failures else measure(name)
         bad += bool(found)
         notes = f" | notes: {'; '.join(info['problems'])}" if info["problems"] else ""
+        report = info["report"]
+        notes += f" | check: {report.status}" + (" (" + ", ".join(c.name + ": " + c.message for c in report.checks if c.status != "pass") + ")" if report.status != "pass" else "")
         lines.append(f"{'PROBLEM' if found else 'ok     '}  {name}: {'; '.join(found) or 'fine'}{notes}")
-    report = "\n".join(lines) + f"\n\n{len(cases)} cases, {bad} with layout problems\n"
+    statuses = [c["report"].status for c in cases.values() if "report" in c]
+    report = "\n".join(lines) + f"\n\n{len(cases)} cases, {bad} with layout problems; conformance: " + ", ".join(f"{n} {s}" for s in ("pass", "warn", "fail") if (n := statuses.count(s))) + "\n"
     (LAB / "report.txt").write_text(report, encoding="utf-8")
     print(report)
     return 0

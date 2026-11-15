@@ -295,7 +295,8 @@
   }
 
   const download = (id) => downloadFile(`/resume/requests/${id}/download`, "resume.docx",
-    (response) => (response.headers.get("X-Resume-Draft") === "true" ? "Downloaded a DRAFT copy (not approved yet)." : "Downloaded the approved resume."));
+    (response) => (response.headers.get("X-Resume-Draft") === "true" ? "Downloaded a DRAFT copy (not approved yet)." : "Downloaded the approved resume.")
+      + (response.headers.get("X-Resume-Check") === "pass" ? "" : " The template check has things to look at: see the Template check above."));
   const downloadJd = (path) => downloadFile(path, "job-description.docx", () => "Downloaded the job description.");
 
   function actionBar(d) {
@@ -571,6 +572,36 @@
         text: delta === 0 ? "no change" : `${delta > 0 ? "+" : "-"}${Math.abs(delta)} pts` }));
   }
 
+  /* ---------- template check: does the Word file match the setup template? ---------- */
+  const CHECK_TITLE = { pass: "Matches the template", warn: "Matches the template, with things to look at", fail: "Does not match the template" };
+  const CHECK_MARK = { pass: "OK", warn: "Look", fail: "Fix" };
+
+  function checkCard() {
+    return h("div", { class: "rb-check", id: "template-check", hidden: true });
+  }
+
+  async function loadCheck(id) {
+    try {
+      const response = await api(`/resume/requests/${id}/conformance`);
+      const box = $("template-check");
+      if (!response.ok || !box) return;
+      const report = await response.json();
+      const problems = report.checks.filter((c) => c.status !== "pass");
+      box.className = `rb-check ${report.status}`;
+      box.replaceChildren(
+        h("strong", { text: "Template check" }),
+        h("span", { class: `rb-check-status ${report.status}`, id: "template-check-status", text: CHECK_TITLE[report.status] }),
+        problems.map((c) => h("div", { class: "rb-check-problem", text: c.message })),
+        h("details", {},
+          h("summary", { text: "All checks" }),
+          report.checks.map((c) => h("div", { class: `rb-check-row ${c.status}` },
+            h("span", { class: "rb-check-mark", text: CHECK_MARK[c.status] }), h("span", { text: c.message })))));
+      box.hidden = false;
+    } catch (e) {
+      /* the check is a courtesy: if it cannot be shown, the page is still fine */
+    }
+  }
+
   function renderWorkspace() {
     const d = state.detail;
     $("view").replaceChildren(...[
@@ -583,10 +614,12 @@
       d.decision_note ? h("p", { class: "rb-note", id: "decision-note-shown", text: `Competency Lead note: ${d.decision_note}` }) : null,
       d.render_notes && d.render_notes.length ? h("div", { class: "rb-info", id: "render-notes" },
         h("strong", { text: "About the Word file" }), d.render_notes.map((n) => h("div", { text: n }))) : null,
+      d.can && d.can.download ? checkCard() : null,
       actionBar(d), decisionCard(d),
       h("div", { class: "rb-grid rb-work" }, jdCard(d), resumeCard(d), changesCard(d)),
     ].filter(Boolean));
     wireLinks();
+    if (d.can && d.can.download) loadCheck(d.id);
   }
 
   /* ---------- tabs ---------- */

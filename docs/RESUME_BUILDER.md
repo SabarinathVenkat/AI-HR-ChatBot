@@ -158,3 +158,17 @@ One line per event: time, level, what happened, then details. Search for these w
 
 Every line carries `user`, `user_id` and, where there is one, `request_id`. The log holds names, ids, file names, sizes and
 messages, never the text of a resume or a password. It rotates at 5 MB and keeps 5 old files.
+
+## The template check (does the file match the setup template?)
+
+Every time the resume is downloaded, and whenever its page is opened, the finished Word file is compared with the
+setup template by plain code (`app/rmg/resume/conformance.py`, no model). The result shows on the screen as "Template
+check" with an "All checks" list, comes back from `GET /resume/requests/{id}/conformance`, and is sent with each download
+in the `X-Resume-Check` header (pass, warn or fail). It informs only; it never blocks a download.
+
+The ten checks: template (the company template was used, not the standard layout), sections (same headings, same order,
+none missing or invented), sample_text (no sample text from the template left), complete (everything in the resume is in the
+file, except what the template has no place for), empty_sections, bullets (the template's own bullet style), bold (only
+where the template uses bold), fonts (only the template's fonts and sizes), pages (within 5, no nearly empty last page)
+and breaks (no typed page breaks or runs of blank lines). Download checks and any warning or failure are written to the
+issue log as `conformance`. The layout lab (`python -m scripts.layout_lab.run`) runs the check on every render it makes.

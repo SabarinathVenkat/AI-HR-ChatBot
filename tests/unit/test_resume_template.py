@@ -125,3 +125,15 @@ def test_the_line_under_the_highlights_heading_is_remembered_as_the_subheading()
 
     assert paragraph_text(with_sub.subheading) == "Professional summary and Key highlights"
     assert without.subheading is None
+
+
+def test_a_title_header_in_the_body_with_no_summary_after_it_does_not_crash_the_analyser():
+    from docx import Document
+
+    doc = Document()
+    doc.add_paragraph("Jane Doe", style="Title")
+    doc.add_paragraph("Engineer", style="Title")
+
+    m = analyse(doc)
+
+    assert text_of(m.name) == "Jane Doe" and m.summary is None

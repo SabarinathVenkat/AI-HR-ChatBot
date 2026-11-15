@@ -198,6 +198,7 @@ def fit(new: list, limit: float, doc) -> bool:
 class PageEstimate:
     pages: int
     last_fill: float  # how full the last page is, 0 to 1
+    forced_start: bool = False  # the last page begins at a deliberate page break (so a short page is by design)
 
 
 def _geometry(doc) -> tuple[float, float]:
@@ -252,27 +253,28 @@ def estimate_pages(doc, level: int = 0) -> PageEstimate:
     width, capacity_pt = _geometry(doc)
     capacity_pt *= SAFETY
     styles = Styles(doc)
-    pages, y, previous_after = 1, 0.0, None
+    pages, y, previous_after, forced = 1, 0.0, None, False
 
     def add(height: float) -> None:
-        nonlocal pages, y
+        nonlocal pages, y, forced
         y += height
         while y > capacity_pt:
             pages += 1
             y -= capacity_pt
+            forced = False
 
     for child in doc.element.body:
         if child.tag == W + "p":
             before = child.find(f"{W}pPr/{W}pageBreakBefore")
             if before is not None and before.get(W + "val") not in ("0", "false") and y > 0:
-                pages, y, previous_after = pages + 1, 0.0, None
+                pages, y, previous_after, forced = pages + 1, 0.0, None, True
             space_before, content, space_after = _parts_of(child, width, level, styles)
             add(content + space_after + (space_before if previous_after is None else max(space_before - previous_after, 0.0)))
             previous_after = space_after
         elif child.tag == W + "tbl":
             add(_table_height(child, width, level, styles))
             previous_after = None
-    return PageEstimate(pages=pages, last_fill=y / capacity_pt)
+    return PageEstimate(pages=pages, last_fill=y / capacity_pt, forced_start=forced)
 
 
 def compact_document(doc) -> PageEstimate:

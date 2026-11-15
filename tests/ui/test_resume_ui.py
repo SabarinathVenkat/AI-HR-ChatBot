@@ -73,6 +73,8 @@ def test_a_resume_goes_from_request_to_approved_download(page, start_server):
     expect(page.locator("#resume")).to_contain_text("Anil Verma")
     expect(page.locator("#coverage")).to_contain_text("Required skills covered")
     expect(page.locator("#coverage")).to_contain_text("not in your resume")
+    expect(page.locator("#template-check-status")).to_contain_text("template")  # the Word file is checked against the setup template
+    expect(page.locator("#template-check")).to_contain_text("All checks")
     page.locator("#resume .rb-project .edit").first.click()
     page.get_by_label("New wording").fill("Wrote Java services for payments.")
     page.locator(".save-edit").click()

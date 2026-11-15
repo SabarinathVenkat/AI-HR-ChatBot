@@ -205,7 +205,7 @@ def _find_header(doc: DocxDocument, m: TemplateMap) -> None:
         after = [p for p in _paragraphs(container) if p not in titles and paragraph_text(p).strip()]
         if after:
             m.summary = after[0]
-        else:  # the summary can sit in another cell of the same table
+        elif container.tag == W + "tc":  # the summary can sit in another cell of the same table
             table = container.getparent().getparent()
             for cell in table.iter(W + "tc"):
                 if cell is container:

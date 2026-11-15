@@ -22,6 +22,7 @@ from datetime import datetime
 from app import issue_log
 from app.db.repositories import Employee
 from app.rmg.resume.changelog import build_change_log
+from app.rmg.resume.conformance import WARN, Check, Report, check_conformance
 from app.rmg.resume.chat import EditCommand, explain
 from app.rmg.resume.edit import (
     EditError, add_fact, add_skill_as, move_bullet, move_project, remove_item, set_role_line, set_text,
@@ -640,9 +641,8 @@ class ResumeService:
         return {"reply": reply, "changed": changed, "detail": self.detail(request_id)}
 
     # ------------------------------------------------------------------------------------ download
-    def download(self, request_id: int) -> tuple[str, bytes, bool]:
-        """(filename, .docx bytes, is_draft). The document itself has no draft mark; its file name ends in _DRAFT until the
-        resume is approved and in _FINAL after."""
+    def _render_current(self, request_id: int):
+        """The resume as it would be downloaded now: (row, approved?, resume, template bytes, rendered, years source)."""
         row = self._visible(request_id)
         draft = self._need_draft(request_id)
         approved = None
@@ -656,13 +656,39 @@ class ResumeService:
         if template is None:
             raise ServiceError("no_template", "The resume template is not available.", 409)
         resume = Resume.model_validate_json(source["resume_json"] if approved is not None else draft["working_json"])
-        rendered = render_best(self.files.get(template["file_key"]), resume, years_text=source["years_text"])
+        template_bytes = self.files.get(template["file_key"])
+        rendered = render_best(template_bytes, resume, years_text=source["years_text"])
+        return row, approved is not None, resume, template_bytes, rendered
+
+    def _check(self, request_id: int, resume, template_bytes: bytes, rendered, where: str):
+        """Compare the finished file with the template; the result is logged, and never stops anything."""
+        try:
+            report = check_conformance(template_bytes, rendered.docx, resume, used_standard_layout=rendered.used_standard_layout)
+        except Exception as e:  # noqa: BLE001 - a fault in the check must never stop a download
+            self._log("conformance_failed", "error", error=e, request_id=request_id, where=where)
+            return Report(checks=(Check("check", WARN, "The template check could not be run for this resume."),))
+        problems = [f"{c.name}: {c.message}" for c in report.checks if c.status != "pass"]
+        if report.status != "pass" or where == "download":  # a clean preview check is not worth a line each time the page opens
+            self._log("conformance", {"pass": "info", "warn": "warning", "fail": "error"}[report.status], request_id=request_id,
+                      where=where, status=report.status, problems=" | ".join(problems) or None)
+        return report
+
+    def download(self, request_id: int) -> tuple[str, bytes, bool]:
+        """(filename, .docx bytes, is_draft). The document itself has no draft mark; its file name ends in _DRAFT until the
+        resume is approved and in _FINAL after. `self.last_report` is how well it matches the template."""
+        row, approved, resume, template_bytes, rendered = self._render_current(request_id)
         self._log_render(request_id, rendered, "download")
-        suffix = "_FINAL" if approved is not None else "_DRAFT"
+        self.last_report = self._check(request_id, resume, template_bytes, rendered, "download")
+        suffix = "_FINAL" if approved else "_DRAFT"
         name = f"{_safe_filename(self._name(row['associate_id']))}_{_safe_filename(self._jd_title(row['jd_id']))}{suffix}.docx"
-        self._audit("resume_downloaded", {"request_id": request_id, "draft": approved is None})
+        self._audit("resume_downloaded", {"request_id": request_id, "draft": not approved, "check": self.last_report.status})
         self.conn.commit()
-        return name, rendered.docx, approved is None
+        return name, rendered.docx, not approved
+
+    def conformance(self, request_id: int) -> dict:
+        """Does the resume, as it would be downloaded now, match the setup template? Anyone who can see the request may ask."""
+        _, _, resume, template_bytes, rendered = self._render_current(request_id)
+        return self._check(request_id, resume, template_bytes, rendered, "preview").to_dict()
 
     # ------------------------------------------------------------------------------------ notifications
     def notifications(self, unread_only: bool = False) -> list[dict]:
