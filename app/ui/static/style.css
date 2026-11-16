@@ -1,7 +1,12 @@
 /* HR Assistant: full-page layout.
  * The server's security policy allows only same-origin styles, fonts and images, so everything here is
  * plain CSS with system fonts and local files under /img. */
+/* The whole app is drawn at 75% of its design size: the size that reads best on a laptop at 100% browser zoom.
+   One number to change. Viewport units are not scaled by zoom, so --vh and --vw give back what the zoom takes away. */
 :root {
+  --ui-zoom: 0.75;
+  --vh: calc(1vh / var(--ui-zoom));
+  --vw: calc(1vw / var(--ui-zoom));
   --navy-950: #070f20;
   --navy-900: #0a1730;
   --navy-800: #0f2347;
@@ -39,6 +44,7 @@
 }
 
 * { box-sizing: border-box; }
+html { zoom: var(--ui-zoom); }
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
 [hidden] { display: none !important; }
@@ -98,11 +104,11 @@ label { font-weight: 600; font-size: 0.9rem; display: block; margin: 16px 0 6px;
 }
 
 /* ---------- Sign in: a full-page split ---------- */
-#login-screen { min-height: 100vh; }
-.login-shell { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); min-height: 100vh; }
+#login-screen { min-height: calc(100 * var(--vh)); }
+.login-shell { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); min-height: calc(100 * var(--vh)); }
 
 .login-hero {
-  position: relative; overflow: hidden; color: #fff; padding: 36px clamp(28px, 5vw, 68px);
+  position: relative; overflow: hidden; color: #fff; padding: 36px clamp(28px, calc(5 * var(--vw)), 68px);
   display: flex; flex-direction: column; justify-content: space-between; gap: 28px;
   background:
     radial-gradient(820px 480px at 88% -8%, rgba(45, 212, 191, 0.24), transparent 62%),
@@ -114,7 +120,7 @@ label { font-weight: 600; font-size: 0.9rem; display: block; margin: 16px 0 6px;
   background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px); background-size: 24px 24px;
 }
 .login-hero > * { position: relative; }
-.hero-copy h1 { font-size: clamp(1.9rem, 2.8vw, 2.7rem); line-height: 1.14; letter-spacing: -0.025em; max-width: 18ch; }
+.hero-copy h1 { font-size: clamp(1.9rem, calc(2.8 * var(--vw)), 2.7rem); line-height: 1.14; letter-spacing: -0.025em; max-width: 18ch; }
 .hero-copy .lead { color: #c4d2ea; margin-top: 14px; max-width: 48ch; font-size: 1.05rem; }
 .feature-list { list-style: none; margin: 26px 0 0; padding: 0; display: grid; gap: 16px; max-width: 52ch; }
 .feature-list li { display: flex; gap: 14px; align-items: flex-start; color: #c4d2ea; line-height: 1.4; }
@@ -123,10 +129,10 @@ label { font-weight: 600; font-size: 0.9rem; display: block; margin: 16px 0 6px;
   display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 11px;
   background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.14); color: #7dd3fc;
 }
-.hero-art { width: auto; max-width: 100%; max-height: min(36vh, 420px); margin: 0 auto; display: block; }
+.hero-art { width: auto; max-width: 100%; max-height: min(calc(36 * var(--vh)), 420px); margin: 0 auto; display: block; }
 .hero-foot { color: #8fa6c9; font-size: 0.82rem; }
 
-.login-panel { display: flex; align-items: center; justify-content: center; padding: 40px clamp(20px, 4vw, 56px); background: var(--surface); }
+.login-panel { display: flex; align-items: center; justify-content: center; padding: 40px clamp(20px, calc(4 * var(--vw)), 56px); background: var(--surface); }
 .login-card { width: min(460px, 100%); }
 .login-title { font-size: 1.75rem; letter-spacing: -0.02em; }
 .lede { color: var(--muted); margin: 6px 0 4px; }
@@ -151,7 +157,7 @@ label { font-weight: 600; font-size: 0.9rem; display: block; margin: 16px 0 6px;
 .fine-print { color: var(--muted); font-size: 0.8rem; margin: 22px 0 0; text-align: center; }
 
 /* ---------- Chat: sidebar, conversation, leave panel ---------- */
-#chat-screen { height: 100vh; }
+#chat-screen { height: calc(100 * var(--vh)); }
 .app-shell { display: grid; grid-template-columns: 272px minmax(0, 1fr); height: 100%; }
 
 .rail {
@@ -306,14 +312,14 @@ details.steps code { font-size: 0.8rem; }
 .pill.rejected, .pill.cancelled { background: var(--bad-soft); color: var(--bad); }
 
 /* Policy dialog */
-.policy-dialog { border: none; border-radius: 18px; padding: 24px; width: min(660px, 92vw); box-shadow: 0 24px 70px rgba(5, 12, 30, 0.35); }
+.policy-dialog { border: none; border-radius: 18px; padding: 24px; width: min(660px, calc(92 * var(--vw))); box-shadow: 0 24px 70px rgba(5, 12, 30, 0.35); }
 .policy-dialog::backdrop { background: rgba(7, 15, 32, 0.55); }
 .policy-dialog h2 { font-size: 1.15rem; }
 .policy-dialog .muted { margin: 6px 0 12px; font-size: 0.9rem; }
 .policy-dialog .btn { margin-top: 14px; }
 .policy-text {
   white-space: pre-wrap; background: #f7f9fe; border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin: 0;
-  max-height: 50vh; overflow: auto; font: inherit; font-size: 0.92rem;
+  max-height: calc(50 * var(--vh)); overflow: auto; font: inherit; font-size: 0.92rem;
 }
 
 /* ---------- Responsive ---------- */
@@ -330,7 +336,7 @@ details.steps code { font-size: 0.8rem; }
   .login-panel { align-items: flex-start; padding: 28px 22px 40px; }
   .demo-list { grid-template-columns: 1fr 1fr; }
 
-  #chat-screen { height: auto; min-height: 100vh; }
+  #chat-screen { height: auto; min-height: calc(100 * var(--vh)); }
   .app-shell { grid-template-columns: 1fr; height: auto; }
   .rail { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 16px; overflow: visible; }
   .rail-topics { display: none; }
@@ -342,7 +348,7 @@ details.steps code { font-size: 0.8rem; }
   .banner { padding: 6px 18px; }
   .layout { grid-template-columns: 1fr; }
   .panel { border-left: none; border-top: 1px solid var(--line); }
-  .messages { max-height: 62vh; }
+  .messages { max-height: calc(62 * var(--vh)); }
 }
 
 @media (max-width: 560px) {
