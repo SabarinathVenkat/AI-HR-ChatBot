@@ -33,6 +33,13 @@ ENV DB_PATH=/data/hr_chat.db \
     RESUME_LOG_FILE=/data/logs/resume_builder.log \
     LOG_LEVEL=INFO
 
+# A volume mounted at /data (Runpod's network volume, for one) arrives owned by root, so the app could not write to it.
+# The start-up script hands the data folders to the app's user and then runs the app as that user, never as root.
+USER root
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh && chmod +x /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["docker-entrypoint.sh"]
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
