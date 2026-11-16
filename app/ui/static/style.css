@@ -1,10 +1,10 @@
 /* HR Assistant: full-page layout.
  * The server's security policy allows only same-origin styles, fonts and images, so everything here is
  * plain CSS with system fonts and local files under /img. */
-/* The whole app is drawn at 75% of its design size: compact, and readable on a laptop at 100% browser zoom.
+/* The whole app is drawn at 72% of its design size: compact, and readable on a laptop at 100% browser zoom.
    One number to change. Viewport units are not scaled by zoom, so --vh and --vw give back what the zoom takes away. */
 :root {
-  --ui-zoom: 0.75;
+  --ui-zoom: 0.72;
   --vh: calc(1vh / var(--ui-zoom));
   --vw: calc(1vw / var(--ui-zoom));
   --navy-950: #070f20;
