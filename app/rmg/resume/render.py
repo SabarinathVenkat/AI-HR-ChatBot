@@ -23,7 +23,7 @@ from app.rmg.resume.fit import MAX_PAGES, capacity, compact_document, fit, heigh
 from app.rmg.resume.model import Resume
 from app.rmg.resume.repair import repair_layout
 from app.rmg.resume.template import (
-    W, TemplateMap, all_bold, analyse, is_blank, is_heading, run_is_bold, text_runs, typed_glyph,
+    W, TemplateMap, all_bold, analyse, is_blank, is_heading, paragraph_text, run_is_bold, text_runs, typed_glyph,
 )
 
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]")
@@ -146,12 +146,42 @@ def shorten_years(text: str) -> str:
     return f"{years} {'yr' if years == 1 else 'yrs'}"
 
 
+_YEARS_PART = re.compile(r"\(?\d+\+?\s*(?:years?|yrs?)\b[^()]*\)?", re.IGNORECASE)
+
+
+def years_like_template(sample: str | None, years_text: str, *, compact: bool = False) -> str:
+    """The years for the role line, written the way the template writes them. The template's sample "(10+ years exp)"
+    with 12 years 5 months gives "(12+ years exp)": whole years, rounded down, in the template's own wording. With no
+    sample to copy it is "12+ years". Under a year, or no years at all, is left as it is. `compact` is the short form
+    for a long title: "(12+ yrs)"."""
+    match = re.match(r"^(\d+) years?\b", years_text.strip())
+    if not match:
+        return years_text
+    years = match.group(1)
+    text = re.sub(r"\d+", years, sample, count=1) if sample and re.search(r"\d", sample) else f"{years}+ years"
+    if compact:
+        text = re.sub(r"\s*\bexp\b", "", re.sub(r"\byears?\b", "yrs", text, flags=re.IGNORECASE), flags=re.IGNORECASE)
+    return text
+
+
+def _years_sample(role) -> str | None:
+    """The part of the template's sample role line that says the years, such as "(10+ years exp)"."""
+    runs = text_runs(role)
+    if len(runs) >= 2:
+        return "".join(t.text or "" for t in runs[1].iter(W + "t"))
+    found = _YEARS_PART.search(paragraph_text(role))
+    return found.group(0) if found else None
+
+
 def _render_header(m: TemplateMap, resume: Resume, years_text: str, doc) -> list[str]:
     sample_height = height_of(m.summary, doc) if m.summary is not None else 0.0  # before the sample text is replaced
     _fill(m.name, [(resume.name, False)])
     title = resume.role_title.text if resume.role_title else ""
+    sample_years = _years_sample(m.role) if m.role is not None else None
+    exact_years = years_text
+    years_text = years_like_template(sample_years, exact_years)
     if len(f"{title} {years_text}") > MAX_ROLE_LINE_CHARS:
-        years_text = shorten_years(years_text)
+        years_text = years_like_template(sample_years, exact_years, compact=True)
     if m.role is not None:
         runs = text_runs(m.role)
         if len(runs) >= 2 and title and years_text:  # the template styles the title and the years differently

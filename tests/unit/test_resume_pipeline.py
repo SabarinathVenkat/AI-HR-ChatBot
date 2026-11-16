@@ -53,7 +53,7 @@ def test_a_run_produces_a_rendered_tailored_resume_with_its_change_log():
     result = run_pipeline(deps(), request())
 
     text = lines(result)
-    assert "Anil Verma" in text and "Senior Backend Engineer 6 years 9 months" in text
+    assert "Anil Verma" in text and "Senior Backend Engineer 6 years" in text
     assert [p.name for p in result.tailored.projects] == ["Payments", "Intranet"]  # most relevant first
     assert result.changelog.coverage.missing_required == ("Kubernetes",)
     assert result.role.title == "Java Developer" and result.plan.missing_required == ("Kubernetes",)

@@ -285,8 +285,8 @@ def test_a_long_role_line_gets_short_years_so_it_stays_on_one_line():
     assert "Senior Data Scientist | ML Engineering & MLOps 10 yrs" in texts(render(long_title, years_text="10 years 3 months"))
 
 
-def test_a_short_role_line_keeps_the_full_years():
-    assert "Senior Backend Engineer 10 years 3 months" in texts(render(years_text="10 years 3 months"))
+def test_a_short_role_line_shows_whole_years_in_the_templates_style():
+    assert "Senior Backend Engineer 10 years" in texts(render(years_text="10 years 3 months"))
 
 
 @pytest.mark.parametrize("given,short", [("10 years 3 months", "10 yrs"), ("1 year", "1 yr"), ("8 months", "8 months"), ("12 years", "12 yrs")])
