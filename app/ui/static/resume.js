@@ -612,9 +612,10 @@
           h("span", { class: "muted", text: `Competency Lead: ${d.lead.name}` })),
         scoreBlock(d), statusBadge(d.status)),
       d.decision_note ? h("p", { class: "rb-note", id: "decision-note-shown", text: `Competency Lead note: ${d.decision_note}` }) : null,
-      d.render_notes && d.render_notes.length ? h("div", { class: "rb-info", id: "render-notes" },
-        h("strong", { text: "About the Word file" }), d.render_notes.map((n) => h("div", { text: n }))) : null,
-      d.can && d.can.download ? checkCard() : null,
+      h("div", { class: "rb-strip" },
+        d.render_notes && d.render_notes.length ? h("div", { class: "rb-info", id: "render-notes" },
+          h("strong", { text: "About the Word file" }), d.render_notes.map((n) => h("div", { text: n }))) : null,
+        d.can && d.can.download ? checkCard() : null),
       actionBar(d), decisionCard(d),
       h("div", { class: "rb-grid rb-work" }, jdCard(d), resumeCard(d), changesCard(d)),
     ].filter(Boolean));

@@ -1,10 +1,10 @@
 /* HR Assistant: full-page layout.
  * The server's security policy allows only same-origin styles, fonts and images, so everything here is
  * plain CSS with system fonts and local files under /img. */
-/* The whole app is drawn at 75% of its design size: the size that reads best on a laptop at 100% browser zoom.
+/* The whole app is drawn at 68% of its design size: compact, and readable on a laptop at 100% browser zoom.
    One number to change. Viewport units are not scaled by zoom, so --vh and --vw give back what the zoom takes away. */
 :root {
-  --ui-zoom: 0.75;
+  --ui-zoom: 0.68;
   --vh: calc(1vh / var(--ui-zoom));
   --vw: calc(1vw / var(--ui-zoom));
   --navy-950: #070f20;
@@ -74,7 +74,7 @@ code { background: var(--primary-soft); padding: 1px 6px; border-radius: 6px; fo
 /* Buttons and fields */
 .btn {
   font: inherit; font-weight: 600; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
-  padding: 9px 16px; border-radius: 10px; cursor: pointer; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  padding: 7px 13px; border-radius: 9px; cursor: pointer; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
 }
 .btn:hover:not(:disabled) { background: #eef2fa; }

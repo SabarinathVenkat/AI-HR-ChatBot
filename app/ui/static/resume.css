@@ -20,16 +20,16 @@ body.rb { display: flex; flex-direction: column; height: auto; min-height: 100%;
 .rb-message.error { background: var(--bad-soft); color: var(--bad); }
 .rb-message.ok { background: var(--ok-soft); color: var(--ok); }
 
-.rb-main { padding: 20px 24px 48px; width: 100%; }  /* the whole width, with the same side margin as the top bar */
+.rb-main { padding: 12px 18px 32px; width: 100%; }  /* the whole width, with the same side margin as the top bar */
 .rb-main h2 { font-size: 20px; margin-bottom: 12px; }
 .rb-main h3 { font-size: 16px; margin: 0 0 8px; }
-.rb-grid { display: grid; gap: 20px; }
+.rb-grid { display: grid; gap: 14px; }
 .rb-two { grid-template-columns: minmax(300px, 26%) minmax(0, 1fr); }
 .rb-work { grid-template-columns: minmax(240px, 300px) minmax(360px, 1fr) minmax(280px, 360px); align-items: start; }
 @media (max-width: 1100px) { .rb-two, .rb-work { grid-template-columns: 1fr; } }
 
-.rb-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-sm); }
-.rb-card + .rb-card { margin-top: 16px; }
+.rb-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; box-shadow: var(--shadow-sm); }
+.rb-card + .rb-card { margin-top: 12px; }
 .rb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .rb-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
 .rb-item .title { font-weight: 600; }
@@ -111,13 +111,13 @@ progress.rb-progress { width: 100%; height: 12px; }
 .rb-message { position: sticky; top: 68px; z-index: 20; box-shadow: var(--shadow-sm); }
 
 /* the workspace header and toolbar */
-.rb-bar { align-items: center; gap: 14px; margin-bottom: 12px; }
+.rb-bar { align-items: center; gap: 12px; margin-bottom: 8px; }
 .rb-titleblock { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .rb-titleblock h2 { font-size: 20px; line-height: 1.25; }
 .rb-note { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 8px 14px; margin: 0 0 12px; font-weight: 600; }
 .rb-info { background: var(--primary-soft); color: var(--primary-dark); border-radius: 10px; padding: 8px 14px; margin: 0 0 12px; font-size: 14px; }
 .rb-info strong { display: block; margin-bottom: 2px; }
-.rb-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 16px; }
+.rb-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; }
 .rb-filepick { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; padding: 6px 10px; }
 .rb-filepick span { font-weight: 600; font-size: 14px; white-space: nowrap; }
 .rb-filepick input[type="file"] { width: auto; max-width: 260px; border: 0; padding: 0; background: none; font: inherit; font-size: 14px; }
@@ -259,3 +259,10 @@ input[type="file"]::file-selector-button:hover { background: #d7e5ff; }
 .rb-brand h1 { font-size: 1.15rem; }
 .rb-brand-link { color: inherit; text-decoration: none; opacity: 0.75; }
 .rb-brand-link:hover, .rb-brand-link:focus-visible { opacity: 1; text-decoration: underline; }
+
+/* the notes about the Word file and the template check share one row instead of two full-width bars */
+.rb-strip { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; align-items: stretch; }
+.rb-strip:empty { display: none; }
+.rb-strip > .rb-info, .rb-strip > .rb-check { flex: 1 1 360px; margin: 0; padding: 6px 12px; }
+.rb-strip .rb-info strong { display: inline; margin: 0 8px 0 0; }
+.rb-strip .rb-info div { display: inline; }
