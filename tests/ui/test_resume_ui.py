@@ -435,13 +435,13 @@ def test_the_three_columns_share_a_wide_screen_instead_of_leaving_the_middle_cra
 
 
 def test_the_app_is_drawn_smaller_and_still_fills_the_screen(page, start_server):
-    """The whole app is drawn at 68% of its design size, and screen-height units are corrected so nothing ends up short."""
+    """The whole app is drawn at 75% of its design size, and screen-height units are corrected so nothing ends up short."""
     server = start_server([], resume=True)
     page.set_viewport_size({"width": 1600, "height": 800})
 
     sign_in(page, server, "Ravi Kumar")
 
-    assert page.evaluate("getComputedStyle(document.documentElement).zoom") == "0.68"
+    assert page.evaluate("getComputedStyle(document.documentElement).zoom") == "0.75"
     chat = page.locator("#chat-screen").bounding_box()
     assert abs(chat["height"] - 800) <= 2 and abs(chat["width"] - 1600) <= 2  # as big as the window, not 75% of it
     assert page.evaluate("parseFloat(getComputedStyle(document.body).fontSize)") == 16  # the design size is unchanged; the zoom does the scaling
