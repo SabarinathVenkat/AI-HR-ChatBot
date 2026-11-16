@@ -29,6 +29,7 @@ from app.rmg.resume.template import (
 
 PASS, WARN, FAIL = "pass", "warn", "fail"
 MIN_SAMPLE_CHARS = 8
+MIN_SENTENCE_CHARS = 60  # a paragraph this long that is unchanged in the output is probably sample text
 SHOWN = 4  # how many items a message lists before saying "and more"
 
 
@@ -150,12 +151,24 @@ def _sections_check(tdoc, tmap, odoc, omap, resume: Resume) -> Check:
     return Check("sections", PASS, f"All {len(in_output)} sections are there, in the template's order.")
 
 
-def _sample_check(tmap, odoc, resume: Resume) -> Check:
-    output = {_norm(paragraph_text(p)) for p in _paragraphs(odoc)}
+def _sample_check(tdoc, tmap, odoc, resume: Resume) -> Check:
+    output = [_norm(paragraph_text(p)) for p in _paragraphs(odoc)]
+    present = set(output)
     own = _resume_strings(resume)
-    left = [t for t in _sample_texts(tmap) if _norm(t) in output and _norm(t) not in own]
+    mapped = _sample_texts(tmap)
+    left = [t for t in mapped if _norm(t) in present and _norm(t) not in own]
     if left:
         return Check("sample_text", FAIL, f"Sample text from the template is still in the file: {_listed(left)}.")
+    # Text the reader did not map to any part of the resume, such as a second banner sentence, may be sample text too.
+    mapped_norm = {_norm(t) for t in mapped}
+    unmapped = []
+    for p in _paragraphs(tdoc):
+        text = paragraph_text(p).strip()
+        key = _norm(text)
+        if len(text) >= MIN_SENTENCE_CHARS and not is_heading(p) and key not in mapped_norm and key in present and key not in own:
+            unmapped.append(text)
+    if unmapped:
+        return Check("sample_text", WARN, f"Text from the template is unchanged in the file and may be sample text: {_listed(unmapped)}.")
     return Check("sample_text", PASS, "No sample text from the template is left.")
 
 
@@ -315,7 +328,7 @@ def check_conformance(template: bytes, output: bytes, resume: Resume, *, used_st
     return Report(checks=(
         _template_check(used_standard_layout),
         _sections_check(tdoc, tmap, odoc, omap, resume),
-        _sample_check(tmap, odoc, resume),
+        _sample_check(tdoc, tmap, odoc, resume),
         _complete_check(tmap, odoc, resume),
         _empty_sections_check(odoc, omap, {text for _, text in _slot_headings(tdoc, tmap)}),
         _bullets_check(tdoc, odoc),

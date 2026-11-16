@@ -19,7 +19,7 @@ from docx import Document
 from docx.oxml import OxmlElement
 
 from app.rmg.resume.emphasis import emphasise, terms_of
-from app.rmg.resume.fit import MAX_PAGES, capacity, compact_document, fit
+from app.rmg.resume.fit import MAX_PAGES, capacity, compact_document, fit, height_of, keep_row_height
 from app.rmg.resume.model import Resume
 from app.rmg.resume.repair import repair_layout
 from app.rmg.resume.template import (
@@ -146,7 +146,8 @@ def shorten_years(text: str) -> str:
     return f"{years} {'yr' if years == 1 else 'yrs'}"
 
 
-def _render_header(m: TemplateMap, resume: Resume, years_text: str) -> None:
+def _render_header(m: TemplateMap, resume: Resume, years_text: str, doc) -> list[str]:
+    sample_height = height_of(m.summary, doc) if m.summary is not None else 0.0  # before the sample text is replaced
     _fill(m.name, [(resume.name, False)])
     title = resume.role_title.text if resume.role_title else ""
     if len(f"{title} {years_text}") > MAX_ROLE_LINE_CHARS:
@@ -161,6 +162,25 @@ def _render_header(m: TemplateMap, resume: Resume, years_text: str) -> None:
         else:
             _fill(m.role, [(f"{title} {years_text}".strip(), False)])
     _fill(m.summary, [(resume.summary.text if resume.summary else "", False)])
+    return _keep_banner_size(m.summary, sample_height, doc)
+
+
+BANNER_ROOM = 1.02  # a summary may be this much taller than the sample's before it is tightened
+
+
+def _keep_banner_size(summary, sample_height: float, doc) -> list[str]:
+    """The banner behind the header has a fixed size. If the summary is shorter than the template's sample, the row keeps
+    the sample's height, so the page below does not slide up under the banner. If it is longer, it is tightened so it
+    stays inside the banner; if even that is not enough the resume says so."""
+    if summary is None or not sample_height or summary.getparent().tag != W + "tc":
+        return []  # only a banner built as a table has a fixed-size background; a summary in the page flows freely
+    height = height_of(summary, doc)
+    if height <= sample_height:
+        keep_row_height(summary, sample_height)
+        return []
+    if not fit([summary], sample_height * BANNER_ROOM, doc):
+        return ["summary: it is longer than the template's banner has room for, so it may run past the banner"]
+    return []
 
 
 def _render_skills(m: TemplateMap, resume: Resume) -> list:
@@ -343,7 +363,7 @@ def _education_line(e) -> list[tuple[str, bool]]:
 def render_resume(template: bytes, resume: Resume, *, years_text: str = "") -> RenderResult:
     doc, m = _load(template)
     problems: list[str] = []
-    _render_header(m, resume, years_text)
+    problems += _render_header(m, resume, years_text, doc)
     sample = list(m.skills.region)
     for slot in (m.education, m.certifications):
         sample += list(slot.region) if slot is not None else []

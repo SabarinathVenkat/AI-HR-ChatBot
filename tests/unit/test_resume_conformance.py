@@ -153,6 +153,25 @@ def test_a_resume_that_really_says_the_same_thing_as_the_sample_is_not_flagged()
     assert by_name(check_conformance(tpl, out, same))["sample_text"].status == "pass"
 
 
+def test_a_long_sentence_of_the_template_that_is_unchanged_in_the_output_is_a_warning_even_if_it_was_not_mapped_to_anything():
+    doc = make_template(highlights_subheading="Professional summary and Key highlights")
+    tagline = "This tagline is part of the template design and is not one of the parts the reader fills in with resume text."
+    first = next(p for p in doc.element.body.iter(W + "p") if paragraph_text(p).startswith("A long sample summary"))
+    extra = OxmlElement("w:p")
+    run = OxmlElement("w:r")
+    text = OxmlElement("w:t")
+    text.text = tagline
+    run.append(text)
+    extra.append(run)
+    first.addnext(extra)  # right under the summary, which is the part the reader fills in
+    tpl = docx_bytes(doc)
+    out = render_resume(tpl, RESUME).docx
+
+    check = by_name(check_conformance(tpl, out, RESUME))["sample_text"]
+
+    assert check.status == "warn" and "tagline" in check.message
+
+
 # --- nothing missing -----------------------------------------------------------------------------------------------------------
 
 def test_a_part_of_the_resume_missing_from_the_file_is_a_failure_and_names_it():

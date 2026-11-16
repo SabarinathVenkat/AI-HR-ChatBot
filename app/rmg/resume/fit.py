@@ -298,3 +298,35 @@ def compact_document(doc) -> PageEstimate:
     for p in doc.element.body.iter(W + "p"):
         _tighten(p, scale, drop)
     return chosen[1]
+
+
+# --- a banner that keeps its size ---------------------------------------------------------------------------------------
+
+def height_of(p, doc, level: int = 0) -> float:
+    """Estimated height in points of one paragraph, at the width of the table cell or page it sits in."""
+    width, _ = _geometry(doc)
+    parent = p.getparent()
+    if parent is not None and parent.tag == W + "tc":
+        row = parent.getparent()
+        cells = row.findall(W + "tc") if row is not None else [parent]
+        width = (_number(parent.find(f"{W}tcPr/{W}tcW"), "w") / 20 or width / max(len(cells), 1)) - CELL_PADDING_PT
+    return _stack([p], width, level, Styles(doc))
+
+
+def keep_row_height(p, points: float) -> bool:
+    """Make the table row holding paragraph `p` at least `points` tall. Returns False if `p` is not in a table row."""
+    cell = p.getparent()
+    row = cell.getparent() if cell is not None and cell.tag == W + "tc" else None
+    if row is None or row.tag != W + "tr":
+        return False
+    properties = row.find(W + "trPr")
+    if properties is None:
+        properties = row.makeelement(W + "trPr", {})
+        row.insert(1 if row.find(W + "tblPrEx") is not None else 0, properties)
+    height = properties.find(W + "trHeight")
+    if height is None:
+        height = properties.makeelement(W + "trHeight", {})
+        properties.append(height)
+    height.set(W + "val", str(max(round(points * 20), round(_number(height, "val")))))
+    height.set(W + "hRule", "atLeast")
+    return True

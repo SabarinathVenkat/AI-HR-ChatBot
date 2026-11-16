@@ -195,6 +195,32 @@ def _paragraphs(container) -> list:
     return [child for child in container if child.tag == W + "p"]
 
 
+def _summary_in_header_table(container):
+    """The summary of a banner built as a table: the first text in another cell of the table the name sits in."""
+    if container.tag != W + "tc":
+        return None
+    table = container.getparent().getparent()
+    for cell in table.iter(W + "tc"):
+        if cell is container:
+            continue
+        found = next((p for p in _paragraphs(cell) if paragraph_text(p).strip() and not is_heading(p) and not is_bullet(p)), None)
+        if found is not None:
+            return found
+    return None
+
+
+def _summary_before_the_sections(doc: DocxDocument):
+    """Last resort: the first long paragraph that comes before the first section heading. Anything after a section heading
+    is content (a project description, say) and is never the summary."""
+    for p in doc.element.body.iter(W + "p"):
+        text = paragraph_text(p)
+        if is_heading(p) and classify_heading(text) != "unknown":
+            return None
+        if len(text) > SUMMARY_MIN_CHARS and not is_bullet(p) and not is_heading(p):
+            return p
+    return None
+
+
 def _find_header(doc: DocxDocument, m: TemplateMap) -> None:
     for label, container in _containers(doc):
         titles = [p for p in _paragraphs(container) if paragraph_style(p).lower() == "title"]
@@ -205,24 +231,14 @@ def _find_header(doc: DocxDocument, m: TemplateMap) -> None:
         after = [p for p in _paragraphs(container) if p not in titles and paragraph_text(p).strip()]
         if after:
             m.summary = after[0]
-        elif container.tag == W + "tc":  # the summary can sit in another cell of the same table
-            table = container.getparent().getparent()
-            for cell in table.iter(W + "tc"):
-                if cell is container:
-                    continue
-                m.summary = next((p for p in _paragraphs(cell) if paragraph_text(p).strip()), None)
-                if m.summary is not None:
-                    break
+        else:
+            m.summary = _summary_in_header_table(container)  # the summary can sit in another cell of the same table
         m.notes.append(f"header found in {label}")
         break
     else:
         _guess_header(doc, m)
-    if m.summary is None:  # last resort: the first long, unnumbered paragraph that is not a heading
-        for _, container in _containers(doc):
-            m.summary = next((p for p in _paragraphs(container) if len(paragraph_text(p)) > SUMMARY_MIN_CHARS
-                              and not is_bullet(p) and not is_heading(p)), None)
-            if m.summary is not None:
-                break
+    if m.summary is None:
+        m.summary = _summary_before_the_sections(doc)
 
 
 def _guess_header(doc: DocxDocument, m: TemplateMap) -> None:
@@ -238,6 +254,8 @@ def _guess_header(doc: DocxDocument, m: TemplateMap) -> None:
             m.role = rest[0]
             rest = rest[1:]
         m.summary = next((p for p in rest if not is_heading(p) and not is_bullet(p) and len(paragraph_text(p)) >= 40), None)
+        if m.summary is None:  # (an element with no children is "falsy" in lxml, so this is not written with "or")
+            m.summary = _summary_in_header_table(container)
         m.notes.append("header guessed: no Title-style paragraphs")
         return
     m.notes.append("no header: no Title-style paragraphs")
