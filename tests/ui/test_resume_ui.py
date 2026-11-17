@@ -295,7 +295,7 @@ def test_the_associate_can_add_edit_and_remove_skills_and_the_score_follows(page
     assert [e for e in page.console_errors if "422" not in e] == []
 
 
-def test_the_lead_sees_the_skills_the_associate_added_marked_as_theirs(page, start_server):
+def test_the_lead_sees_the_skills_the_associate_added_marked_as_the_associates(page, start_server):
     server = start_server([], resume=True)
     build_as_ravi(page, server)
     page.locator("#skills-section .skill-add").first.click()
@@ -310,8 +310,8 @@ def test_the_lead_sees_the_skills_the_associate_added_marked_as_theirs(page, sta
     open_builder(page, server, "Veera")
     page.get_by_role("button", name="Open").click()
 
-    expect(page.locator("#skills-section .skill-chip", has_text="Terraform")).to_contain_text("added by you")
-    expect(page.locator("#skills-section .skill-edit")).to_have_count(0)  # the Lead cannot edit the associate's skills
+    expect(page.locator("#skills-section .skill-chip", has_text="Terraform")).to_contain_text("added by the associate")
+    expect(page.locator("#skills-section .skill-edit").first).to_be_visible()  # the Lead may edit a resume that is waiting for review
 
 
 def test_one_prominent_score_follows_every_change_and_says_how_far_it_moved(page, start_server):
@@ -529,4 +529,77 @@ def test_the_associate_can_add_and_remove_a_certification_and_it_is_marked_as_th
 
     page.locator("#certifications-section .rb-bullet .remove").first.click()
     expect(page.locator("#certifications-section")).to_contain_text("None listed")
+    assert page.console_errors == []
+
+
+def test_the_lead_can_edit_the_resume_and_send_it_back_with_a_note_and_the_associate_sees_what_changed(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+    page.locator("#submit").click()
+    expect(page.locator("#message")).to_contain_text("Submitted")
+    page.goto(server.url)
+    sign_out(page)
+
+    open_builder(page, server, "Veera")
+    page.get_by_role("button", name="Open").click()
+    expect(page.locator("#chat")).to_have_count(0)  # the assistant is the associate's, not a reviewer's
+    page.locator("#certifications-section .add-certification").click()
+    page.get_by_label("Certification", exact=True).fill("Scrum Master")
+    page.locator(".save-certification").click()
+    expect(page.locator("#certifications-section .badge").first).to_contain_text("added by Veera")
+    page.locator("#decision-note").fill("I added Scrum Master; please check your project dates")
+    page.locator("#send-back").click()
+    expect(page.locator("#message")).to_contain_text("Sent back")
+    page.goto(server.url)
+    sign_out(page)
+
+    open_builder(page, server, "Ravi Kumar")
+    page.get_by_role("button", name="Open").first.click()
+    expect(page.locator("#decision-note-shown")).to_contain_text("please check your project dates")
+    expect(page.locator("#certifications-section .badge").first).to_contain_text("added by Veera")
+    assert page.console_errors == []
+
+
+def test_rmg_has_a_review_tab_and_can_approve_a_submitted_resume(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+    page.locator("#submit").click()
+    expect(page.locator("#message")).to_contain_text("Submitted")
+    page.goto(server.url)
+    sign_out(page)
+
+    open_builder(page, server, "Shadrach")
+    page.get_by_role("button", name="Review").click()
+    expect(page.locator("#view")).to_contain_text("1 waiting for your decision")
+    page.get_by_role("button", name="Open").click()
+    page.locator("#approve").click()
+
+    expect(page.locator("#message")).to_contain_text("Approved")
+    assert page.console_errors == []
+
+
+def test_a_person_with_no_lead_can_be_tagged_and_rmg_reviews_their_resume(page, start_server):
+    server = start_server([], resume=True)
+    open_builder(page, server, "Shadrach")
+
+    page.get_by_label(re.compile("Sanjay Patel")).check()
+    page.locator("#tag-go").click()
+    expect(page.locator("#message")).to_contain_text("Tagged 1")
+    page.get_by_role("button", name="Open").click()
+
+    expect(page.locator(".rb-titleblock")).to_contain_text("Reviewed by the RMG team")
+    assert page.console_errors == []
+
+
+def test_a_skill_the_job_wants_but_the_resume_lacks_is_a_suggestion_one_click_adds_as_the_associates_own(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+
+    suggestion = page.locator("#coverage button.suggest", has_text="Kubernetes")
+    expect(suggestion).to_be_visible()  # the job wants it and the sample resume does not have it
+    expect(page.locator("#skills-section .skill-chip", has_text="Kubernetes")).to_have_count(0)  # nothing is claimed until the click
+    suggestion.click()
+
+    expect(page.locator("#skills-section .skill-chip", has_text="Kubernetes")).to_contain_text("added by you")
+    expect(page.locator("#coverage button.suggest", has_text="Kubernetes")).to_have_count(0)  # no longer missing
     assert page.console_errors == []

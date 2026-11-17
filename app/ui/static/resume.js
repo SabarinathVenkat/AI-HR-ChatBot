@@ -373,6 +373,10 @@
     const role = d.jd.role;
     const cov = d.changelog && d.changelog.coverage;
     const chips = (items, cls) => h("div", { class: "rb-chips" }, items.map((s) => h("span", { class: `chip ${cls}`, text: s })));
+    /* A skill the JD wants and the resume does not have is only a suggestion: one click adds it, as the person's own statement. */
+    const suggestions = (items, cls) => (d.can.edit ? h("div", { class: "rb-chips" }, items.map((s) => h("button", {
+      type: "button", class: `chip ${cls} suggest`, title: "Click to add this to the resume, if it is true", "aria-label": `Add ${s} to the skills`,
+      on: { click: () => doEdit({ action: "add_skill", text: s, category: "Other relevant skills" }) } }, `+ ${s}`))) : chips(items, cls));
     return h("div", {},
       h("div", { class: "rb-card" },
         h("h3", { text: role.title }),
@@ -389,14 +393,17 @@
         h("h3", { text: `Required skills covered: ${pct(cov.required_after)}` }),
         cov.required_after !== null ? h("progress", { class: "rb-progress", max: "1", value: String(cov.required_after) }) : null,
         h("p", { class: "muted", text: "In your resume" }), chips(cov.covered, ""),
-        cov.missing_required.length ? [h("p", { class: "muted", text: "Required, but not in your resume (so not claimed)" }), chips(cov.missing_required, "missing")] : null,
-        cov.missing_nice.length ? [h("p", { class: "muted", text: "Nice to have, not in your resume" }), chips(cov.missing_nice, "nice")] : null,
-        h("p", { class: "muted", text: "If one of these is true for you, tell the assistant and it will be added as your own statement." })) : null,
+        cov.missing_required.length ? [h("p", { class: "muted", text: d.can.edit ? "Required, but not in your resume (not claimed). Click one that is true to add it:" : "Required, but not in the resume (not claimed)" }), suggestions(cov.missing_required, "missing")] : null,
+        cov.missing_nice.length ? [h("p", { class: "muted", text: d.can.edit ? "Nice to have, not in your resume. Click to add if true:" : "Nice to have, not in the resume" }), suggestions(cov.missing_nice, "nice")] : null,
+        d.can.edit ? h("p", { class: "muted", text: "Anything you add is marked as your own statement, so only add what is true." }) : null) : null,
       d.versions.length ? h("div", { class: "rb-card" }, h("h3", { text: "Versions" }),
         h("ul", { class: "rb-list" }, d.versions.map((v) => h("li", { class: "sub", text: `v${v.version}: ${v.kind}` })))) : null);
   }
 
   /* One editable line of the resume: text, where it came from, and tools if the associate may edit. */
+  /* Who added a line, as the person looking should read it: "you" only for the associate. */
+  const addedBy = (d, item) => (item.by ? `added by ${item.by}` : d.relations.includes("associate") ? "added by you" : "added by the associate");
+
   function line(d, path, item, tools) {
     if (state.editing === path) {
       const box = h("textarea", { "aria-label": "New wording" });
@@ -407,7 +414,7 @@
     }
     const can = d.can.edit;
     return h("li", { class: "rb-bullet", "data-path": path },
-      h("span", { class: "text" }, item.text, " ", item.origin !== "original" ? badge(item.origin === "user_added" ? "added by you" : "reworded", `o-${item.origin}`) : null),
+      h("span", { class: "text" }, item.text, " ", item.origin !== "original" ? badge(item.origin === "user_added" ? addedBy(d, item) : "reworded", `o-${item.origin}`) : null),
       can ? h("span", { class: "rb-tools" },
         h("button", { type: "button", class: "edit", "aria-label": `Edit: ${item.text}`, on: { click: () => { state.editing = path; renderWorkspace(); } } }, "Edit"),
         h("button", { type: "button", class: "remove", "aria-label": `Remove: ${item.text}`, on: { click: () => doEdit({ action: "remove", path }) } }, "Remove"),
@@ -485,7 +492,7 @@
       d.can.edit
         ? h("button", { type: "button", class: "skill-edit", "aria-label": `Edit skill ${item.text}`, title: "Click to edit", on: { click: () => { state.editing = path; renderWorkspace(); } } }, item.text)
         : item.text,
-      mine ? h("span", { class: "skill-mine", text: "added by you" }) : null,
+      mine ? h("span", { class: "skill-mine", text: addedBy(d, item) }) : null,
       d.can.edit ? h("button", { type: "button", class: "skill-remove", "aria-label": `Remove skill ${item.text}`, title: "Remove", on: { click: () => doEdit({ action: "remove", path }) } }, "×") : null);
   }
 
@@ -586,7 +593,7 @@
           h("div", { class: "reason", text: e.reason }),
           e.path ? h("button", { type: "button", class: "rb-linkbtn show-in-resume", on: { click: () => showInResume(e.path) } }, "Show in resume")
             : h("span", { class: "muted gone", text: "No longer in the resume" }))))),
-      d.can.edit ? h("div", { class: "rb-card", id: "chat" }, h("h3", { text: "Ask for a change" }),
+      d.can.chat ? h("div", { class: "rb-card", id: "chat" }, h("h3", { text: "Ask for a change" }),
         h("div", { class: "rb-chat-log", "aria-live": "polite" }, state.chat.map((m) => h("div", { class: m.me ? "me" : "bot", text: m.text }))),
         h("div", { class: "rb-chat-form" }, input, h("div", { class: "rb-row" }, h("button", { id: "chat-send", class: "btn primary", type: "button", on: { click: send } }, "Send")))) : null);
   }

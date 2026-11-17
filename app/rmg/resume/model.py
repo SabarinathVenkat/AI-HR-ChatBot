@@ -49,6 +49,7 @@ class Item(_Model):
     text: Text
     origin: Origin
     source: ShortText | None = None
+    by: ShortText | None = None  # who added or changed it when it was not the associate: a reviewer's name
 
     @model_validator(mode="after")
     def _provenance_is_consistent(self) -> "Item":

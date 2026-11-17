@@ -25,7 +25,8 @@ from app.rmg.resume.changelog import build_change_log
 from app.rmg.resume.conformance import WARN, Check, Report, check_conformance
 from app.rmg.resume.chat import EditCommand, explain
 from app.rmg.resume.edit import (
-    EditError, add_certification_as, add_dates_as, add_fact, add_skill_as, move_bullet, move_project, remove_item, set_role_line, set_text,
+    EditError, add_certification_as, add_dates_as, add_fact, add_skill_as, move_bullet, move_project, remove_item, set_role_line,
+    set_text, stamp_reviewer,
 )
 from app.rmg.resume.extract import ExtractionError
 from app.rmg.resume.facts import experience
@@ -450,10 +451,12 @@ class ResumeService:
 
     def _can(self, row, relations: set[str], has_draft: bool) -> dict:
         status, associate = row["status"], "associate" in relations
+        reviewer = ("lead" in relations or "rmg" in relations) and not associate
         return {
             "upload": associate and status in OPEN_FOR_ASSOCIATE,
             "build": associate and status in OPEN_FOR_ASSOCIATE and bool(row["base_file_key"]),
-            "edit": associate and has_draft and status in EDITABLE,
+            "edit": has_draft and ((associate and status in EDITABLE) or (reviewer and status == "submitted")),
+            "chat": associate and has_draft and status in EDITABLE,  # the assistant is the associate's: it cannot make claims for anyone else
             "save": associate and has_draft and status in EDITABLE,
             "submit": associate and has_draft and status in EDITABLE,
             "decide": ("lead" in relations or "rmg" in relations) and status == "submitted",
@@ -585,10 +588,8 @@ class ResumeService:
         note = (note or "").strip()[:1000]
         title = self._jd_title(row["jd_id"])
         if decision == "approve":
-            submitted = self.conn.execute(
-                "SELECT * FROM resume_versions WHERE request_id = ? AND kind = 'submitted' ORDER BY version DESC LIMIT 1",
-                (request_id,)).fetchone()
-            self._add_version(request_id, "approved", submitted["resume_json"], submitted["years_text"], submitted["template_id"])
+            draft = self._need_draft(request_id)  # as it is now: it includes anything the reviewer changed
+            self._add_version(request_id, "approved", draft["working_json"], draft["years_text"], draft["template_id"])
             self._set_status(request_id, "approved", decided_by=self.actor.id, decided_at=self._iso(), decision_note=note or None)
             for person in {row["associate_id"], row["created_by"], row["lead_id"]} - {None, self.actor.id}:
                 self._notify(person, f"The resume for {title} ({self._name(row['associate_id'])}) was approved by {self.actor.name}.", request_id)
@@ -613,8 +614,14 @@ class ResumeService:
         return {"status": "in_progress"}
 
     # ------------------------------------------------------------------------------------ edits (the draft only)
-    def _editing(self, request_id: int):
-        row = self._as_associate(request_id, EDITABLE)
+    def _editing(self, request_id: int, *, reviewer_ok: bool = False):
+        """The draft to change. The associate may while it is theirs to write; a reviewer (the Competency Lead or RMG) may
+        while it is waiting for review."""
+        row = self._visible(request_id)
+        as_reviewer = (reviewer_ok and "associate" not in self._relations(row) and self._can_review(row)
+                       and row["status"] == "submitted")
+        if not as_reviewer:
+            row = self._as_associate(request_id, EDITABLE)
         draft = self._need_draft(request_id)
         base, working = Resume.model_validate_json(draft["base_json"]), Resume.model_validate_json(draft["working_json"])
         role = self._jd(row["jd_id"]).roles[row["role_index"]]
@@ -655,9 +662,10 @@ class ResumeService:
                 return set_role_line(working, base, plan, need(cmd.text, "empty_text"), by=by)
         raise EditError("no_such_item")
 
-    def _apply(self, request_id: int, cmd: EditCommand, by: str) -> tuple[bool, str]:
+    def _apply(self, request_id: int, cmd: EditCommand, by: str, *, reviewer_ok: bool = False) -> tuple[bool, str]:
         """Run one command on the draft. Returns (changed, message). Raises EditError when it is refused."""
-        draft, base, working, plan = self._editing(request_id)
+        draft, base, working, plan = self._editing(request_id, reviewer_ok=reviewer_ok)
+        reviewing = "associate" not in self._relations(self._row(request_id))
         if cmd.action == "none":
             return False, cmd.reply or "I am not sure what you would like to change."
         if cmd.action == "explain":
@@ -671,16 +679,19 @@ class ResumeService:
                               (undo.pop(), json.dumps(undo), self._iso(), request_id))
             message = "Undone."
         else:
-            self._store(request_id, draft, self._execute(cmd, base, working, plan, by))
+            changed_resume = self._execute(cmd, base, working, plan, by)
+            if reviewing:
+                changed_resume = stamp_reviewer(working, changed_resume, self.actor.name)
+            self._store(request_id, draft, changed_resume)
             message = cmd.reply or "Done."
-        self._audit("resume_edited", {"request_id": request_id, "action": cmd.action, "path": cmd.path, "by": by})
+        self._audit("resume_edited", {"request_id": request_id, "action": cmd.action, "path": cmd.path, "by": by, "reviewer": reviewing})
         self.conn.commit()
         return True, message
 
     def edit(self, request_id: int, cmd: EditCommand) -> dict:
-        """An edit from a button or a form: the associate's own words (by="user")."""
+        """An edit from a button or a form (by="user"): the associate's own words, or a reviewer's while it waits for review."""
         try:
-            changed, message = self._apply(request_id, cmd, "user")
+            changed, message = self._apply(request_id, cmd, "user", reviewer_ok=True)
         except EditError as e:
             raise ServiceError(f"edit_{e.code}", str(e), 422) from None
         return {"changed": changed, "message": message, "detail": self.detail(request_id)}

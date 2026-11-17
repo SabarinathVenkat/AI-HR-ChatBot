@@ -276,3 +276,5 @@ input[type="file"]::file-selector-button:hover { background: #d7e5ff; }
 .rb-strip > .rb-info, .rb-strip > .rb-check { flex: 1 1 360px; margin: 0; padding: 6px 12px; }
 .rb-strip .rb-info strong { display: inline; margin: 0 8px 0 0; }
 .rb-strip .rb-info div { display: inline; }
+button.chip.suggest { cursor: pointer; font: inherit; font-size: 13px; }
+button.chip.suggest:hover, button.chip.suggest:focus-visible { background: var(--primary-soft); border-color: var(--primary); }

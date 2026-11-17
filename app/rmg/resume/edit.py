@@ -164,6 +164,19 @@ def add_skill(resume: Resume, text: str, *, group: int | None = None, category: 
     return resume.model_copy(update={"skill_groups": groups})
 
 
+def stamp_reviewer(before: Resume, after: Resume, who: str) -> Resume:
+    """A reviewer's own additions and rewordings carry their name, so the associate can see who changed what. What the
+    associate had already added is left as theirs."""
+    known = {item.text for _, item in before.all_items() if item.origin is Origin.USER_ADDED}
+
+    def mark(_path: str, item: Item) -> Item:
+        if item.origin is Origin.USER_ADDED and item.text not in known and item.by is None:
+            return item.model_copy(update={"by": who[:200]})
+        return item
+
+    return rebuild_items(after, mark)
+
+
 def add_certification_as(resume: Resume, text: str, *, by: By) -> Resume:
     """A certification the associate adds. Only they can: it is a claim about them, so it is marked as theirs."""
     if by == "assistant":
