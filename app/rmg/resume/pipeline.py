@@ -1,7 +1,7 @@
 """The whole resume-builder run as one LangGraph graph.
 
     check_template -> extract_resume ─┐
-                   -> extract_jd ─────┴-> join -> analyse -> tailor -> ground -> changelog -> render
+                   -> extract_jd ─────┴-> join -> analyse -> tailor -> ground -> highlights -> changelog -> render
 
   check_template   refuses a template that is not a readable Word file before anything costly happens
   extract_*        read and extract the resume and the JD at the same time (two static parallel branches); an
@@ -10,6 +10,7 @@
   analyse          pick the JD role, remove duplicate skills, compute experience, build the match plan
   tailor           draft every project in parallel (the tailor graph), then put skills the JD wants first
   ground           put back the original wording of anything the resume does not support
+  highlights       if the resume has fewer than five key highlights, write the rest from its projects and skills (each one grounded)
   changelog        compare original and result, in code
   render           clone the template's paragraphs
 
@@ -28,6 +29,7 @@ from app.rmg.resume.draft import TailoringSettings
 from app.rmg.resume.extract import ExtractionError, ExtractionResult
 from app.rmg.resume.facts import Experience, dedupe_skills, experience
 from app.rmg.resume.grounding import enforce_grounding
+from app.rmg.resume.highlights import Highlighter, fill_highlights
 from app.rmg.resume.ingest import IngestError, SourceDocument, read_document
 from app.rmg.resume.jd import JobDescription, Role
 from app.rmg.resume.match import MatchPlan, build_match_plan, order_skills
@@ -52,6 +54,7 @@ class PipelineDeps:
     jd_extractor: JDExtractorLike
     drafter: Drafter
     settings: TailoringSettings = TailoringSettings()
+    highlighter: Highlighter | None = None  # writes missing key highlights; None leaves the resume's highlights as they are
 
 
 @dataclass(frozen=True)
@@ -147,6 +150,12 @@ def build_pipeline(deps: PipelineDeps):
         grounded, report = enforce_grounding(state["base"], state["tailored"], state["plan"])
         return {"grounded": grounded, "report": report}
 
+    def highlights(state: State):
+        if deps.highlighter is None:
+            return {}
+        filled, notes = fill_highlights(state["base"], state["grounded"], state["plan"], state["role"], deps.highlighter)
+        return {"grounded": filled, "warnings": (*state.get("warnings", ()), *notes)}
+
     def changelog(state: State):
         return {"changelog": build_change_log(state["base"], state["grounded"], state["role"], state["report"], state["experience"])}
 
@@ -158,7 +167,7 @@ def build_pipeline(deps: PipelineDeps):
     graph = StateGraph(State)
     for name, node in (("check_template", check_template_node), ("extract_resume", extract_resume), ("extract_jd", extract_jd),
                        ("join", join), ("analyse", analyse), ("tailor", tailor), ("ground", ground),
-                       ("changelog", changelog), ("render", render)):
+                       ("highlights", highlights), ("changelog", changelog), ("render", render)):
         graph.add_node(name, node)
     graph.add_edge(START, "check_template")
     graph.add_edge("check_template", "extract_resume")
@@ -167,7 +176,8 @@ def build_pipeline(deps: PipelineDeps):
     graph.add_edge("join", "analyse")
     graph.add_edge("analyse", "tailor")
     graph.add_edge("tailor", "ground")
-    graph.add_edge("ground", "changelog")
+    graph.add_edge("ground", "highlights")
+    graph.add_edge("highlights", "changelog")
     graph.add_edge("changelog", "render")
     graph.add_edge("render", END)
     return graph.compile()

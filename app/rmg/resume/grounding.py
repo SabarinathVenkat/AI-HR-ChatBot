@@ -9,6 +9,9 @@ original we check that it adds
 and for every item that its source exists (unknown_source) and that an item claiming to be unchanged is unchanged
 (altered_original). Items the associate typed in themselves are theirs to claim: they are not flagged, only listed.
 
+A written highlight draws on several original lines: its `source` lists them joined by "+" ("a+b"). It may use only what
+those lines together contain, and the same rules apply. enforce_grounding drops one that fails (it has no single original).
+
 enforce_grounding puts the original wording back for any item that fails, and drops an item that has no original.
 """
 import re
@@ -67,21 +70,22 @@ def check_grounding(original: Resume, tailored: Resume, plan: MatchPlan) -> Grou
         if item.origin is Origin.USER_ADDED:
             user_added.append(path)
             continue
-        source = by_source.get(item.source)
-        if source is None:
+        pieces = [by_source.get(s) for s in (item.source or "").split("+")]
+        if any(p is None for p in pieces):
             violations.append(Violation("unknown_source", path, item.source or ""))
             continue
-        if _norm(item.text) == _norm(source.text):
+        source_text = " ".join(p.text for p in pieces)
+        if len(pieces) == 1 and _norm(item.text) == _norm(source_text):
             continue
         if item.origin is Origin.ORIGINAL:
             violations.append(Violation("altered_original", path, ""))
 
         flagged_words: set[str] = set()
         for skill in not_evidenced:
-            if mentions(item.text, skill) and not mentions(source.text, skill):
+            if mentions(item.text, skill) and not mentions(source_text, skill):
                 violations.append(Violation("missing_skill", path, skill))
                 flagged_words.update(w.casefold() for w in skill.split())
-        allowed_numbers = set(_NUMBER.findall(source.text))
+        allowed_numbers = set(_NUMBER.findall(source_text))
         violations += [Violation("new_number", path, n) for n in dict.fromkeys(_NUMBER.findall(item.text)) if n not in allowed_numbers]
         for position, token in enumerate(_TOKEN.findall(item.text)):
             key = token.casefold()

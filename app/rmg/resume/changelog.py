@@ -7,11 +7,13 @@ Kinds:
   condensed     reworded and clearly shorter
   dropped       an original item is no longer there
   reordered     a project, or the bullets inside a project, moved
+  written       a key highlight written from the resume's projects and skills
   rejected      a change grounding refused (the original wording was kept)
   added_by_you  typed in by the associate
 Alongside the entries: a plain-English summary and the JD coverage (what is covered, what cannot be claimed).
 """
 import re
+from collections import Counter
 from dataclasses import dataclass
 
 from app.rmg.resume.facts import Experience
@@ -89,6 +91,8 @@ def _summary(entries, coverage: Coverage, required_total: int) -> str:
         parts.append(_count(counts["reordered"], "order change", "order changes"))
     if "rejected" in counts:
         parts.append(_count(counts["rejected"], "change", "changes", "rejected"))
+    if "written" in counts:
+        parts.append(_count(counts["written"], "highlight", "highlights", "written for you"))
     if "added_by_you" in counts:
         parts.append(_count(counts["added_by_you"], "item", "items", "added by you"))
     text = ("Changes: " + ", ".join(parts) + ".") if parts else "No changes were made."
@@ -140,10 +144,17 @@ def build_change_log(original: Resume, tailored: Resume, role: Role, report: Gro
             entries.append(ChangeEntry("reordered", f"Project '{project.name}', bullets", None, None, None,
                                        "Most relevant bullets first.", f"projects.{new_pos}"))
 
+    # a key highlight is "written" (not reworded) when it was made from other lines, or from one a highlight already uses
+    highlight_uses = Counter(item.source for path, item in tailored.all_items() if path.startswith("highlights."))
+
+    def is_written(path: str, item) -> bool:
+        return (path.startswith("highlights.") and item.origin is Origin.REWORDED
+                and (not (item.source or "").startswith("highlights.") or highlight_uses[item.source] > 1))
+
     # items whose wording changed
     for path, item in tailored.all_items():
         source = by_source.get(item.source)
-        if item.origin is not Origin.REWORDED or source is None or item.text == source.text:
+        if item.origin is not Origin.REWORDED or source is None or item.text == source.text or is_written(path, item):
             continue
         brought_forward = [s for s in wanted if mentions(item.text, s) and not mentions(source.text, s)]
         if brought_forward:
@@ -154,8 +165,14 @@ def build_change_log(original: Resume, tailored: Resume, role: Role, report: Gro
             kind, reason = "reworded", "Reworded for clarity."
         entries.append(ChangeEntry(kind, _where(path, tailored), source.source, source.text, item.text, reason, path))
 
+    # highlights written from the resume's projects and skills, rather than found in it
+    for path, item in tailored.all_items():
+        if is_written(path, item):
+            entries.append(ChangeEntry("written", _where(path, tailored), item.source, None, item.text,
+                                       "Written from your projects and skills, so the top of the resume speaks to this role.", path))
+
     # original items that are gone, skills included (the baseline already has duplicate skills removed)
-    kept_sources = {item.source for _, item in tailored.all_items() if item.origin is not Origin.USER_ADDED}
+    kept_sources = {s for _, item in tailored.all_items() if item.origin is not Origin.USER_ADDED for s in (item.source or "").split("+")}
     for path, item in original.all_items():
         if item.source not in kept_sources:
             entries.append(ChangeEntry("dropped", _where(path, original), item.source, item.text, None,
