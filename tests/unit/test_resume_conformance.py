@@ -78,7 +78,7 @@ def test_a_section_the_resume_has_nothing_for_is_not_expected_to_be_there():
 
 
 def test_a_resume_with_every_kind_of_content_but_a_plain_template_passes():
-    with_certs = RESUME.model_copy(update={"certifications": ["AWS Certified Developer"]})
+    with_certs = RESUME.model_copy(update={"certifications": [Item(text="AWS Certified Developer", origin=Origin.ORIGINAL, source="certifications.0")]})
     tpl, out = rendered(with_certs, tpl=template(certifications=True))
 
     assert check_conformance(tpl, out, with_certs).status == "pass"
@@ -183,8 +183,8 @@ def test_a_part_of_the_resume_missing_from_the_file_is_a_failure_and_names_it():
     assert check.status == "fail" and "Mentored five engineers." in check.message
 
 
-def test_what_the_template_has_no_place_for_is_not_counted_as_missing():
-    with_certs = RESUME.model_copy(update={"certifications": ["AWS Certified Developer"]})
+def test_a_template_with_no_certifications_section_is_given_one_so_the_certification_is_not_missing():
+    with_certs = RESUME.model_copy(update={"certifications": [Item(text="AWS Certified Developer", origin=Origin.ORIGINAL, source="certifications.0")]})
     tpl, out = rendered(with_certs)  # this template has no certifications section
 
     assert by_name(check_conformance(tpl, out, with_certs))["complete"].status == "pass"

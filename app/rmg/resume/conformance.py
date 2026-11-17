@@ -24,7 +24,7 @@ from docx import Document
 from app.rmg.resume.fit import LAST_PAGE_MIN_FILL, MAX_PAGES, estimate_pages
 from app.rmg.resume.model import Resume
 from app.rmg.resume.template import (
-    W, TemplateMap, analyse, has_emphasis, is_blank, is_bullet, is_heading, paragraph_style, paragraph_text, typed_glyph,
+    W, TemplateMap, analyse, classify_heading, has_emphasis, is_blank, is_bullet, is_heading, paragraph_style, paragraph_text, typed_glyph,
 )
 
 PASS, WARN, FAIL = "pass", "warn", "fail"
@@ -104,7 +104,7 @@ def _resume_strings(resume: Resume) -> set[str]:
         texts += [group.category, ", ".join(i.text for i in group.items), f"{group.category}: "]
     for e in resume.education:
         texts += [e.degree or "", e.institution or "", e.year or ""]
-    texts += list(resume.certifications) + [p.name for p in resume.projects]
+    texts += [p.name for p in resume.projects]
     return {_norm(t) for t in texts if t}
 
 
@@ -133,7 +133,9 @@ def _sections_check(tdoc, tmap, odoc, omap, resume: Resume) -> Check:
     wanted = _slot_headings(tdoc, tmap)
     template_texts = [text for _, text in wanted]
     known = {paragraph_text(p).strip() for p in _heading_elements(tdoc, tmap)}
-    invented = [paragraph_text(p).strip() for p in _heading_elements(odoc, omap) if paragraph_text(p).strip() not in known]
+    added_certifications = tmap.certifications is None  # such a template is given a certifications section when the resume has some
+    invented = [paragraph_text(p).strip() for p in _heading_elements(odoc, omap) if paragraph_text(p).strip() not in known
+                and not (added_certifications and classify_heading(paragraph_text(p)) == "certifications")]
     if invented:
         return Check("sections", FAIL, f"Headings that are not in the template: {_listed(invented)}.")
     in_output: list[str] = []  # the template's section headings, in the order they appear in the output
@@ -181,8 +183,7 @@ def _complete_check(tmap, odoc, resume: Resume) -> Check:
     if tmap.education is not None:
         for e in resume.education:
             expected += [e.degree or "", e.institution or ""]
-    if tmap.certifications is not None:
-        expected += list(resume.certifications)
+    expected += [c.text for c in resume.certifications]  # a template with no such section is given one
     for project in resume.projects:
         expected.append(project.name)
         if project.description and tmap.projects is not None and tmap.projects.proto_desc is not None:

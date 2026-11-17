@@ -43,7 +43,7 @@ def _norm(text: str) -> str:
 
 
 def _resume_text(resume: Resume) -> str:
-    parts = [resume.name, *(item.text for _, item in resume.all_items()), *resume.certifications]
+    parts = [resume.name, *(item.text for _, item in resume.all_items())]
     parts += [g.category for g in resume.skill_groups]
     parts += [f"{e.degree or ''} {e.institution or ''}" for e in resume.education]
     parts += [f"{j.company or ''} {j.title or ''}" for j in resume.jobs]
@@ -98,6 +98,7 @@ def rebuild_items(resume: Resume, fn) -> Resume:
         items = [x for i, item in enumerate(group.items) if (x := fn(f"skill_groups.{g}.items.{i}", item)) is not None]
         if items:
             groups.append(SkillGroup(category=group.category, items=items))
+    certifications = [x for i, item in enumerate(resume.certifications) if (x := fn(f"certifications.{i}", item)) is not None]
     projects = []
     for p, project in enumerate(resume.projects):
         description = fn(f"projects.{p}.description", project.description) if project.description else None
@@ -105,6 +106,7 @@ def rebuild_items(resume: Resume, fn) -> Resume:
         dates = fn(f"projects.{p}.dates", project.dates) if project.dates else None
         projects.append(Project(name=project.name, dates=dates, description=description, bullets=bullets))
     return resume.model_copy(update={
+        "certifications": certifications,
         "role_title": fn("role_title", resume.role_title) if resume.role_title else None,
         "summary": fn("summary", resume.summary) if resume.summary else None,
         "skill_groups": groups,

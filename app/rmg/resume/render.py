@@ -280,8 +280,6 @@ def template_gaps(template: bytes, resume: Resume) -> list[str]:
     """In plain words, what this resume has that the template has no place for. Cheap: it only reads the template."""
     _, m = _load(template)
     gaps = []
-    if resume.certifications and m.certifications is None:
-        gaps.append("Certifications are not in the Word file: the template has no place for them.")
     if resume.education and m.education is None:
         gaps.append("Education is not in the Word file: the template has no place for it.")
     if resume.jobs and not resume.highlights and m.highlights.subheading is None:
@@ -390,9 +388,38 @@ def _education_line(e) -> list[tuple[str, bool]]:
     return [(first, True)] + ([(" " + rest, False)] if rest else [])
 
 
+def _blanks_around(heading) -> tuple[list, list]:
+    """Copies of the blank lines just before and just after a section heading, which is how the template spaces its sections."""
+    before, previous = [], heading.getprevious()
+    while previous is not None and previous.tag == W + "p" and is_blank(previous):
+        before.insert(0, copy.deepcopy(previous))
+        previous = previous.getprevious()
+    after, following = [], heading.getnext()
+    while following is not None and following.tag == W + "p" and is_blank(following):
+        after.append(copy.deepcopy(following))
+        following = following.getnext()
+    return before, after
+
+
+def _certifications_section(m: TemplateMap, entries: list, anchor, spacing: tuple[list, list]) -> list:
+    """A template with no certifications section gets one that looks like its Education (or, failing that, Skills) section,
+    placed right after it. Only called when there is something to show."""
+    heading, proto = (m.education.heading, m.education.proto) if m.education is not None else (m.skills.heading, m.skills.proto_value)
+    shown = paragraph_text(heading).strip()
+    title = "CERTIFICATIONS" if shown.isupper() else "Certifications"
+    before, after = spacing
+    new = [*(copy.deepcopy(b) for b in before), _clone(heading, [(title, False)]), *(copy.deepcopy(a) for a in after)]
+    new += [_clone(proto, [(entry, False)]) for entry in entries]
+    for element in new:
+        anchor.addnext(element)
+        anchor = element
+    return new
+
+
 def render_resume(template: bytes, resume: Resume, *, years_text: str = "") -> RenderResult:
     doc, m = _load(template)
     problems: list[str] = []
+    spacing = _blanks_around(m.education.heading if m.education is not None else m.skills.heading)  # before the sample is replaced
     problems += _render_header(m, resume, years_text, doc)
     sample = list(m.skills.region)
     for slot in (m.education, m.certifications):
@@ -400,16 +427,22 @@ def render_resume(template: bytes, resume: Resume, *, years_text: str = "") -> R
     column = _render_skills(m, resume)
     if not resume.skill_groups:
         _drop_section(m.skills.heading, [])
-    for name, slot, entries in (
-        ("education", m.education, [_education_line(e) for e in resume.education]),
-        ("certifications", m.certifications, [[(c, False)] for c in resume.certifications]),
-    ):
+    education_elements: list = []
+    for slot, entries in ((m.education, [_education_line(e) for e in resume.education]),
+                          (m.certifications, [[(c.text, False)] for c in resume.certifications])):
         if slot is not None:
-            column += _render_list(slot, entries)
+            rendered = _render_list(slot, entries)
+            column += rendered
+            if slot is m.education:
+                education_elements = rendered
             if not entries:
                 _drop_section(slot.heading, [])
-        elif entries:
-            problems.append(f"{name}: the template has no such section, so they were not included")
+    if resume.certifications and m.certifications is None:  # the template has no certifications section: give it one
+        anchor = education_elements[-1] if education_elements else (column[-1] if column else None)
+        if anchor is not None:
+            column += _certifications_section(m, [c.text for c in resume.certifications], anchor, spacing)
+        else:
+            problems.append("certifications: the template has no place for them, so they were not included")
     if not fit(column, capacity(sample, doc), doc):
         problems.append("skills: the list is long for the side column of this template, so part of it may run onto the next page")
     terms = terms_of(resume)

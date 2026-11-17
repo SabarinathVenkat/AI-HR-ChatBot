@@ -16,7 +16,7 @@ from collections.abc import Iterator
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 MAX_ITEM_CHARS = 1200
 MAX_SHORT_CHARS = 200
@@ -106,10 +106,19 @@ class Resume(_Model):
     summary: Item | None = None
     skill_groups: list[SkillGroup] = Field(default_factory=list, max_length=MAX_SKILL_GROUPS)
     education: list[Education] = Field(default_factory=list, max_length=MAX_EDUCATION)
-    certifications: list[ShortText] = Field(default_factory=list, max_length=MAX_CERTIFICATIONS)
+    certifications: list[Item] = Field(default_factory=list, max_length=MAX_CERTIFICATIONS)
     highlights: list[Item] = Field(default_factory=list, max_length=MAX_HIGHLIGHTS)
     jobs: list[Job] = Field(default_factory=list, max_length=MAX_JOBS)
     projects: list[Project] = Field(default_factory=list, max_length=MAX_PROJECTS)
+
+    @field_validator("certifications", mode="before")
+    @classmethod
+    def _old_certifications_were_plain_text(cls, value):
+        """Drafts saved before certifications carried a source stored them as plain text: they are the resume's own."""
+        if isinstance(value, list):
+            return [{"text": v, "origin": "original", "source": f"certifications.{i}"} if isinstance(v, str) else v
+                    for i, v in enumerate(value)]
+        return value
 
     def all_items(self) -> Iterator[tuple[str, Item]]:
         """Every text item with its path, for example ("projects.0.bullets.2", Item). Used to compare and verify."""
@@ -122,6 +131,8 @@ class Resume(_Model):
                 yield f"skill_groups.{g}.items.{i}", item
         for i, item in enumerate(self.highlights):
             yield f"highlights.{i}", item
+        for i, item in enumerate(self.certifications):
+            yield f"certifications.{i}", item
         for p, project in enumerate(self.projects):
             if project.dates is not None:
                 yield f"projects.{p}.dates", project.dates

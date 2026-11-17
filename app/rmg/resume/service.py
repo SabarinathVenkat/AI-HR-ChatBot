@@ -25,7 +25,7 @@ from app.rmg.resume.changelog import build_change_log
 from app.rmg.resume.conformance import WARN, Check, Report, check_conformance
 from app.rmg.resume.chat import EditCommand, explain
 from app.rmg.resume.edit import (
-    EditError, add_dates_as, add_fact, add_skill_as, move_bullet, move_project, remove_item, set_role_line, set_text,
+    EditError, add_certification_as, add_dates_as, add_fact, add_skill_as, move_bullet, move_project, remove_item, set_role_line, set_text,
 )
 from app.rmg.resume.extract import ExtractionError
 from app.rmg.resume.facts import experience
@@ -621,6 +621,8 @@ class ResumeService:
                 return add_fact(working, cmd.project, need(cmd.text, "empty_text"))
             case "add_skill":
                 return add_skill_as(working, need(cmd.text, "empty_text"), group=cmd.group, category=cmd.category, by=by)
+            case "add_certification":
+                return add_certification_as(working, need(cmd.text, "empty_text"), by=by)
             case "add_dates":
                 return add_dates_as(working, need(cmd.project, "no_such_item"), need(cmd.text, "empty_text"), by=by)
             case "set_role":

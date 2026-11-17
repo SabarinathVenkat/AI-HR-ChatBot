@@ -131,7 +131,7 @@ def to_resume(x: ExtractedResume) -> Resume:
                           for n, g in enumerate(x.skills)],
             education=[Education(degree=_opt(e.degree), institution=_opt(e.institution), year=_opt(e.year))
                        for e in x.education if _opt(e.degree) or _opt(e.institution)],
-            certifications=[c for c in (c.strip() for c in x.certifications) if c],
+            certifications=_items(x.certifications, "certifications"),
             highlights=_items(x.highlights or summary_points(x.summary), "highlights"),
             jobs=[Job(company=_opt(j.company), title=_opt(j.title), start=_opt(j.start), end=_opt(j.end))
                   for j in x.jobs if _opt(j.company) or _opt(j.title)],
@@ -194,7 +194,7 @@ def _shingles(words: list[str]) -> set[tuple[str, ...]]:
 
 
 def _resume_words(resume: Resume) -> list[str]:
-    parts = [resume.name, *(item.text for _, item in resume.all_items()), *resume.certifications]
+    parts = [resume.name, *(item.text for _, item in resume.all_items())]
     for g in resume.skill_groups:
         parts.append(g.category)
     for e in resume.education:

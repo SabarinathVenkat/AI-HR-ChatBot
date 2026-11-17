@@ -445,6 +445,18 @@
       h("button", { class: "btn", type: "button", on: { click: () => { state.addingFact = null; renderWorkspace(); } } }, "Cancel")));
   }
 
+  /* A certification is the associate's own statement, so it is added here and marked as theirs. */
+  function certBox(d) {
+    if (!d.can.edit) return null;
+    if (state.addingFact !== "certification") {
+      return h("button", { type: "button", class: "rb-linkbtn add-certification", on: { click: () => { state.addingFact = "certification"; renderWorkspace(); } } }, "Add a certification");
+    }
+    const box = h("input", { type: "text", "aria-label": "Certification", placeholder: "For example: AWS Certified Developer", maxlength: "200" });
+    return h("div", { class: "rb-edit" }, box, h("div", { class: "rb-row" },
+      h("button", { class: "btn primary save-certification", type: "button", on: { click: () => doEdit({ action: "add_certification", text: box.value }) } }, "Add as my own statement"),
+      h("button", { class: "btn", type: "button", on: { click: () => { state.addingFact = null; renderWorkspace(); } } }, "Cancel")));
+  }
+
   function factBox(d, project) {
     if (!d.can.edit) return null;
     if (state.addingFact !== project) {
@@ -531,6 +543,12 @@
     }
     if (r.education.length) sections.push(h("div", { class: "section" }, h("h4", { text: "Education" }),
       r.education.map((e) => h("p", { text: [e.degree, e.institution].filter(Boolean).join(", ") + (e.year ? ` ${e.year}` : "") }))));
+    if (r.certifications.length || d.can.edit) {
+      sections.push(h("div", { class: "section", id: "certifications-section" }, h("h4", { text: "Certifications" }),
+        r.certifications.length ? h("ul", { class: "rb-bullets" }, r.certifications.map((c, i) => line(d, `certifications.${i}`, c)))
+          : h("p", { class: "muted", text: "None listed. The Word file has no certifications section unless you add one." }),
+        certBox(d)));
+    }
     sections.push(h("div", { class: "section" }, h("h4", { text: "Key highlights" }),
       h("ul", { class: "rb-bullets" }, r.highlights.map((item, i) => line(d, `highlights.${i}`, item))), factBox(d, "highlights")));
     sections.push(h("div", { class: "section" }, h("h4", { text: "Projects" }), r.projects.map((p, pi) => h("div", { class: "rb-project", "data-path": `projects.${pi}` },

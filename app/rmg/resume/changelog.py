@@ -24,6 +24,7 @@ CONDENSED_RATIO = 0.8
 
 _PROJECT_ITEM = re.compile(r"^projects\.(\d+)\.(description|dates|bullets\.(\d+))$")
 _HIGHLIGHT = re.compile(r"^highlights\.(\d+)$")
+_CERTIFICATION = re.compile(r"^certifications\.(\d+)$")
 _SKILL = re.compile(r"^skill_groups\.(\d+)\.items\.(\d+)$")
 
 
@@ -66,6 +67,8 @@ def _where(path: str, resume: Resume) -> str:
             return f"Project '{name}', bullet {int(m.group(3)) + 1}"
     if m := _HIGHLIGHT.match(path):
         return f"Highlight {int(m.group(1)) + 1}"
+    if m := _CERTIFICATION.match(path):
+        return f"Certification {int(m.group(1)) + 1}"
     if m := _SKILL.match(path):
         g, i = int(m.group(1)), int(m.group(2))
         if g < len(resume.skill_groups) and i < len(resume.skill_groups[g].items):

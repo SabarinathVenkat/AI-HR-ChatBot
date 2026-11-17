@@ -184,9 +184,21 @@ def test_the_document_carries_no_draft_mark_in_its_header_or_body():
 # --- content the template cannot hold, and bad templates ---------------------------------------------------
 
 def test_content_the_template_has_no_place_for_is_reported_not_silently_lost():
-    result = render(template=make_template(certifications=False))
+    result = render(template=make_template(omit_projects=False), resume=RESUME.model_copy(update={"jobs": [], "highlights": []}),
+                    )  # nothing is lost here: a template with no certifications section is given one
 
-    assert result.problems == ("certifications: the template has no such section, so they were not included",)
+    assert result.problems == () and "CERTIFICATIONS" in texts(result)
+
+
+def test_a_template_with_no_education_or_skills_to_copy_still_says_what_it_could_not_hold():
+    from docx import Document as _Document
+
+    doc = _Document()
+    doc.add_paragraph("Sample Name", style="Title")
+    doc.add_paragraph("A long enough sample summary sentence that is clearly the summary and not a heading, so the reader takes it.")
+    plain = RESUME.model_copy(update={"education": [], "skill_groups": []})
+
+    assert render_best(save(doc), plain).used_standard_layout  # nothing to copy from: the standard layout is used instead
 
 
 def test_a_template_with_everything_reports_no_problems():
@@ -365,11 +377,11 @@ def test_no_jobs_means_no_work_history_block():
 
 
 def test_the_gaps_say_in_plain_words_what_the_template_has_no_place_for():
-    thin = RESUME.model_copy(update={"jobs": JOBS, "certifications": ["AWS Certified"]})
+    thin = RESUME.model_copy(update={"jobs": JOBS})
 
     gaps = template_gaps(save(make_template()), thin.model_copy(update={"highlights": []}))
 
-    assert any("Certifications" in g for g in gaps) and any("Work history" in g for g in gaps)
+    assert any("Work history" in g for g in gaps) and not any("Certifications" in g for g in gaps)  # certifications get a section
     assert template_gaps(save(make_template(certifications=True, highlights_subheading=SUB)), thin) == []  # the highlights fill that section
     no_highlights = thin.model_copy(update={"highlights": []})
     assert template_gaps(save(make_template(certifications=True, highlights_subheading=SUB)), no_highlights) == []

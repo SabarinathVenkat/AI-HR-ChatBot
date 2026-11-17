@@ -55,7 +55,7 @@ def test_the_content_is_carried_over_unchanged():
     assert resume.name == "Anil Verma"
     assert resume.skills_flat() == ["Java", "Spring Boot", "AWS"]
     assert resume.education[0].institution == "Anna University"
-    assert resume.certifications == ["AWS Certified Developer"]
+    assert [c.text for c in resume.certifications] == ["AWS Certified Developer"]
     assert resume.jobs[0].company == "Finwave" and resume.projects[0].name == "Payment Platform"
 
 

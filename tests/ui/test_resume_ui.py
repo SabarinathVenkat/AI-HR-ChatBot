@@ -513,3 +513,20 @@ def test_the_associate_can_add_dates_to_a_project_that_has_none(page, start_serv
     expect(page.locator("#resume .rb-project .rb-dates .badge").first).to_contain_text("added by you")
     expect(page.locator("#resume .rb-project .add-dates")).to_have_count(1)  # only the other project still offers it
     assert page.console_errors == []
+
+
+def test_the_associate_can_add_and_remove_a_certification_and_it_is_marked_as_theirs(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+
+    expect(page.locator("#certifications-section")).to_contain_text("None listed")
+    page.locator("#certifications-section .add-certification").click()
+    page.get_by_label("Certification", exact=True).fill("AWS Certified Developer")
+    page.locator(".save-certification").click()
+
+    expect(page.locator("#certifications-section .rb-bullet").first).to_contain_text("AWS Certified Developer")
+    expect(page.locator("#certifications-section .badge").first).to_contain_text("added by you")
+
+    page.locator("#certifications-section .rb-bullet .remove").first.click()
+    expect(page.locator("#certifications-section")).to_contain_text("None listed")
+    assert page.console_errors == []

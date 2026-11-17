@@ -11,7 +11,7 @@ from typing import Literal
 from app.rmg.resume.grounding import check_grounding, rebuild_items
 from app.rmg.resume.match import MatchPlan
 from app.rmg.resume.model import (
-    MAX_BULLETS_PER_PROJECT, MAX_HIGHLIGHTS, MAX_ITEM_CHARS, MAX_ITEMS_PER_GROUP, MAX_SKILL_GROUPS, Item, Origin, Resume, SkillGroup,
+    MAX_BULLETS_PER_PROJECT, MAX_CERTIFICATIONS, MAX_HIGHLIGHTS, MAX_ITEM_CHARS, MAX_ITEMS_PER_GROUP, MAX_SKILL_GROUPS, Item, Origin, Resume, SkillGroup,
 )
 
 By = Literal["user", "assistant"]
@@ -27,6 +27,7 @@ MESSAGES = {
     "not_allowed": "Please use the Add a skill button in the Skills section.",
 }
 MAX_DATES_CHARS = 60
+MAX_CERTIFICATION_CHARS = 200
 MAX_SKILL_CHARS = 100
 
 
@@ -161,6 +162,20 @@ def add_skill(resume: Resume, text: str, *, group: int | None = None, category: 
         raise EditError("full")
     groups[target] = SkillGroup(category=groups[target].category, items=[*groups[target].items, item])
     return resume.model_copy(update={"skill_groups": groups})
+
+
+def add_certification_as(resume: Resume, text: str, *, by: By) -> Resume:
+    """A certification the associate adds. Only they can: it is a claim about them, so it is marked as theirs."""
+    if by == "assistant":
+        raise EditError("not_allowed", "Please add the certification yourself, using Add a certification.")
+    text = _clean(text)
+    if len(text) > MAX_CERTIFICATION_CHARS:
+        raise EditError("too_long", f"A certification should be short: please keep it under {MAX_CERTIFICATION_CHARS} characters.")
+    if any(_skill_key(c.text) == _skill_key(text) for c in resume.certifications):
+        raise EditError("duplicate", "That certification is already listed.")
+    if len(resume.certifications) >= MAX_CERTIFICATIONS:
+        raise EditError("full")
+    return resume.model_copy(update={"certifications": [*resume.certifications, Item(text=text, origin=Origin.USER_ADDED)]})
 
 
 def add_dates_as(resume: Resume, project: int, text: str, *, by: By) -> Resume:
