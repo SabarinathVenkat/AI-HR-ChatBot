@@ -445,3 +445,56 @@ def test_the_app_is_drawn_smaller_and_still_fills_the_screen(page, start_server)
     chat = page.locator("#chat-screen").bounding_box()
     assert abs(chat["height"] - 800) <= 2 and abs(chat["width"] - 1600) <= 2  # as big as the window, not 75% of it
     assert page.evaluate("parseFloat(getComputedStyle(document.body).fontSize)") == 16  # the design size is unchanged; the zoom does the scaling
+
+
+def test_the_job_description_can_be_previewed_from_the_board_and_from_the_associates_request(page, start_server):
+    server = start_server([], resume=True)
+    open_builder(page, server, "Shadrach")
+
+    page.locator("#board-jd-preview").click()
+    expect(page.locator("#jd-preview")).to_be_visible()
+    expect(page.locator("#jd-preview-title")).to_contain_text("Senior Java Developer")
+    expect(page.locator("#jd-preview-body")).to_contain_text("Must have")
+    expect(page.locator("#jd-preview-body .chip").first).to_be_visible()
+    page.locator("#jd-preview-close").click()
+    expect(page.locator("#jd-preview")).to_be_hidden()
+
+    page.get_by_label(re.compile("Ravi Kumar")).check()
+    page.locator("#tag-go").click()
+    expect(page.locator("#message")).to_contain_text("Tagged 1")
+    page.goto(server.url)
+    sign_out(page)
+    open_builder(page, server, "Ravi Kumar")
+    page.get_by_role("button", name="Open").first.click()
+    page.locator("#preview-jd").click()
+    expect(page.locator("#jd-preview-body")).to_contain_text("Must have")
+    page.keyboard.press("Escape")
+    expect(page.locator("#jd-preview")).to_be_hidden()
+    assert page.console_errors == []
+
+
+def test_a_pasted_job_description_previews_with_its_own_text(page, start_server):
+    server = start_server([], resume=True)
+    open_builder(page, server, "Shadrach")
+    page.locator("#jd-title").fill("Quick skills request")
+    page.locator("#jd-paste").fill("Java, Spring Boot, Kafka, SQL")
+    page.locator("#jd-paste-go").click()
+    expect(page.locator("#tag-jd option").first).to_have_text("Quick skills request")
+
+    page.locator("#board-jd-preview").click()
+
+    expect(page.locator("#jd-preview-title")).to_have_text("Quick skills request")
+    expect(page.locator("#jd-preview-text")).to_contain_text("Java, Spring Boot, Kafka, SQL")
+
+
+def test_the_role_choice_is_hidden_for_a_single_role_job_description_and_shown_for_several(page, start_server):
+    server = start_server([], resume=True)
+    open_builder(page, server, "Shadrach")
+    expect(page.locator("#tag-role-field")).to_be_hidden()  # the demo job description has one role
+
+    page.locator("#jd-file").set_input_files({"name": "jd.txt", "mimeType": "text/plain", "buffer": b"Two roles are described in this one."})
+    page.locator("#jd-go").click()
+    expect(page.locator("#message")).to_contain_text("Job description added")
+
+    expect(page.locator("#tag-role-field")).to_be_visible()  # the fake reader finds two roles in a file
+    expect(page.locator("#tag-role option")).to_have_count(2)

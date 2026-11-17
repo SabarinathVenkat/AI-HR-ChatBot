@@ -164,3 +164,52 @@ def test_only_rmg_can_paste_a_job_description_and_a_huge_paste_is_refused(world)
     with pytest.raises(ServiceError) as e:
         world.as_(STAFF).create_jd_from_text("word " * 6000)
     assert (e.value.code, e.value.status) == ("text_too_long", 422)
+
+
+# --- previewing the job description without downloading it -------------------------------------------------------------
+
+def test_rmg_can_preview_a_job_description_to_see_what_was_understood_and_its_own_text(world):  # noqa: F811
+    created = world.as_(STAFF).create_jd("opening.txt", b"We need a Java developer with Kafka experience.", title="Platform Engineer")
+
+    preview = world.as_(STAFF).jd_preview(created["id"])
+
+    assert preview["title"] == "Platform Engineer" and preview["roles"] and "flagged" in preview
+    assert "We need a Java developer with Kafka experience." in preview["text"] and preview["truncated"] is False
+
+
+def test_a_long_job_description_is_cut_for_the_preview_and_says_so(world):  # noqa: F811
+    created = world.as_(STAFF).create_jd_from_text("word " * 3000)  # 15,000 characters
+
+    preview = world.as_(STAFF).jd_preview(created["id"])
+
+    assert preview["truncated"] is True and 0 < len(preview["text"]) <= 8000
+
+
+def test_a_job_description_made_from_requirements_previews_without_original_text(ready):  # noqa: F811
+    preview = ready.as_(STAFF).jd_preview(jd_id_of(ready))  # the seeded demo job description has no stored file
+
+    assert preview["roles"] and preview["text"] == "" and preview["truncated"] is False
+
+
+def test_the_associate_the_lead_and_rmg_can_preview_the_jd_of_their_request(ready):  # noqa: F811
+    for who in (RAVI, LEAD, STAFF):
+        preview = ready.as_(who).request_jd_preview(ready.request_id)
+        assert preview["roles"] and preview["title"]
+
+
+def test_someone_with_no_part_in_the_request_cannot_preview_its_jd(ready):  # noqa: F811
+    with pytest.raises(ServiceError) as e:
+        ready.as_(DIVYA).request_jd_preview(ready.request_id)
+    assert e.value.status in (403, 404)
+
+
+def test_the_jd_list_preview_is_for_rmg_only(ready):  # noqa: F811
+    with pytest.raises(ServiceError) as e:
+        ready.as_(RAVI).jd_preview(jd_id_of(ready))
+    assert e.value.status == 403
+
+
+def test_a_preview_of_a_job_description_that_does_not_exist_is_not_found(world):  # noqa: F811
+    with pytest.raises(ServiceError) as e:
+        world.as_(STAFF).jd_preview(9999)
+    assert e.value.status == 404

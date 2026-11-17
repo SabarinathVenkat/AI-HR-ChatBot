@@ -19,7 +19,7 @@ from app.rmg.resume.model import Education, Item, Job, Origin, Project, Resume, 
 
 MODEL_NAME = "claude-haiku-5-5"  # copied names verbatim in our spike, at a fraction of the larger model's cost
 MIN_OUTPUT_TOKENS = 4096
-MAX_OUTPUT_TOKENS = 16_000
+MAX_OUTPUT_TOKENS = 20_000  # a ten-page resume; the SDK refuses a larger non-streaming request (about 21,000)
 MIN_COVERAGE = 0.85
 CHARS_PER_PAGE = 3000
 

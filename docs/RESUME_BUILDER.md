@@ -48,7 +48,7 @@ Use a private window per person or sign out between steps. Each step says who is
 3. **Shadrach** > Requests. In "Add a job description" upload a JD file (try the one in `scripts/resume_smoke.py`, or
    use the seeded "Senior Java Developer (demo)"). Under "New request" pick the JD and role, tick **Sabari**.
    Sanjay is greyed out if you skipped step 2. Click **Tag selected**.
-4. **Sabari** > Resume builder > My requests > Open. Upload a resume (.docx, .pdf or .txt, up to 5 pages) and click
+4. **Sabari** > Resume builder > My requests > Open. Upload a resume (.docx, .pdf or .txt, up to 10 pages) and click
    **Build tailored resume** (about 20 to 60 seconds).
    - Left: the JD's requirements and coverage. Skills the JD wants but your resume lacks are listed as "not claimed".
    - Middle: the tailored resume. Badges mark anything reworded or added by you.
@@ -172,3 +172,13 @@ file, except what the template has no place for), empty_sections, bullets (the t
 where the template uses bold), fonts (only the template's fonts and sizes), pages (within 5, no nearly empty last page)
 and breaks (no typed page breaks or runs of blank lines). Download checks and any warning or failure are written to the
 issue log as `conformance`. The layout lab (`python -m scripts.layout_lab.run`) runs the check on every render it makes.
+
+## Job description preview, and the 10-page limit
+
+- **Preview:** next to Download, on the RMG board and on a request's job description card, there is a Preview button. It opens a
+  window with what was understood from the job description (roles, years, domain, must-have and nice-to-have skills, and any
+  text flagged as instructions) and the start of the job description's own text (up to 8,000 characters). The server endpoints are
+  `GET /resume/jds/{id}/preview` (RMG) and `GET /resume/requests/{id}/jd/preview` (the associate, their Lead and RMG).
+- **Role:** the Role choice in the New request panel is only shown when a job description has more than one role.
+- **Pages:** an uploaded resume may be up to 10 pages (about 40,000 characters); the finished resume is checked against the same 10.
+  A job description keeps its own smaller limit (5 pages, 20,000 characters).

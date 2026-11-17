@@ -347,3 +347,28 @@ def test_the_check_needs_a_draft_to_look_at(client):
     request_id = tagged_request(client)
 
     assert client.get(f"/resume/requests/{request_id}/conformance", headers=hdr(client, RAVI)).status_code in (404, 409)
+
+
+# --- previewing the job description ----------------------------------------------------------------------------------------
+
+def test_the_job_description_can_be_previewed_by_rmg_and_by_the_people_on_the_request(client):
+    request_id = tagged_request(client)
+    jd_id = client.get("/resume/jds", headers=hdr(client, STAFF)).json()["jds"][0]["id"]
+
+    rmg = client.get(f"/resume/jds/{jd_id}/preview", headers=hdr(client, STAFF))
+    associate = client.get(f"/resume/requests/{request_id}/jd/preview", headers=hdr(client, RAVI))
+
+    for reply in (rmg, associate):
+        assert reply.status_code == 200
+        preview = reply.json()
+        assert preview["title"] and preview["roles"][0]["must_have"] and set(preview) >= {"flagged", "text", "truncated"}
+
+
+def test_the_jd_preview_keeps_the_same_guards_as_the_download(client):
+    request_id = tagged_request(client)
+    jd_id = client.get("/resume/jds", headers=hdr(client, STAFF)).json()["jds"][0]["id"]
+
+    assert client.get(f"/resume/jds/{jd_id}/preview", headers=hdr(client, RAVI)).status_code == 403  # the list is for RMG
+    assert client.get(f"/resume/requests/{request_id}/jd/preview", headers=hdr(client, DIVYA)).status_code in (403, 404)
+    assert client.get(f"/resume/jds/{jd_id}/preview").status_code == 401
+    assert client.get("/resume/jds/9999/preview", headers=hdr(client, STAFF)).status_code == 404

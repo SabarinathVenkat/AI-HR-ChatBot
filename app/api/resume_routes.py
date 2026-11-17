@@ -148,6 +148,14 @@ def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Cal
     def request_jd(request_id: int, svc: ResumeService = Depends(service)):
         return as_attachment(svc.download_jd(request_id))
 
+    @app.get("/resume/jds/{jd_id}/preview")
+    def jd_preview(jd_id: int, svc: ResumeService = Depends(service)):
+        return svc.jd_preview(jd_id)
+
+    @app.get("/resume/requests/{request_id}/jd/preview")
+    def request_jd_preview(request_id: int, svc: ResumeService = Depends(service)):
+        return svc.request_jd_preview(request_id)
+
     @app.post("/resume/jds/text")
     def create_jd_from_text(body: PasteBody, svc: ResumeService = Depends(service)):
         return svc.create_jd_from_text(body.text, body.title)

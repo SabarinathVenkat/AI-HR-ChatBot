@@ -139,9 +139,12 @@
     const jdSelect = h("select", { id: "tag-jd", "aria-label": "Job description" },
       jds.map((j) => h("option", { value: j.id, text: j.title })));
     const roleSelect = h("select", { id: "tag-role", "aria-label": "Role" });
+    const roleField = h("div", { id: "tag-role-field", hidden: true },
+      h("label", { class: "rb-field", for: "tag-role", text: "Role" }), roleSelect);
     const fillRoles = () => {
       const jd = jds.find((j) => String(j.id) === jdSelect.value);
       roleSelect.replaceChildren(...(jd ? jd.roles.map((r, i) => h("option", { value: i, text: r.title })) : []));
+      roleField.hidden = !(jd && jd.roles.length > 1);  // one role is the normal case, so there is nothing to choose
     };
     jdSelect.addEventListener("change", fillRoles);
     fillRoles();
@@ -160,9 +163,10 @@
       !tpl.template ? h("p", { class: "rb-warn", text: "No resume template is set up yet. Ask the RMG Head to upload one." }) : null,
       h("label", { class: "rb-field", for: "tag-jd", text: "Job description" }),
       jds.length ? h("div", { class: "rb-selectrow" }, jdSelect,
+        h("button", { id: "board-jd-preview", class: "btn", type: "button", on: { click: () => attempt(async () => showJdPreview(await call(`/resume/jds/${jdSelect.value}/preview`))) } }, "Preview"),
         h("button", { id: "board-jd-download", class: "btn", type: "button", on: { click: () => downloadJd(`/resume/jds/${jdSelect.value}/file`) } }, "Download"))
         : h("p", { class: "muted", text: "Add a job description first." }),
-      h("label", { class: "rb-field", for: "tag-role", text: "Role" }), roleSelect,
+      roleField,
       h("label", { class: "rb-field", text: "Tag associates" }),
       h("div", { id: "tag-people", class: "rb-people" }, taggable.map(person)),
       blocked.length ? [h("p", { class: "muted rb-subhead", text: "No Competency Lead yet, so they cannot be tagged:" }),
@@ -306,7 +310,7 @@
     const btn = (id, label, fn, cls = "btn", busy) => buttons.push(h("button", { id, class: cls, type: "button", on: { click: () => attempt(fn, busy) } }, label));
     if (can.upload) {
       buttons.push(h("label", { class: "rb-filepick", for: "resume-file" },
-        h("span", { text: d.base_filename ? `Your resume: ${d.base_filename}` : "Your resume (max 5 pages)" }), fileInput));
+        h("span", { text: d.base_filename ? `Your resume: ${d.base_filename}` : "Your resume (max 10 pages)" }), fileInput));
       btn("upload-resume", "Upload", async () => {
         const file = fileInput.files[0];
         if (!file) { flash("Choose your resume file first.", "error"); return; }
@@ -345,6 +349,29 @@
         }) } }, "Send back")));
   }
 
+  /* ---------- job description preview ---------- */
+  function showJdPreview(preview) {
+    const chips = (items, cls) => h("div", { class: "rb-chips" }, items.map((s) => h("span", { class: `chip ${cls}`, text: s })));
+    $("jd-preview-title").textContent = preview.title;
+    const parts = [
+      preview.filename ? h("p", { class: "muted", text: `File: ${preview.filename}` }) : null,
+      preview.flagged.length ? h("p", { class: "rb-warn", text: "This job description contains text that tries to instruct an assistant. It was ignored." }) : null,
+      preview.roles.map((role) => h("section", { class: "rb-prev-role" },
+        h("h3", { text: role.title }),
+        role.min_years !== null && role.min_years !== undefined || role.domain
+          ? h("p", { class: "muted", text: [role.min_years !== null && role.min_years !== undefined ? `At least ${role.min_years} years` : "", role.domain || ""].filter(Boolean).join(" · ") }) : null,
+        h("h4", { text: "Must have" }), chips(role.must_have, ""),
+        role.nice_to_have.length ? [h("h4", { text: "Nice to have" }), chips(role.nice_to_have, "nice")] : null)),
+      h("h3", { text: "Text of the job description" }),
+      preview.text
+        ? [h("pre", { class: "rb-pre", id: "jd-preview-text", text: preview.text }),
+          preview.truncated ? h("p", { class: "muted", text: "Only the start is shown. Download the file to read all of it." }) : null]
+        : h("p", { class: "muted", text: "There is no original text to show; the requirements above are what was kept." }),
+    ];
+    $("jd-preview-body").replaceChildren(...parts.flat().filter(Boolean));
+    $("jd-preview").showModal();
+  }
+
   function jdCard(d) {
     const role = d.jd.role;
     const cov = d.changelog && d.changelog.coverage;
@@ -356,8 +383,11 @@
         d.jd.flagged.length ? h("p", { class: "rb-warn", text: "This job description contains text that tries to instruct an assistant. It was ignored." }) : null,
         h("h3", { text: "Must have" }), chips(role.must_have, ""),
         role.nice_to_have.length ? [h("h3", { text: "Nice to have" }), chips(role.nice_to_have, "nice")] : null,
-        h("div", { class: "rb-row" }, h("button", { id: "download-jd", class: "btn", type: "button",
-          on: { click: () => downloadJd(`/resume/requests/${d.id}/jd`) } }, "Download job description"))),
+        h("div", { class: "rb-row" },
+          h("button", { id: "preview-jd", class: "btn", type: "button",
+            on: { click: () => attempt(async () => showJdPreview(await call(`/resume/requests/${d.id}/jd/preview`))) } }, "Preview"),
+          h("button", { id: "download-jd", class: "btn", type: "button",
+            on: { click: () => downloadJd(`/resume/requests/${d.id}/jd`) } }, "Download job description"))),
       cov ? h("div", { class: "rb-card", id: "coverage" },
         h("h3", { text: `Required skills covered: ${pct(cov.required_after)}` }),
         cov.required_after !== null ? h("progress", { class: "rb-progress", max: "1", value: String(cov.required_after) }) : null,
@@ -659,6 +689,8 @@
       $("bell").setAttribute("aria-expanded", String(open));
     });
     $("notes-read").addEventListener("click", () => attempt(async () => { await post("/resume/notifications/read"); await loadNotes(); }));
+    $("jd-preview-close").addEventListener("click", () => $("jd-preview").close());
+    $("jd-preview").addEventListener("click", (event) => { if (event.target === $("jd-preview")) $("jd-preview").close(); });  // a click outside the box
     await attempt(renderTab);
   }
 

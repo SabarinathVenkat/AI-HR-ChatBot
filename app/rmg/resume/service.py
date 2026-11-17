@@ -39,6 +39,9 @@ from app.rmg.resume.people import lead_of, roles_of
 from app.rmg.resume.pipeline import PipelineDeps, PipelineError, PipelineRequest, run_pipeline
 from app.rmg.resume.render import TemplateError, check_template, render_best, template_gaps, template_warning
 
+# A job description is short: it keeps the limits it always had, whatever a resume is allowed.
+JD_LIMITS = dict(max_pages=5, max_text_chars=20_000)
+PREVIEW_TEXT_CHARS = 8000  # how much of a job description's own text the preview shows
 TEMPLATE_LIMITS = dict(max_bytes=40_000_000, max_uncompressed=150_000_000, max_entries=2000, max_pages=50,
                        max_text_chars=200_000)
 OPEN_FOR_ASSOCIATE = ("requested", "in_progress", "changes_requested")
@@ -213,7 +216,7 @@ class ResumeService:
     def create_jd(self, filename: str, data: bytes, title: str | None = None) -> dict:
         self._need(*RMG)
         try:
-            document = read_document(filename, data)
+            document = read_document(filename, data, **JD_LIMITS)
             jd = self.engine.deps.jd_extractor.extract(document)
         except (IngestError, ExtractionError) as e:
             raise ServiceError(e.code, str(e), 422) from None
@@ -240,6 +243,37 @@ class ResumeService:
         jd = JobDescription.model_validate_json(row["jd_json"])
         return {"id": row["id"], "title": row["title"], "filename": row["filename"], "created_at": row["created_at"],
                 "roles": [r.model_dump() for r in jd.roles], "flagged": jd.flagged}
+
+    def _jd_preview(self, jd_id: int) -> dict:
+        """What was understood from a job description (roles, years, skills, flagged text) and the start of its own text."""
+        row = self.conn.execute("SELECT * FROM job_descriptions WHERE id = ?", (jd_id,)).fetchone()
+        if row is None:
+            raise ServiceError("not_found", "That job description was not found.", 404)
+        text = ""
+        if row["file_key"]:
+            try:
+                suffix = "." + row["file_key"].rsplit(".", 1)[1]
+                text = read_document("job-description" + suffix, self.files.get(row["file_key"]), **JD_LIMITS).text.strip()
+            except (FileNotFoundError, IngestError, IndexError):
+                text = ""  # no original to show: the preview still has the requirements
+        shown = text[:PREVIEW_TEXT_CHARS]
+        return {**self._jd_view(jd_id), "text": shown, "truncated": len(text) > len(shown)}
+
+    def jd_preview(self, jd_id: int) -> dict:
+        """A job description from RMG's list."""
+        self._need(*RMG)
+        preview = self._jd_preview(jd_id)
+        self._audit("jd_previewed", {"jd_id": jd_id})
+        self.conn.commit()
+        return preview
+
+    def request_jd_preview(self, request_id: int) -> dict:
+        """The job description of a request, for the associate, their Lead and RMG."""
+        row = self._visible(request_id)
+        preview = self._jd_preview(row["jd_id"])
+        self._audit("jd_previewed", {"request_id": request_id, "jd_id": row["jd_id"]})
+        self.conn.commit()
+        return preview
 
     def _jd_file(self, jd_id: int) -> tuple[str, bytes, str]:
         """The original file if it was kept, otherwise a Word file made from the stored requirements."""

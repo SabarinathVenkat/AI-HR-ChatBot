@@ -259,40 +259,40 @@ def with_page_count(docx: bytes, pages: int) -> bytes:
     return out.getvalue()
 
 
-def test_the_default_limit_is_five_pages_for_a_pdf():
-    assert read_document("five.pdf", blank_pdf(pages=5)).pages == 5
+def test_the_default_limit_is_ten_pages_for_a_pdf():
+    assert read_document("ten.pdf", blank_pdf(pages=10)).pages == 10
 
     with pytest.raises(IngestError) as e:
-        read_document("six.pdf", blank_pdf(pages=6))
+        read_document("eleven.pdf", blank_pdf(pages=11))
     assert code_of(e) == "too_many_pages"
 
 
-def test_a_docx_that_says_it_is_longer_than_five_pages_is_rejected_early():
+def test_a_docx_that_says_it_is_longer_than_ten_pages_is_rejected_early():
     with pytest.raises(IngestError) as e:
-        read_document("cv.docx", with_page_count(docx_bytes(["hi"]), 8))
+        read_document("cv.docx", with_page_count(docx_bytes(["hi"]), 12))
     assert code_of(e) == "too_many_pages"
 
 
-def test_a_docx_that_says_it_is_five_pages_or_fewer_is_accepted():
-    doc = read_document("cv.docx", with_page_count(docx_bytes(["hi"]), 5))
+def test_a_docx_that_says_it_is_ten_pages_or_fewer_is_accepted():
+    doc = read_document("cv.docx", with_page_count(docx_bytes(["hi"]), 10))
 
-    assert doc.pages == 5
+    assert doc.pages == 10
 
 
 def test_the_page_count_a_docx_claims_is_a_hint_not_the_limit_so_the_text_cap_still_applies():
-    understated = with_page_count(docx_bytes(["word " * 5000]), 1)  # claims one page, holds far more than five
+    understated = with_page_count(docx_bytes(["word " * 10000]), 1)  # claims one page, holds far more than ten
 
     with pytest.raises(IngestError) as e:
         read_document("cv.docx", understated)
     assert code_of(e) == "text_too_long"
 
 
-def test_about_five_pages_of_text_is_allowed_and_more_is_not_by_default():
-    five_pages = ("a" * 99 + " ") * 200  # 20,000 characters
+def test_about_ten_pages_of_text_is_allowed_and_more_is_not_by_default():
+    ten_pages = ("a" * 99 + " ") * 400  # 40,000 characters
 
-    assert read_document("cv.txt", five_pages.encode()).kind == "txt"
+    assert read_document("cv.txt", ten_pages.encode()).kind == "txt"
     with pytest.raises(IngestError) as e:
-        read_document("cv.txt", (five_pages + "more").encode())
+        read_document("cv.txt", (ten_pages + "more").encode())
     assert code_of(e) == "text_too_long"
 
 

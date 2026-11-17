@@ -18,8 +18,8 @@ from pypdf import PasswordType, PdfReader
 MAX_BYTES = 5_000_000
 MAX_UNCOMPRESSED = 50_000_000
 MAX_ENTRIES = 1000
-MAX_PAGES = 5  # an RMG decision: a resume is at most five pages
-MAX_TEXT_CHARS = 20_000  # about five dense pages; the real limit for a docx, whose page count is only a claim
+MAX_PAGES = 10  # an RMG decision: a resume is at most ten pages
+MAX_TEXT_CHARS = 40_000  # about ten dense pages; the real limit for a docx, whose page count is only a claim
 
 EXTENSIONS = {".docx": "docx", ".pdf": "pdf", ".txt": "txt"}
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
