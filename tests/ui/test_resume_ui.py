@@ -52,10 +52,10 @@ def test_a_resume_goes_from_request_to_approved_download(page, start_server):
     page.goto(server.url)
     sign_out(page)
 
-    # RMG tags Ravi (who has a lead) and sees that Sanjay cannot be tagged.
+    # RMG tags Ravi (who has a lead); Sanjay has no lead and can be tagged too, and RMG reviews his resume.
     open_builder(page, server, "Shadrach")
-    expect(page.locator("#blocked-people")).to_contain_text("Sanjay Patel")  # no Lead, so not offered for tagging
-    expect(page.locator("#tag-people input")).to_have_count(5)  # four older demo associates and Sabari
+    expect(page.locator("#tag-people label", has_text="Sanjay Patel")).to_contain_text("Reviewed by RMG")
+    expect(page.locator("#tag-people input")).to_have_count(11)  # everyone who is not in RMG
     page.get_by_label(re.compile("Ravi Kumar")).check()
     page.locator("#tag-go").click()
     expect(page.locator("#message")).to_contain_text("Tagged 1")

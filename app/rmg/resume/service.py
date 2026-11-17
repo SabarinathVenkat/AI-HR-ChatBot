@@ -123,6 +123,17 @@ class ResumeService:
             relations.add("rmg")
         return relations
 
+    def _rmg_members(self) -> list[int]:
+        return [r["employee_id"] for r in self.conn.execute("SELECT DISTINCT employee_id FROM rmg_roles").fetchall()]
+
+    def _lead_name(self, row) -> str:
+        return self._name(row["lead_id"]) if row["lead_id"] else "RMG team"  # no Competency Lead: RMG reviews
+
+    def _can_review(self, row) -> bool:
+        """The Competency Lead mapped to the associate, and anyone in RMG, may review a submitted resume."""
+        relations = self._relations(row)
+        return "lead" in relations or "rmg" in relations
+
     def _visible(self, request_id: int):
         """The request, or a 404 for anyone with no relation to it, so its existence is not revealed."""
         row = self._row(request_id)
@@ -319,7 +330,8 @@ class ResumeService:
             "SELECT e.id, e.name, e.department, a.lead_id FROM employees e LEFT JOIN lead_assignments a"
             " ON a.associate_id = e.id WHERE e.id NOT IN (SELECT employee_id FROM rmg_roles) ORDER BY e.name").fetchall()
         return [{"id": r["id"], "name": r["name"], "department": r["department"],
-                 "lead": self._name(r["lead_id"]) if r["lead_id"] else None} for r in rows]
+                 "lead": self._name(r["lead_id"]) if r["lead_id"] else None,
+                 "review_by": "Competency Lead" if r["lead_id"] else "RMG"} for r in rows]
 
     # ------------------------------------------------------------------------------------ tagging (RMG)
     def tag(self, jd_id: int, associate_ids: list[int], role_index: int = 0) -> dict:
@@ -334,9 +346,6 @@ class ResumeService:
             person = self.conn.execute("SELECT name FROM employees WHERE id = ?", (associate_id,)).fetchone()
             if person is None:
                 skipped.append({"associate_id": associate_id, "reason": "not_found", "message": "That person was not found."})
-            elif (lead := lead_of(self.conn, associate_id)) is None:
-                skipped.append({"associate_id": associate_id, "reason": "no_lead",
-                                "message": f"{person['name']} has no Competency Lead yet. Ask the RMG Head to assign one."})
             elif self.conn.execute("SELECT 1 FROM resume_requests WHERE jd_id = ? AND associate_id = ?",
                                    (jd_id, associate_id)).fetchone():
                 skipped.append({"associate_id": associate_id, "reason": "already_tagged",
@@ -346,7 +355,7 @@ class ResumeService:
                 cursor = self.conn.execute(
                     "INSERT INTO resume_requests (jd_id, associate_id, lead_id, role_index, status, created_by, created_at,"
                     " updated_at) VALUES (?, ?, ?, ?, 'requested', ?, ?, ?)",
-                    (jd_id, associate_id, lead, role_index, self.actor.id, now, now))
+                    (jd_id, associate_id, lead_of(self.conn, associate_id), role_index, self.actor.id, now, now))  # no lead: RMG reviews
                 self._notify(associate_id, f"You were asked to prepare a resume for: {self._jd_title(jd_id)}.", cursor.lastrowid)
                 created.append({"request_id": cursor.lastrowid, "associate_id": associate_id})
         self._audit("tagged", {"jd_id": jd_id, "created": [c["request_id"] for c in created], "skipped": len(skipped)})
@@ -447,7 +456,7 @@ class ResumeService:
             "edit": associate and has_draft and status in EDITABLE,
             "save": associate and has_draft and status in EDITABLE,
             "submit": associate and has_draft and status in EDITABLE,
-            "decide": "lead" in relations and status == "submitted",
+            "decide": ("lead" in relations or "rmg" in relations) and status == "submitted",
             "reopen": associate and status == "approved",
             "cancel": "rmg" in relations and status not in ("approved", "cancelled"),
             "download": has_draft,
@@ -465,7 +474,8 @@ class ResumeService:
             "relations": sorted(relations),
             "jd": {"id": row["jd_id"], "title": self._jd_title(row["jd_id"]), "role": role.model_dump(), "flagged": jd.flagged},
             "associate": {"id": row["associate_id"], "name": self._name(row["associate_id"])},
-            "lead": {"id": row["lead_id"], "name": self._name(row["lead_id"])},
+            "lead": {"id": row["lead_id"], "name": self._lead_name(row)},
+            "review_by": "Competency Lead" if row["lead_id"] else "RMG",
             "resume": None, "changelog": None, "warnings": [], "years_text": "", "read_coverage": None, "render_notes": [],
             "versions": [dict(v) for v in self.conn.execute(
                 "SELECT version, kind, created_at FROM resume_versions WHERE request_id = ? ORDER BY version", (request_id,))],
@@ -494,6 +504,16 @@ class ResumeService:
         elif scope == "lead":
             self._need("competency_lead")
             where, args = "r.lead_id = ?", (self.actor.id,)
+        elif scope == "review":
+            # what is waiting for this person: their own associates (as a Competency Lead), and for RMG every submitted resume
+            self._need("competency_lead", *RMG)
+            clauses, args = [], ()
+            if "competency_lead" in self.roles:
+                clauses.append("r.lead_id = ?")
+                args += (self.actor.id,)
+            if self.roles & RMG:
+                clauses.append("r.status = 'submitted'")
+            where = "(" + " OR ".join(clauses) + ")"
         else:
             self._need(*RMG)
             where, args = "1 = 1", ()
@@ -508,7 +528,7 @@ class ResumeService:
                 coverage = {"required_after": log.coverage.required_after, "missing_required": list(log.coverage.missing_required)}
             out.append({"id": r["id"], "status": r["status"], "jd_id": r["jd_id"], "jd_title": self._jd_title(r["jd_id"]),
                         "associate": self._name(r["associate_id"]), "associate_id": r["associate_id"],
-                        "lead": self._name(r["lead_id"]), "updated_at": r["updated_at"], "coverage": coverage,
+                        "lead": self._lead_name(r), "updated_at": r["updated_at"], "coverage": coverage,
                         "has_draft": draft is not None})
         return out
 
@@ -546,16 +566,20 @@ class ResumeService:
         version = self._add_version(request_id, "submitted", draft["working_json"], draft["years_text"], draft["template_id"])
         self._set_status(request_id, "submitted", decision_note=None)
         title, who = self._jd_title(row["jd_id"]), self.actor.name
-        self._notify(row["lead_id"], f"{who} submitted a resume for {title}. It is waiting for your review.", request_id)
-        self._notify(row["created_by"], f"{who} submitted a resume for {title}.", request_id)
+        if row["lead_id"]:
+            self._notify(row["lead_id"], f"{who} submitted a resume for {title}. It is waiting for your review.", request_id)
+        reviewers = "RMG reviews it" if not row["lead_id"] else f"the Competency Lead, {self._name(row['lead_id'])}, or RMG can review it"
+        for person in dict.fromkeys([*self._rmg_members(), row["created_by"]]):
+            if person != row["lead_id"]:
+                self._notify(person, f"{who} submitted a resume for {title}. It is waiting for review: {reviewers}.", request_id)
         self._audit("resume_submitted", {"request_id": request_id, "version": version})
         self.conn.commit()
         return {"version": version, "status": "submitted"}
 
     def decide(self, request_id: int, decision: str, note: str | None = None) -> dict:
         row = self._visible(request_id)
-        if "lead" not in self._relations(row):
-            raise ServiceError("forbidden", "Only the Competency Lead mapped to this associate can decide.", 403)
+        if not self._can_review(row):
+            raise ServiceError("forbidden", "Only the Competency Lead mapped to this associate, or RMG, can decide.", 403)
         if row["status"] != "submitted":
             raise ServiceError("wrong_status", "There is nothing waiting for your decision.", 409)
         note = (note or "").strip()[:1000]
@@ -566,13 +590,15 @@ class ResumeService:
                 (request_id,)).fetchone()
             self._add_version(request_id, "approved", submitted["resume_json"], submitted["years_text"], submitted["template_id"])
             self._set_status(request_id, "approved", decided_by=self.actor.id, decided_at=self._iso(), decision_note=note or None)
-            for person in {row["associate_id"], row["created_by"]}:
-                self._notify(person, f"The resume for {title} ({self._name(row['associate_id'])}) was approved.", request_id)
+            for person in {row["associate_id"], row["created_by"], row["lead_id"]} - {None, self.actor.id}:
+                self._notify(person, f"The resume for {title} ({self._name(row['associate_id'])}) was approved by {self.actor.name}.", request_id)
         elif decision == "send_back":
             if not note:
                 raise ServiceError("note_required", "Please say what needs to change.", 422)
             self._set_status(request_id, "changes_requested", decided_by=self.actor.id, decided_at=self._iso(), decision_note=note)
-            self._notify(row["associate_id"], f"Your resume for {title} was sent back: {note}", request_id)
+            self._notify(row["associate_id"], f"Your resume for {title} was sent back by {self.actor.name}: {note}", request_id)
+            if row["lead_id"] and row["lead_id"] != self.actor.id:  # RMG sent it back: the lead should know
+                self._notify(row["lead_id"], f"{self.actor.name} sent back {self._name(row['associate_id'])}'s resume for {title}: {note}", request_id)
         else:
             raise ServiceError("bad_decision", "The decision must be approve or send_back.", 422)
         self._audit("resume_decided", {"request_id": request_id, "decision": decision})

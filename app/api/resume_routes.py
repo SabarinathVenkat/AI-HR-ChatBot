@@ -169,7 +169,7 @@ def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Cal
         return svc.tag(jd_id, body.associate_ids, body.role_index)
 
     @app.get("/resume/requests")
-    def requests_list(scope: Literal["mine", "lead", "board"] = "mine", svc: ResumeService = Depends(service)):
+    def requests_list(scope: Literal["mine", "lead", "review", "board"] = "mine", svc: ResumeService = Depends(service)):
         return {"requests": svc.summaries(scope)}
 
     @app.get("/resume/requests/{request_id}")

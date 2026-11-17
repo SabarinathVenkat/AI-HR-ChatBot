@@ -1,4 +1,5 @@
 """SQLite connection and schema setup."""
+import re
 import sqlite3
 from pathlib import Path
 
@@ -25,13 +26,40 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
 ADDED_COLUMNS = [("job_descriptions", "file_key", "TEXT")]
 
 
+def _make_lead_optional(conn: sqlite3.Connection) -> None:
+    """A request's Competency Lead used to be required. SQLite cannot relax a column, so the table is rebuilt (the
+    way SQLite's own documentation says to) and every request is copied across."""
+    columns = list(conn.execute("PRAGMA table_info(resume_requests)"))
+    if not any(c["name"] == "lead_id" and c["notnull"] for c in columns):
+        return
+    old_sql = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'resume_requests'").fetchone()["sql"]
+    new_sql = re.sub(r"(lead_id\s+INTEGER)\s+NOT NULL", r"\1", old_sql, count=1)
+    new_sql = re.sub(r"CREATE TABLE\s+(IF NOT EXISTS\s+)?resume_requests", "CREATE TABLE resume_requests_new", new_sql, count=1)
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conn.execute("BEGIN")
+        conn.execute(new_sql)
+        conn.execute("INSERT INTO resume_requests_new SELECT * FROM resume_requests")
+        conn.execute("DROP TABLE resume_requests")
+        conn.execute("ALTER TABLE resume_requests_new RENAME TO resume_requests")
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+    conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))  # the indexes went with the old table: make them again
+
+
 def upgrade_schema(conn: sqlite3.Connection) -> None:
-    """Add any column an older database lacks. Safe to run again."""
+    """Add any column an older database lacks, and relax what has since become optional. Safe to run again."""
     for table, column, definition in ADDED_COLUMNS:
         existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
         if existing and column not in existing:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
     conn.commit()
+    _make_lead_optional(conn)
 
 
 def init_schema(conn: sqlite3.Connection) -> None:

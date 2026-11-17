@@ -170,7 +170,7 @@ CREATE TABLE IF NOT EXISTS resume_requests (
     id            INTEGER PRIMARY KEY,
     jd_id         INTEGER NOT NULL REFERENCES job_descriptions(id),
     associate_id  INTEGER NOT NULL REFERENCES employees(id),
-    lead_id       INTEGER NOT NULL REFERENCES employees(id),
+    lead_id       INTEGER REFERENCES employees(id),  -- NULL: the associate has no Competency Lead, so RMG reviews
     role_index    INTEGER NOT NULL DEFAULT 0,
     status        TEXT NOT NULL CHECK (status IN
                     ('requested', 'in_progress', 'submitted', 'changes_requested', 'approved', 'cancelled')),

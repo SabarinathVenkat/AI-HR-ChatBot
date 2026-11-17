@@ -132,16 +132,16 @@ def test_a_lead_can_send_it_back_and_the_associate_sees_the_note_and_a_notificat
     assert client.get("/resume/notifications?unread=true", headers=hdr(client, RAVI)).json()["notifications"] == []
 
 
-def test_tagging_reports_who_was_skipped_and_why(client):
+def test_tagging_a_person_with_no_lead_works_and_says_rmg_reviews(client):
     client.post("/resume/template?filename=t.docx", content=template_bytes(), headers=hdr(client, HEAD))
     jd_id = client.get("/resume/jds", headers=hdr(client, STAFF)).json()["jds"][0]["id"]
     people = {a["name"]: a for a in client.get("/resume/associates", headers=hdr(client, STAFF)).json()["associates"]}
-    assert people[SANJAY]["lead"] is None and people[RAVI]["lead"] == LEAD
+    assert people[SANJAY]["lead"] is None and people[SANJAY]["review_by"] == "RMG" and people[RAVI]["lead"] == LEAD
 
     result = client.post(f"/resume/jds/{jd_id}/tag", json={"associate_ids": [people[SANJAY]["id"], people[RAVI]["id"]]},
                          headers=hdr(client, STAFF)).json()
 
-    assert len(result["created"]) == 1 and result["skipped"][0]["reason"] == "no_lead"
+    assert len(result["created"]) == 2 and result["skipped"] == []
 
 
 def test_the_head_can_give_the_unmapped_associate_a_lead_and_then_tag_them(client):
@@ -372,3 +372,19 @@ def test_the_jd_preview_keeps_the_same_guards_as_the_download(client):
     assert client.get(f"/resume/requests/{request_id}/jd/preview", headers=hdr(client, DIVYA)).status_code in (403, 404)
     assert client.get(f"/resume/jds/{jd_id}/preview").status_code == 401
     assert client.get("/resume/jds/9999/preview", headers=hdr(client, STAFF)).status_code == 404
+
+
+# --- the review queue and who may decide ------------------------------------------------------------------------------------
+
+def test_rmg_and_the_lead_can_both_open_the_review_queue_and_approve_over_http(client):
+    base = built_base(client)
+    assert client.post(f"{base}/submit", headers=hdr(client, RAVI)).status_code == 200
+
+    for who in (STAFF, LEAD):
+        queue = client.get("/resume/requests?scope=review", headers=hdr(client, who))
+        assert queue.status_code == 200 and [r["status"] for r in queue.json()["requests"]] == ["submitted"]
+
+    assert client.get("/resume/requests?scope=review", headers=hdr(client, RAVI)).status_code == 403
+    detail = client.get(base, headers=hdr(client, STAFF)).json()
+    assert detail["can"]["decide"] is True and detail["review_by"] == "Competency Lead"
+    assert client.post(f"{base}/decide", json={"decision": "approve", "note": ""}, headers=hdr(client, STAFF)).status_code == 200

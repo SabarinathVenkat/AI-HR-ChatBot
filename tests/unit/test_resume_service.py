@@ -159,13 +159,14 @@ def test_tagging_creates_a_request_for_each_associate_and_tells_them(world):
     assert "prepare a resume" in world.as_(DIVYA).notifications()[0]["message"]
 
 
-def test_an_associate_with_no_lead_is_skipped_with_an_explanation(world):
+def test_an_associate_with_no_lead_is_tagged_too_and_their_request_has_no_lead(world):
     jd_id = world.db.execute("SELECT id FROM job_descriptions").fetchone()["id"]
 
     result = world.as_(STAFF).tag(jd_id, [world.id_of(SANJAY), world.id_of(RAVI)])
 
-    assert [c["associate_id"] for c in result["created"]] == [world.id_of(RAVI)]
-    assert result["skipped"][0]["reason"] == "no_lead" and "Competency Lead" in result["skipped"][0]["message"]
+    assert [c["associate_id"] for c in result["created"]] == [world.id_of(SANJAY), world.id_of(RAVI)] and result["skipped"] == []
+    leads = {r["associate_id"]: r["lead_id"] for r in world.db.execute("SELECT associate_id, lead_id FROM resume_requests")}
+    assert leads[world.id_of(SANJAY)] is None and leads[world.id_of(RAVI)] is not None
 
 
 def test_tagging_the_same_person_twice_is_skipped(world):
@@ -296,14 +297,14 @@ def test_only_the_associate_submits(ready):
     assert code_of(e) == "forbidden"
 
 
-def test_only_the_mapped_lead_decides_and_only_when_it_is_submitted(ready):
+def test_only_the_mapped_lead_or_rmg_decides_and_only_when_it_is_submitted(ready):
     assign_role(ready.db, ready.id_of("Arjun Rao"), "competency_lead")
     with pytest.raises(ServiceError) as e:
         ready.as_(LEAD).decide(ready.request_id, "approve")
     assert code_of(e) == "wrong_status"
     submitted(ready)
 
-    for outsider in ("Arjun Rao", RAVI, STAFF):
+    for outsider in ("Arjun Rao", RAVI):  # another lead, and the associate; RMG may decide (see test_resume_reviewers)
         with pytest.raises(ServiceError) as e:
             ready.as_(outsider).decide(ready.request_id, "approve")
         assert e.value.status in (403, 404)

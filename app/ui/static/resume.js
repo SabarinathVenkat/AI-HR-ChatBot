@@ -123,12 +123,12 @@
   }
 
   async function renderReview() {
-    const { requests } = await call("/resume/requests?scope=lead");
+    const { requests } = await call("/resume/requests?scope=review");
     const waiting = requests.filter((r) => r.status === "submitted");
     $("view").replaceChildren(h("h2", { text: "Resumes to review" }),
-      h("p", { class: "muted", text: `${waiting.length} waiting for your decision.` }),
+      h("p", { class: "muted", text: `${waiting.length} waiting for your decision. The Competency Lead and RMG can both review.` }),
       requests.length ? h("ul", { class: "rb-list" }, requests.map((r) => requestItem(r)))
-        : h("p", { class: "rb-empty", text: "No resumes have been assigned to you yet." }));
+        : h("p", { class: "rb-empty", text: "Nothing is waiting for review." }));
   }
 
   /* ---------- RMG board ---------- */
@@ -148,12 +148,11 @@
     };
     jdSelect.addEventListener("change", fillRoles);
     fillRoles();
-    const person = (a) => h("label", { class: `rb-check${a.lead ? "" : " disabled"}` },
-      h("input", { type: "checkbox", value: a.id, disabled: !a.lead }),
+    const person = (a) => h("label", { class: "rb-check" },
+      h("input", { type: "checkbox", value: a.id }),
       h("span", { class: "who-line" }, h("span", { class: "nm", text: a.name }),
-        h("span", { class: "meta", text: a.lead ? `${a.department} · Lead: ${a.lead}` : a.department })));
-    const taggable = associates.filter((a) => a.lead);
-    const blocked = associates.filter((a) => !a.lead);
+        h("span", { class: "meta", text: a.lead ? `${a.department} · Lead: ${a.lead}` : `${a.department} · Reviewed by RMG` })));
+    const taggable = associates;
     const jdFile = h("input", { id: "jd-file", type: "file", accept: ".docx,.pdf,.txt", "aria-label": "Job description file" });
     const jdTitle = h("input", { id: "jd-title", type: "text", placeholder: "Title (optional)" });
     const jdPaste = h("textarea", { id: "jd-paste", "aria-label": "Pasted job description", placeholder: "Paste the job description, or a list of skills such as: Java, Spring Boot, Kafka, SQL" });
@@ -169,8 +168,6 @@
       roleField,
       h("label", { class: "rb-field", text: "Tag associates" }),
       h("div", { id: "tag-people", class: "rb-people" }, taggable.map(person)),
-      blocked.length ? [h("p", { class: "muted rb-subhead", text: "No Competency Lead yet, so they cannot be tagged:" }),
-        h("div", { id: "blocked-people", class: "rb-chips" }, blocked.map((a) => h("span", { class: "chip nice", text: a.name })))] : null,
       h("div", { class: "rb-row" }, h("button", { id: "tag-go", class: "btn primary", type: "button", on: { click: () => attempt(async () => {
         const ids = [...document.querySelectorAll("#tag-people input:checked")].map((i) => Number(i.value));
         if (!jds.length || !ids.length) { flash("Choose a job description and at least one associate.", "error"); return; }
@@ -325,7 +322,7 @@
       await refreshDetail(rebuilt);
     }, "btn primary", "Building your tailored resume… this can take a minute.");
     if (can.save) btn("save", "Save version", async () => { const r = await post(`/resume/requests/${d.id}/save`); flash(`Saved as version ${r.version}.`, "ok"); await refreshDetail(); });
-    if (can.submit) btn("submit", "Submit for review", async () => { await post(`/resume/requests/${d.id}/submit`); flash("Submitted. Your Competency Lead has been notified.", "ok"); await refreshDetail(); }, "btn primary");
+    if (can.submit) btn("submit", "Submit for review", async () => { await post(`/resume/requests/${d.id}/submit`); flash("Submitted. Your reviewers have been notified.", "ok"); await refreshDetail(); }, "btn primary");
     if (can.reopen) btn("reopen", "Reopen to edit", async () => { await post(`/resume/requests/${d.id}/reopen`); await refreshDetail(); });
     if (can.download) buttons.push(h("button", { id: "download", class: "btn", type: "button", on: { click: () => download(d.id) } }, d.status === "approved" ? "Download approved resume" : "Download draft"));
     if (can.cancel) btn("cancel", "Cancel request", async () => { await post(`/resume/requests/${d.id}/cancel`); flash("Request cancelled.", "ok"); await refreshDetail(); });
@@ -671,9 +668,9 @@
         h("button", { class: "btn", type: "button", id: "back", on: { click: () => attempt(renderTab) } }, "Back"),
         h("div", { class: "rb-titleblock" },
           h("h2", { text: `${d.jd.title}: ${d.associate.name}` }),
-          h("span", { class: "muted", text: `Competency Lead: ${d.lead.name}` })),
+          h("span", { class: "muted", text: d.review_by === "RMG" ? "Reviewed by the RMG team (no Competency Lead)" : `Competency Lead: ${d.lead.name} (RMG can review too)` })),
         scoreBlock(d), statusBadge(d.status)),
-      d.decision_note ? h("p", { class: "rb-note", id: "decision-note-shown", text: `Competency Lead note: ${d.decision_note}` }) : null,
+      d.decision_note ? h("p", { class: "rb-note", id: "decision-note-shown", text: `Reviewer note: ${d.decision_note}` }) : null,
       h("div", { class: "rb-strip" },
         d.render_notes && d.render_notes.length ? h("div", { class: "rb-info", id: "render-notes" },
           h("strong", { text: "About the Word file" }), d.render_notes.map((n) => h("div", { text: n }))) : null,
@@ -688,7 +685,7 @@
   /* ---------- tabs ---------- */
   const TABS = [
     { id: "mine", label: "My requests", show: () => true, render: renderMine },
-    { id: "review", label: "Review", show: () => state.roles.includes("competency_lead"), render: renderReview },
+    { id: "review", label: "Review", show: () => state.roles.includes("competency_lead") || isRmg(), render: renderReview },
     { id: "board", label: "Requests", show: isRmg, render: renderBoard },
     { id: "setup", label: "Setup", show: () => state.roles.includes("rmg_head"), render: renderSetup },
   ];
