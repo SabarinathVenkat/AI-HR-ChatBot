@@ -498,3 +498,18 @@ def test_the_role_choice_is_hidden_for_a_single_role_job_description_and_shown_f
 
     expect(page.locator("#tag-role-field")).to_be_visible()  # the fake reader finds two roles in a file
     expect(page.locator("#tag-role option")).to_have_count(2)
+
+
+def test_the_associate_can_add_dates_to_a_project_that_has_none(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+
+    expect(page.locator("#resume .rb-project .add-dates").first).to_be_visible()  # the sample resume gives no project dates
+    page.locator("#resume .rb-project .add-dates").first.click()
+    page.get_by_label("Project dates").fill("Jan 2022 – Mar 2023")
+    page.locator(".save-dates").click()
+
+    expect(page.locator("#resume .rb-project .rb-dates").first).to_contain_text("Jan 2022 – Mar 2023")
+    expect(page.locator("#resume .rb-project .rb-dates .badge").first).to_contain_text("added by you")
+    expect(page.locator("#resume .rb-project .add-dates")).to_have_count(1)  # only the other project still offers it
+    assert page.console_errors == []

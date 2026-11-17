@@ -62,7 +62,7 @@ def apply_draft(project: Project, draft: DraftedProject, settings: TailoringSett
                     bullets.append(_carry(project.bullets[b.from_bullet], b.text))
             if not bullets:
                 raise DraftError("the draft left no usable bullets")
-        return Project(name=project.name, description=description, bullets=bullets[:settings.max_bullets])
+        return Project(name=project.name, dates=project.dates, description=description, bullets=bullets[:settings.max_bullets])
     except ValidationError:  # for example a bullet longer than the model allows
         raise DraftError("the draft is not a valid project") from None
 

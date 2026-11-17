@@ -11,8 +11,7 @@ from typing import Literal
 from app.rmg.resume.grounding import check_grounding, rebuild_items
 from app.rmg.resume.match import MatchPlan
 from app.rmg.resume.model import (
-    MAX_BULLETS_PER_PROJECT, MAX_HIGHLIGHTS, MAX_ITEM_CHARS, MAX_ITEMS_PER_GROUP, MAX_SKILL_GROUPS, Item, Origin, Project,
-    Resume, SkillGroup,
+    MAX_BULLETS_PER_PROJECT, MAX_HIGHLIGHTS, MAX_ITEM_CHARS, MAX_ITEMS_PER_GROUP, MAX_SKILL_GROUPS, Item, Origin, Resume, SkillGroup,
 )
 
 By = Literal["user", "assistant"]
@@ -27,6 +26,7 @@ MESSAGES = {
     "duplicate": "That skill is already listed.",
     "not_allowed": "Please use the Add a skill button in the Skills section.",
 }
+MAX_DATES_CHARS = 60
 MAX_SKILL_CHARS = 100
 
 
@@ -107,7 +107,7 @@ def move_bullet(resume: Resume, project: int, index: int, to: int) -> Resume:
     if not 0 <= project < len(resume.projects):
         raise EditError("no_such_item")
     target = resume.projects[project]
-    changed = Project(name=target.name, description=target.description, bullets=_moved(target.bullets, index, to))
+    changed = target.model_copy(update={"bullets": _moved(target.bullets, index, to)})
     projects = list(resume.projects)
     projects[project] = changed
     return resume.model_copy(update={"projects": projects})
@@ -126,7 +126,7 @@ def add_fact(resume: Resume, project: int | None, text: str) -> Resume:
     if len(target.bullets) >= MAX_BULLETS_PER_PROJECT:
         raise EditError("full")
     projects = list(resume.projects)
-    projects[project] = Project(name=target.name, description=target.description, bullets=[*target.bullets, item])
+    projects[project] = target.model_copy(update={"bullets": [*target.bullets, item]})
     return resume.model_copy(update={"projects": projects})
 
 
@@ -161,6 +161,23 @@ def add_skill(resume: Resume, text: str, *, group: int | None = None, category: 
         raise EditError("full")
     groups[target] = SkillGroup(category=groups[target].category, items=[*groups[target].items, item])
     return resume.model_copy(update={"skill_groups": groups})
+
+
+def add_dates_as(resume: Resume, project: int, text: str, *, by: By) -> Resume:
+    """Dates for a project whose resume gave none. Only the associate can add them: a date is a claim about their work."""
+    if by == "assistant":
+        raise EditError("not_allowed", "Please add the dates yourself, using Add dates on the project.")
+    text = _clean(text)
+    if len(text) > MAX_DATES_CHARS:
+        raise EditError("too_long", f"Dates should be short: please keep them under {MAX_DATES_CHARS} characters.")
+    if not 0 <= project < len(resume.projects):
+        raise EditError("no_such_item")
+    target = resume.projects[project]
+    if target.dates is not None:
+        raise EditError("duplicate", "That project already has dates: edit them instead.")
+    projects = list(resume.projects)
+    projects[project] = target.model_copy(update={"dates": Item(text=text, origin=Origin.USER_ADDED)})
+    return resume.model_copy(update={"projects": projects})
 
 
 def add_skill_as(resume: Resume, text: str, *, group: int | None = None, category: str | None = None, by: By) -> Resume:

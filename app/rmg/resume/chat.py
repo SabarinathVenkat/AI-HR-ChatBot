@@ -19,9 +19,9 @@ MAX_EXPLAINED = 10
 
 
 class EditCommand(BaseModel):
-    action: Literal["set_text", "remove", "move_project", "move_bullet", "add_fact", "add_skill", "set_role", "undo", "explain", "none"]
+    action: Literal["set_text", "remove", "move_project", "move_bullet", "add_fact", "add_skill", "add_dates", "set_role", "undo", "explain", "none"]
     path: str | None = None  # for set_text and remove, for example "projects.1.bullets.0"
-    project: int | None = None  # for move_bullet and add_fact (None adds to the highlights)
+    project: int | None = None  # for move_bullet, add_fact (None adds to the highlights) and add_dates
     group: int | None = None  # for add_skill: the skill group; or give a category to use or make one
     category: str | None = None  # for add_skill
     index: int | None = None  # the item to move

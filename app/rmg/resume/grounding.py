@@ -102,7 +102,8 @@ def rebuild_items(resume: Resume, fn) -> Resume:
     for p, project in enumerate(resume.projects):
         description = fn(f"projects.{p}.description", project.description) if project.description else None
         bullets = [x for b, item in enumerate(project.bullets) if (x := fn(f"projects.{p}.bullets.{b}", item)) is not None]
-        projects.append(Project(name=project.name, description=description, bullets=bullets))
+        dates = fn(f"projects.{p}.dates", project.dates) if project.dates else None
+        projects.append(Project(name=project.name, dates=dates, description=description, bullets=bullets))
     return resume.model_copy(update={
         "role_title": fn("role_title", resume.role_title) if resume.role_title else None,
         "summary": fn("summary", resume.summary) if resume.summary else None,

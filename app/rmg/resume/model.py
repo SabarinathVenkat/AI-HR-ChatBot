@@ -95,6 +95,7 @@ class Job(_Model):
 
 class Project(_Model):
     name: ShortText
+    dates: Item | None = None  # when the project ran, as the resume writes it: "Jan 2022 \u2013 Mar 2023"
     description: Item | None = None
     bullets: list[Item] = Field(default_factory=list, max_length=MAX_BULLETS_PER_PROJECT)
 
@@ -122,6 +123,8 @@ class Resume(_Model):
         for i, item in enumerate(self.highlights):
             yield f"highlights.{i}", item
         for p, project in enumerate(self.projects):
+            if project.dates is not None:
+                yield f"projects.{p}.dates", project.dates
             if project.description is not None:
                 yield f"projects.{p}.description", project.description
             for b, bullet in enumerate(project.bullets):

@@ -314,7 +314,7 @@ def _render_projects(m: TemplateMap, resume: Resume) -> list[str]:
         _drop([*_project_span(slot), slot.heading])
         return []
     for project in resume.projects:
-        new.append(_clone(slot.proto_name, [(project.name, False)]))
+        new.append(_clone(slot.proto_name, [(f"{project.name} ({project.dates.text})" if project.dates else project.name, False)]))
         if project.description is not None:
             if slot.proto_desc is not None:
                 new.append(_clone(slot.proto_desc, emphasise(project.description.text, terms) if slot.desc_emphasis else [(project.description.text, False)]))

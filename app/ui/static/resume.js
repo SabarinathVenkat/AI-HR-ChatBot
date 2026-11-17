@@ -432,6 +432,19 @@
     return h("button", { type: "button", "aria-label": label, on: { click: () => doEdit(command) } }, label.startsWith("Move up") ? "Up" : "Down");
   }
 
+  /* A project whose resume gave no dates can be given them: they are the associate's own statement. */
+  function datesBox(d, project) {
+    if (!d.can.edit) return null;
+    const key = `dates-${project}`;
+    if (state.addingFact !== key) {
+      return h("button", { type: "button", class: "rb-linkbtn add-dates", on: { click: () => { state.addingFact = key; renderWorkspace(); } } }, "Add dates");
+    }
+    const box = h("input", { type: "text", "aria-label": "Project dates", placeholder: "For example: Jan 2022 \u2013 Mar 2023", maxlength: "60" });
+    return h("div", { class: "rb-edit" }, box, h("div", { class: "rb-row" },
+      h("button", { class: "btn primary save-dates", type: "button", on: { click: () => doEdit({ action: "add_dates", project, text: box.value }) } }, "Add as my own statement"),
+      h("button", { class: "btn", type: "button", on: { click: () => { state.addingFact = null; renderWorkspace(); } } }, "Cancel")));
+  }
+
   function factBox(d, project) {
     if (!d.can.edit) return null;
     if (state.addingFact !== project) {
@@ -523,6 +536,7 @@
     sections.push(h("div", { class: "section" }, h("h4", { text: "Projects" }), r.projects.map((p, pi) => h("div", { class: "rb-project", "data-path": `projects.${pi}` },
       h("div", { class: "pname" }, h("span", { text: p.name }), d.can.edit ? h("span", { class: "rb-tools" },
         mover("Move up project", { action: "move_project", index: pi, to: pi - 1 }), mover("Move down project", { action: "move_project", index: pi, to: pi + 1 })) : null),
+      p.dates ? h("ul", { class: "rb-bullets rb-dates" }, line(d, `projects.${pi}.dates`, p.dates)) : datesBox(d, pi),
       p.description ? h("ul", { class: "rb-bullets" }, line(d, `projects.${pi}.description`, p.description)) : null,
       h("ul", { class: "rb-bullets" }, p.bullets.map((b, bi) => line(d, `projects.${pi}.bullets.${bi}`, b, [
         mover("Move up", { action: "move_bullet", project: pi, index: bi, to: bi - 1 }), mover("Move down", { action: "move_bullet", project: pi, index: bi, to: bi + 1 })]))),

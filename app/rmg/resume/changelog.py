@@ -22,7 +22,7 @@ from app.rmg.resume.model import Origin, Resume
 
 CONDENSED_RATIO = 0.8
 
-_PROJECT_ITEM = re.compile(r"^projects\.(\d+)\.(description|bullets\.(\d+))$")
+_PROJECT_ITEM = re.compile(r"^projects\.(\d+)\.(description|dates|bullets\.(\d+))$")
 _HIGHLIGHT = re.compile(r"^highlights\.(\d+)$")
 _SKILL = re.compile(r"^skill_groups\.(\d+)\.items\.(\d+)$")
 
@@ -61,7 +61,9 @@ def _where(path: str, resume: Resume) -> str:
         p = int(m.group(1))
         if p < len(resume.projects):
             name = resume.projects[p].name
-            return f"Project '{name}', description" if m.group(2) == "description" else f"Project '{name}', bullet {int(m.group(3)) + 1}"
+            if m.group(2) in ("description", "dates"):
+                return f"Project '{name}', {m.group(2)}"
+            return f"Project '{name}', bullet {int(m.group(3)) + 1}"
     if m := _HIGHLIGHT.match(path):
         return f"Highlight {int(m.group(1)) + 1}"
     if m := _SKILL.match(path):
