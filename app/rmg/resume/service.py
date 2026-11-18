@@ -16,7 +16,7 @@ import re
 import sqlite3
 import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 
 from app import issue_log
@@ -65,6 +65,7 @@ class ResumeEngine:
 
     deps: PipelineDeps
     interpreter: object | None = None  # reads a chat instruction into an edit command (see chat.py)
+    polisher: object | None = None  # checks and fixes a finished file's layout: (docx, template) -> Polish (see layout_fix.py)
 
 
 def _safe_filename(text: str) -> str:
@@ -748,10 +749,28 @@ class ResumeService:
                       where=where, status=report.status, problems=" | ".join(problems) or None)
         return report
 
+    def _polish(self, request_id: int, rendered, template_bytes: bytes):
+        """Have the layout checked and, if needed, fixed before the file goes to the user. It can only improve the file; if it
+        cannot be done (no renderer on this server, or anything fails) the file goes as it is."""
+        self.last_layout = "not_checked"
+        if self.engine.polisher is None:
+            return rendered
+        try:
+            result = self.engine.polisher(rendered.docx, template_bytes)
+        except Exception as e:  # noqa: BLE001 - the layout check must never stop a download
+            self._log("layout_failed", "error", error=e, request_id=request_id)
+            return rendered
+        self.last_layout = result.status
+        self._log("layout_judged", "info" if result.status in ("ok", "fixed") else "warning", request_id=request_id,
+                  status=result.status, rounds=result.rounds, issues=" | ".join(result.issues) or None,
+                  notes=" | ".join(result.notes) or None)
+        return replace(rendered, docx=result.docx)
+
     def download(self, request_id: int) -> tuple[str, bytes, bool]:
         """(filename, .docx bytes, is_draft). The document itself has no draft mark; its file name ends in _DRAFT until the
         resume is approved and in _FINAL after. `self.last_report` is how well it matches the template."""
         row, approved, resume, template_bytes, rendered = self._render_current(request_id)
+        rendered = self._polish(request_id, rendered, template_bytes)
         self._log_render(request_id, rendered, "download")
         self.last_report = self._check(request_id, resume, template_bytes, rendered, "download")
         suffix = "_FINAL" if approved else "_DRAFT"

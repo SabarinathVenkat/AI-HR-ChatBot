@@ -603,3 +603,14 @@ def test_a_skill_the_job_wants_but_the_resume_lacks_is_a_suggestion_one_click_ad
     expect(page.locator("#skills-section .skill-chip", has_text="Kubernetes")).to_contain_text("added by you")
     expect(page.locator("#coverage button.suggest", has_text="Kubernetes")).to_have_count(0)  # no longer missing
     assert page.console_errors == []
+
+
+def test_the_download_message_never_says_undefined_whatever_the_layout_check_reported(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+
+    with page.expect_download():
+        page.locator("#download").click()
+
+    expect(page.locator("#message")).to_contain_text("Downloaded a DRAFT copy")
+    expect(page.locator("#message")).not_to_contain_text("undefined")

@@ -24,3 +24,7 @@ sqlite-vec==0.1.9
 # Resume builder: read uploaded Word and PDF files
 python-docx==1.2.0
 pypdf==6.21.4
+
+# Resume builder: draw a finished resume to pages so its layout can be checked (with LibreOffice, installed in the image)
+pypdfium2==5.15.2
+pillow==12.3.0

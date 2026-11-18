@@ -276,7 +276,7 @@
   }
 
   /* Fetch a file with the signed-in token and hand it to the browser as a download. */
-  function downloadFile(path, fallbackName, doneMessage) {
+  function downloadFile(path, fallbackName, doneMessage, busyText) {
     return attempt(async () => {
       const response = await api(path);
       if (!response.ok) {
@@ -292,12 +292,19 @@
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
       flash(doneMessage(response), "ok");
-    });
+    }, busyText);
   }
+
+  /* What the layout check did to the downloaded file, said plainly. */
+  const LAYOUT_NOTE = {
+    fixed: " The layout was checked and adjusted for you.",
+    unfixed: " The layout still has a problem that could not be fixed automatically: please look at the Word file before you send it.",
+  };
 
   const download = (id) => downloadFile(`/resume/requests/${id}/download`, "resume.docx",
     (response) => (response.headers.get("X-Resume-Draft") === "true" ? "Downloaded a DRAFT copy (not approved yet)." : "Downloaded the approved resume.")
-      + (response.headers.get("X-Resume-Check") === "pass" ? "" : " The template check has things to look at: see the Template check above."));
+      + (response.headers.get("X-Resume-Check") === "pass" ? "" : " The template check has things to look at: see the Template check above.")
+      + (LAYOUT_NOTE[response.headers.get("X-Resume-Layout")] || ""), "Preparing and checking the Word file…");
   const downloadJd = (path) => downloadFile(path, "job-description.docx", () => "Downloaded the job description.");
 
   function actionBar(d) {

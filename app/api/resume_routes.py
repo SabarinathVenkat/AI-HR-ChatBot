@@ -219,7 +219,7 @@ def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Cal
         name, data, is_draft = svc.download(request_id)
         return Response(content=data, media_type=DOCX, headers={
             "Content-Disposition": f'attachment; filename="{name}"', "X-Resume-Draft": "true" if is_draft else "false",
-            "X-Resume-Check": svc.last_report.status})
+            "X-Resume-Check": svc.last_report.status, "X-Resume-Layout": svc.last_layout})
 
     @app.get("/resume/requests/{request_id}/conformance")
     def conformance(request_id: int, svc: ResumeService = Depends(service)):

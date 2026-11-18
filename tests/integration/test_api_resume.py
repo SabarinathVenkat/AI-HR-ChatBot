@@ -388,3 +388,11 @@ def test_rmg_and_the_lead_can_both_open_the_review_queue_and_approve_over_http(c
     detail = client.get(base, headers=hdr(client, STAFF)).json()
     assert detail["can"]["decide"] is True and detail["review_by"] == "Competency Lead"
     assert client.post(f"{base}/decide", json={"decision": "approve", "note": ""}, headers=hdr(client, STAFF)).status_code == 200
+
+
+def test_the_download_says_in_a_header_what_the_layout_check_did(client):
+    base = built_base(client)
+
+    reply = client.get(f"{base}/download", headers=hdr(client, STAFF))
+
+    assert reply.status_code == 200 and reply.headers["X-Resume-Layout"] in ("ok", "fixed", "unfixed", "not_checked")

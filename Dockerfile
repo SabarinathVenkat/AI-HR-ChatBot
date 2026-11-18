@@ -9,6 +9,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# LibreOffice (headless) draws a finished resume to pages, so its layout can be checked before it is downloaded. The fonts are
+# the usual open ones that stand in for Arial, Calibri and Times if a template uses them.
+RUN apt-get update     && apt-get install -y --no-install-recommends libreoffice-writer fonts-liberation fonts-dejavu-core fonts-crosextra-carlito     && rm -rf /var/lib/apt/lists/*
+
 # Dependencies first, so this layer is cached until requirements.txt changes.
 COPY requirements.txt .
 RUN pip install -r requirements.txt
