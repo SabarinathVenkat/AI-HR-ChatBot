@@ -45,6 +45,27 @@ def test_an_older_demo_database_gains_the_rmg_accounts_without_losing_anything(t
     assert counts(db)[0] == 15
 
 
+def test_a_new_platform_starts_with_rmg_on_and_hr_off_and_keeps_the_admins_choice(tmp_path):
+    from app.platform_admin import enabled_modules, set_modules
+
+    db = tmp_path / "hr.db"
+    bootstrap(db, BagOfWordsEmbedder())
+    conn = connect(str(db))
+    try:
+        assert enabled_modules(conn) == {"hr": False, "rmg": True}
+        set_modules(conn, {"hr": True, "rmg": True}, by=1, when="2026-10-02T09:00:00")
+    finally:
+        conn.close()
+
+    bootstrap(db, BagOfWordsEmbedder())  # a restart must not undo what the admin chose
+
+    conn = connect(str(db))
+    try:
+        assert enabled_modules(conn) == {"hr": True, "rmg": True}
+    finally:
+        conn.close()
+
+
 def test_bootstrap_is_idempotent(tmp_path):
     db = tmp_path / "hr.db"
 

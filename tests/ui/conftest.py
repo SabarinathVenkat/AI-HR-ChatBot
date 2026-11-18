@@ -16,6 +16,7 @@ from app.api.main import create_app
 from app.bootstrap import bootstrap
 from app.config import Settings
 from app.db.connection import connect
+from app.platform_admin import set_modules
 from app.rag.search import Retrieval
 from app.rmg.agent import build_rmg_agent
 from app.rmg.resume.chat import EditCommand
@@ -59,6 +60,8 @@ def start_server(tmp_path, clock):  # noqa: F811 (clock is a fixture imported ab
     started: list[tuple[uvicorn.Server, threading.Thread]] = []
     db_path = tmp_path / "ui.db"
     bootstrap(db_path, BagOfWordsEmbedder())
+    with closing(connect(str(db_path))) as setup:  # a new platform starts with HR off; these tests need both modules on
+        set_modules(setup, {"hr": True, "rmg": True}, by=1, when="2026-10-02T09:00:00")
 
     def start(responses, intent="chitchat", rate_limit=30, rmg_responses=None, resume=False) -> LiveServer:
         model = ScriptedChatModel(responses=list(responses))

@@ -36,6 +36,13 @@ def set_modules(conn: sqlite3.Connection, wanted: dict[str, bool], by: int, when
     return enabled_modules(conn)
 
 
+def seed_default_modules(conn: sqlite3.Connection) -> None:
+    """A new platform starts with RMG on and HR off. A module the admin has already chosen is never changed."""
+    for module in MODULES:
+        conn.execute("INSERT OR IGNORE INTO platform_modules (module, enabled) VALUES (?, ?)", (module, int(module == "rmg")))
+    conn.commit()
+
+
 def is_admin(conn: sqlite3.Connection, employee_id: int) -> bool:
     return conn.execute("SELECT 1 FROM platform_admins WHERE employee_id = ?", (employee_id,)).fetchone() is not None
 
