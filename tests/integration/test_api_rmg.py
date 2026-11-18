@@ -127,11 +127,11 @@ def test_features_tells_the_web_app_whether_rmg_is_available(make):
     client, _, _ = make()
     headers = auth_headers(client, "Arjun Rao")
 
-    assert client.get("/features", headers=headers).json() == {"rmg": True}
+    assert client.get("/features", headers=headers).json() == {"rmg": True, "modules": {"hr": True, "rmg": True}}
     assert client.get("/features").status_code == 401
 
 
 def test_features_reports_rmg_off_when_it_is_not_configured(make):
     client, _, _ = make(with_rmg=False)
 
-    assert client.get("/features", headers=auth_headers(client, "Arjun Rao")).json() == {"rmg": False}
+    assert client.get("/features", headers=auth_headers(client, "Arjun Rao")).json() == {"rmg": False, "modules": {"hr": True, "rmg": True}}

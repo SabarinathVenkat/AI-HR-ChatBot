@@ -211,7 +211,8 @@ def get_policy_section(conn: sqlite3.Connection, section_id: str) -> dict | None
 
 def list_demo_accounts(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute(
-        "SELECT name, email, role, department FROM employees ORDER BY id"
+        "SELECT e.name, e.email, e.role, e.department FROM employees e"
+        " WHERE e.id NOT IN (SELECT employee_id FROM platform_admins) ORDER BY e.id"
     ).fetchall()
     return [dict(row) for row in rows]
 

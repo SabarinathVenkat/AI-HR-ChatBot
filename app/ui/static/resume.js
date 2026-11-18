@@ -716,9 +716,11 @@
 
   async function start() {
     try {
-      const [me, { roles }] = await Promise.all([call("/me"), call("/resume/me")]);
+      const [me, { roles, available }] = await Promise.all([call("/me"), call("/resume/me")]);
+      if (!available) { location.replace("/"); return; }  // the RMG module is off (or not installed)
       state.user = me;
       state.roles = roles;
+      if (!me.modules.hr) { const home = document.querySelector(".rb-user a.btn"); if (home) home.textContent = "RMG Assistant"; }
       $("who").textContent = me.name;
     } catch (error) {
       if (error.message !== "unauthorized") flash("The resume builder is not available right now.", "error");

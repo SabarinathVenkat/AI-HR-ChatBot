@@ -58,7 +58,7 @@
           <p class="lede">Use your work email to continue.</p>
           <form id="login-form" autocomplete="on">
             <label for="login-email">Work email</label>
-            <input id="login-email" name="email" type="email" required autocomplete="username">
+            <input id="login-email" name="email" type="text" inputmode="email" required autocomplete="username" autocapitalize="none" spellcheck="false">
             <label for="login-password">Password</label>
             <input id="login-password" name="password" type="password" required autocomplete="current-password">
             <p id="login-error" class="form-error" role="alert" hidden></p>
@@ -87,7 +87,7 @@
         <button id="new-chat" class="btn rail-new" type="button"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>New chat</button>
         <a id="resume-link" class="btn rail-new" href="/resume.html" hidden>RMG Resume Builder</a>
 
-        <ul class="rail-topics">
+        <ul id="rail-topics" class="rail-topics">
           <li><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>Leave balances and requests</li>
           <li><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Policy answers with citations</li>
           <li><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>Holidays and day counts</li>
@@ -128,7 +128,7 @@
             <p class="composer-hint">Enter to send, Shift+Enter for a new line.</p>
           </main>
 
-          <aside class="panel" aria-label="My leave">
+          <aside id="leave-panel" class="panel" aria-label="My leave">
             <section class="panel-section">
               <h2>My balances</h2>
               <div id="balances" class="balances"><p class="muted">Loading…</p></div>

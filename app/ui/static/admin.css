@@ -1,0 +1,15 @@
+body.admin { min-height: 100vh; background: var(--bg, #f4f6fb); }
+.admin-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px; background: #0a1730; color: #fff; }
+.admin-brand { display: flex; align-items: center; gap: 10px; }
+.admin-brand h1 { font-size: 1.1rem; margin: 0; }
+.admin-user { display: flex; align-items: center; gap: 10px; }
+.admin-main { max-width: 640px; margin: 32px auto; padding: 0 16px; }
+.admin-card { background: var(--surface, #fff); border: 1px solid var(--line, #dfe5f1); border-radius: 14px; padding: 22px 24px; }
+.admin-card h2 { margin: 0 0 6px; }
+.module-row { display: flex; align-items: flex-start; gap: 12px; padding: 14px 4px; border-top: 1px solid var(--line, #dfe5f1); cursor: pointer; }
+.module-row:first-of-type { margin-top: 14px; }
+.module-row input { margin-top: 4px; width: 18px; height: 18px; flex: none; }
+.module-row strong { display: block; }
+.admin-message { margin: 12px 0; padding: 8px 12px; border-radius: 8px; background: #e8f5ec; color: #14532d; }
+.admin-message.error { background: #fdecec; color: #7f1d1d; }
+#save { margin-top: 8px; }

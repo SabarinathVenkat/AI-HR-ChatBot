@@ -22,6 +22,7 @@ from app.api.throttle import LoginThrottle, RateLimiter
 from app.config import Settings
 from app.db import repositories as repo
 from app.db.seed import DEMO_PASSWORD
+from app import issue_log, platform_admin as platform
 from app.observability import audit
 from app.api.resume_routes import register_resume_routes
 from app.rag.search import Retrieval
@@ -60,6 +61,11 @@ class ChatBody(BaseModel):
     message: str = Field(max_length=20000)
     thread_id: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     mode: Literal["hr", "rmg"] = "hr"  # which assistant answers: HR (default) or resource management
+
+
+class ModulesBody(BaseModel):
+    hr: bool
+    rmg: bool
 
 
 class DecisionBody(BaseModel):
@@ -147,7 +153,7 @@ def create_app(
                 "Too many failed sign-in attempts. Please try again later.",
                 headers={"Retry-After": str(wait)},
             )
-        employee = repo.get_employee_by_email(conn, body.email)
+        employee = repo.get_employee_by_email(conn, platform.sign_in_name(body.email))
         stored = repo.get_password_hash(conn, employee.id) if employee else None
         # Verify against a dummy hash for unknown users so timing does not reveal them.
         valid = security.verify_password(body.password, stored or _DUMMY_HASH)
@@ -162,9 +168,23 @@ def create_app(
             "expires_in": settings.token_ttl_minutes * 60,
         }
 
+    def require_module(name: str):
+        """A route that belongs to one module: refused (403) while the admin has that module off."""
+        def check(conn: sqlite3.Connection = Depends(get_conn)):
+            if not platform.enabled_modules(conn)[name]:
+                raise HTTPException(403, f"The {name.upper()} module is not turned on for this platform.")
+        return check
+
+    def current_admin(employee: repo.Employee = Depends(current_employee), conn: sqlite3.Connection = Depends(get_conn)):
+        if not platform.is_admin(conn, employee.id):
+            raise HTTPException(403, "Only the platform administrator can do this.")
+        return employee
+
     @app.get("/me")
-    def me(employee: repo.Employee = Depends(current_employee)):
+    def me(employee: repo.Employee = Depends(current_employee), conn: sqlite3.Connection = Depends(get_conn)):
         return {
+            "is_admin": platform.is_admin(conn, employee.id),
+            "modules": platform.enabled_modules(conn),
             "id": employee.id,
             "name": employee.name,
             "email": employee.email,
@@ -174,9 +194,24 @@ def create_app(
         }
 
     @app.get("/features")
-    def features(employee: repo.Employee = Depends(current_employee)):
-        """What this deployment offers, so the web app can show or hide the RMG toggle."""
-        return {"rmg": rmg_agent is not None}
+    def features(employee: repo.Employee = Depends(current_employee), conn: sqlite3.Connection = Depends(get_conn)):
+        """What this deployment offers (and the admin has turned on), so the web app shows only those modules."""
+        modules = platform.enabled_modules(conn)
+        return {"rmg": rmg_agent is not None and modules["rmg"], "modules": modules}
+
+    @app.get("/admin/modules")
+    def get_modules(admin: repo.Employee = Depends(current_admin), conn: sqlite3.Connection = Depends(get_conn)):
+        return {"modules": platform.enabled_modules(conn), "available": {"hr": agent is not None, "rmg": rmg_agent is not None}}
+
+    @app.put("/admin/modules")
+    def put_modules(body: ModulesBody, admin: repo.Employee = Depends(current_admin),
+                    conn: sqlite3.Connection = Depends(get_conn)):
+        try:
+            saved = platform.set_modules(conn, body.model_dump(), admin.id, now().isoformat(timespec="seconds"))
+        except platform.ModuleError as exc:
+            raise HTTPException(422, str(exc)) from None
+        issue_log.event("modules_changed", by=admin.name, **{m: saved[m] for m in platform.MODULES})
+        return {"modules": saved}
 
     def tool_context(employee: repo.Employee, conn: sqlite3.Connection, request: Request):
         return ToolContext(
@@ -194,7 +229,9 @@ def create_app(
         conn.execute("SELECT 1").fetchone()
         return {"status": "ok", "database": "ok"}
 
-    @app.get("/leave/balance")
+    hr_only = [Depends(require_module("hr"))]
+
+    @app.get("/leave/balance", dependencies=hr_only)
     def leave_balance(
         request: Request,
         employee: repo.Employee = Depends(current_employee),
@@ -202,7 +239,7 @@ def create_app(
     ):
         return call_tool(tool_context(employee, conn, request), "get_leave_balance", {})
 
-    @app.get("/leave/requests")
+    @app.get("/leave/requests", dependencies=hr_only)
     def leave_requests(
         request: Request,
         scope: Literal["own", "team"] = "own",
@@ -230,7 +267,7 @@ def create_app(
             ]
         }
 
-    @app.post("/leave/requests/{request_id}/decision")
+    @app.post("/leave/requests/{request_id}/decision", dependencies=hr_only)
     def decide_leave_request(
         request_id: int,
         body: DecisionBody,
@@ -261,7 +298,7 @@ def create_app(
             raise HTTPException(404, "Not found.")
         return {"accounts": repo.list_demo_accounts(conn), "password": DEMO_PASSWORD}
 
-    @app.get("/policy/section")
+    @app.get("/policy/section", dependencies=hr_only)
     def policy_section(
         id: str,
         employee: repo.Employee = Depends(current_employee),
@@ -274,7 +311,7 @@ def create_app(
             raise HTTPException(404, "Policy section not found.")
         return section
 
-    @app.post("/leave/drafts/{draft_id}/confirm")
+    @app.post("/leave/drafts/{draft_id}/confirm", dependencies=hr_only)
     def confirm_leave_draft(
         draft_id: str,
         request: Request,
@@ -302,7 +339,7 @@ def create_app(
             return JSONResponse(status_code=409, content=body, headers=dict(response.headers))
         raise HTTPException(404, "Draft not found.")
 
-    @app.post("/leave/drafts/{draft_id}/cancel")
+    @app.post("/leave/drafts/{draft_id}/cancel", dependencies=hr_only)
     def cancel_leave_draft(
         draft_id: str,
         request: Request,
@@ -313,7 +350,7 @@ def create_app(
             raise HTTPException(404, "Draft not found.")
         return {"status": "cancelled"}
 
-    @app.post("/leave/requests/{request_id}/cancel")
+    @app.post("/leave/requests/{request_id}/cancel", dependencies=hr_only)
     def cancel_leave_request(
         request_id: int,
         request: Request,
@@ -332,8 +369,11 @@ def create_app(
         body: ChatBody,
         request: Request,
         employee: repo.Employee = Depends(current_employee),
+        conn: sqlite3.Connection = Depends(get_conn),
     ):
         rmg = body.mode == "rmg"
+        if not platform.enabled_modules(conn)["rmg" if rmg else "hr"]:
+            raise HTTPException(403, f"The {'RMG' if rmg else 'HR'} module is not turned on for this platform.")
         chosen = rmg_agent if rmg else agent
         if chosen is None:
             raise HTTPException(503, "Resource management is not available right now." if rmg
@@ -376,7 +416,8 @@ def create_app(
         )
 
     register_resume_routes(app, get_conn=get_conn, current_employee=current_employee, now=now,
-                           engine=resume_engine, files=resume_files)
+                           engine=resume_engine, files=resume_files,
+                           rmg_enabled=lambda conn: platform.enabled_modules(conn)["rmg"])
 
     # Last, so every API route above takes precedence over the static web app.
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="web")

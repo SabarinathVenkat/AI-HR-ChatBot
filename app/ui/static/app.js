@@ -14,6 +14,7 @@
     threadId: sessionStorage.getItem(THREAD_KEY),
     mode: sessionStorage.getItem(MODE_KEY) === "rmg" ? "rmg" : "hr", // which assistant answers: HR or RMG
     rmgAvailable: false,
+    modules: { hr: true, rmg: true }, // which modules the admin has turned on
     user: null,
     busy: false,
   };
@@ -456,7 +457,7 @@
   }
 
   async function refreshPanel() {
-    if (!state.token) return;
+    if (!state.token || !state.modules.hr) return;
     try {
       const [balances, requests] = await Promise.all([
         api("/leave/balance").then((r) => r.json()),
@@ -556,15 +557,18 @@
     } catch {
       state.rmgAvailable = false;
     }
-    if (!state.rmgAvailable && state.mode === "rmg") {
-      state.mode = "hr";
-      sessionStorage.removeItem(MODE_KEY);
-    }
-    $("mode-toggle").hidden = !state.rmgAvailable;
+    if (!state.modules.hr) state.mode = "rmg";  // RMG only: there is nothing else to switch to
+    else if (!state.rmgAvailable) state.mode = "hr";
+    if (state.mode === "hr") sessionStorage.removeItem(MODE_KEY);
+    else sessionStorage.setItem(MODE_KEY, state.mode);
+    $("mode-toggle").hidden = !(state.rmgAvailable && state.modules.hr);
+    $("leave-panel").hidden = !state.modules.hr;
+    $("rail-topics").hidden = !state.modules.hr;
   }
 
   /* The resume builder is a separate page. Show its link only when this deployment has it. */
   async function probeResume() {
+    if (!state.modules.rmg) { $("resume-link").hidden = true; return; }
     try {
       const response = await api("/resume/me");
       $("resume-link").hidden = !(response.ok && (await response.json()).available === true);
@@ -577,9 +581,11 @@
     const response = await api("/me");
     if (!response.ok) throw new Error("not ok");
     state.user = await response.json();
+    if (state.user.is_admin) { location.replace("/admin.html"); return; }  // the admin manages the platform, not chats
+    state.modules = state.user.modules || { hr: true, rmg: true };
     $("who").textContent = `${state.user.name} · ${ROLE_LABELS[state.user.role] || state.user.role}`;
     $("avatar").textContent = initials(state.user.name);
-    $("approvals-section").hidden = state.user.role !== "manager";
+    $("approvals-section").hidden = !state.modules.hr || state.user.role !== "manager";
     await loadFeatures();
     probeResume();
     applyMode();

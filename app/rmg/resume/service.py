@@ -210,7 +210,7 @@ class ResumeService:
         mapping = self.conn.execute(
             "SELECT a.associate_id, ea.name AS associate, a.lead_id, el.name AS lead FROM lead_assignments a"
             " JOIN employees ea ON ea.id = a.associate_id JOIN employees el ON el.id = a.lead_id ORDER BY ea.name").fetchall()
-        people = self.conn.execute("SELECT id, name FROM employees ORDER BY name").fetchall()
+        people = self.conn.execute("SELECT id, name FROM employees WHERE id NOT IN (SELECT employee_id FROM platform_admins) ORDER BY name").fetchall()
         return {"leads": [dict(r) for r in leads], "assignments": [dict(r) for r in mapping],
                 "employees": [dict(r) for r in people]}
 
@@ -330,7 +330,8 @@ class ResumeService:
         self._need(*RMG)
         rows = self.conn.execute(
             "SELECT e.id, e.name, e.department, a.lead_id FROM employees e LEFT JOIN lead_assignments a"
-            " ON a.associate_id = e.id WHERE e.id NOT IN (SELECT employee_id FROM rmg_roles) ORDER BY e.name").fetchall()
+            " ON a.associate_id = e.id WHERE e.id NOT IN (SELECT employee_id FROM rmg_roles)"
+            " AND e.id NOT IN (SELECT employee_id FROM platform_admins) ORDER BY e.name").fetchall()
         return [{"id": r["id"], "name": r["name"], "department": r["department"],
                  "lead": self._name(r["lead_id"]) if r["lead_id"] else None,
                  "review_by": "Competency Lead" if r["lead_id"] else "RMG"} for r in rows]

@@ -223,3 +223,16 @@ CREATE TABLE IF NOT EXISTS notifications (
     read_at     TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_employee ON notifications(employee_id, read_at);
+
+-- Platform administration. An admin is an ordinary account that is also listed here; the admin chooses which modules (HR,
+-- RMG) the platform offers, and everyone who signs in afterwards sees only those. A module with no row counts as on.
+CREATE TABLE IF NOT EXISTS platform_admins (
+    employee_id INTEGER PRIMARY KEY REFERENCES employees(id)
+);
+
+CREATE TABLE IF NOT EXISTS platform_modules (
+    module     TEXT PRIMARY KEY CHECK (module IN ('hr', 'rmg')),
+    enabled    INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+    changed_by INTEGER REFERENCES employees(id),
+    changed_at TEXT
+);

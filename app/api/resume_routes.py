@@ -69,7 +69,8 @@ async def read_upload(request: Request, limit: int) -> bytes:
 
 
 def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Callable[[], datetime],
-                           engine: ResumeEngine | None, files: FileStore | None) -> None:
+                           engine: ResumeEngine | None, files: FileStore | None,
+                           rmg_enabled: Callable[[sqlite3.Connection], bool] | None = None) -> None:
     def who(request: Request) -> dict:
         return {"user": getattr(request.state, "actor_name", None), "user_id": getattr(request.state, "actor_id", None),
                 "roles": getattr(request.state, "actor_roles", None)}
@@ -96,6 +97,8 @@ def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Cal
                 conn: sqlite3.Connection = Depends(get_conn)) -> ResumeService:
         if engine is None or files is None:
             raise HTTPException(503, "The resume builder is not available right now.")
+        if rmg_enabled is not None and not rmg_enabled(conn):
+            raise HTTPException(403, "The RMG module is not turned on for this platform.")
         svc = ResumeService(conn, files, engine, now, employee)
         request.state.actor_name, request.state.actor_id = employee.name, employee.id
         request.state.actor_roles = ",".join(sorted(svc.roles)) or None
@@ -104,7 +107,7 @@ def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Cal
     @app.get("/resume/me")
     def resume_me(employee: repo.Employee = Depends(current_employee), conn: sqlite3.Connection = Depends(get_conn)):
         """Always answers (200), so the web app can ask "is the resume builder here?" without a failed request."""
-        if engine is None or files is None:
+        if engine is None or files is None or (rmg_enabled is not None and not rmg_enabled(conn)):
             return {"available": False, "roles": [], "unread": 0}
         svc = ResumeService(conn, files, engine, now, employee)
         return {"available": True, "roles": sorted(svc.roles), "unread": len(svc.notifications(unread_only=True))}

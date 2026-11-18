@@ -1,10 +1,12 @@
 """Prepare a database for use: schema, demo data and the policy index. Safe to run repeatedly."""
 import logging
+import os
 from pathlib import Path
 
 from app.api.security import hash_password
 from app.db.connection import connect, init_schema
 from app.db.seed import SEED_AS_OF, seed
+from app.platform_admin import PASSWORD_ENV, ensure_admin
 from app.rag.chunker import load_policy_dir
 from app.rag.embeddings import Embedder
 from app.rag.index import index_policies
@@ -29,6 +31,8 @@ def bootstrap(
             seed(conn, as_of=SEED_AS_OF, hash_password=hash_password)
         if demo_data:
             seed_resume_demo(conn, hash_password)  # idempotent: an older demo database gains the RMG accounts
+        if demo_data or os.environ.get(PASSWORD_ENV):
+            ensure_admin(conn, hash_password)  # the platform administrator (idempotent)
         if reindex or conn.execute("SELECT count(*) FROM policy_chunks").fetchone()[0] == 0:
             chunks = load_policy_dir(policy_dir)
             log.info("indexing %d policy sections", len(chunks))
