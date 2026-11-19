@@ -17,7 +17,7 @@ import sqlite3
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 from app import issue_log
 from app.db.repositories import Employee
@@ -66,6 +66,13 @@ class ResumeEngine:
     deps: PipelineDeps
     interpreter: object | None = None  # reads a chat instruction into an edit command (see chat.py)
     polisher: object | None = None  # checks and fixes a finished file's layout: (docx, template) -> Polish (see layout_fix.py)
+
+
+def _day(stamp: str | None) -> date | None:
+    try:
+        return datetime.fromisoformat(stamp).date() if stamp else None
+    except ValueError:
+        return None
 
 
 def _safe_filename(text: str) -> str:
@@ -502,6 +509,66 @@ class ResumeService:
             return [w for w in [template_warning(data)] if w] or template_gaps(data, Resume.model_validate_json(draft["working_json"]))
         except (TemplateError, FileNotFoundError, ValueError):
             return []  # a notice must never stop the page from opening
+
+    STATUSES = ("requested", "in_progress", "submitted", "changes_requested", "approved", "cancelled")
+
+    def stats(self) -> dict:
+        """The landing page's numbers. RMG sees every request, a Competency Lead the requests of their associates, and
+        anyone else their own."""
+        if self.roles & RMG:
+            scope, where, args = "all", "1 = 1", ()
+        elif "competency_lead" in self.roles:
+            scope, where, args = "lead", "r.lead_id = ?", (self.actor.id,)
+        else:
+            scope, where, args = "mine", "r.associate_id = ?", (self.actor.id,)
+        by_status = dict.fromkeys(self.STATUSES, 0)
+        for row in self.conn.execute(f"SELECT r.status, count(*) AS n FROM resume_requests r WHERE {where} GROUP BY r.status", args):
+            by_status[row["status"]] = row["n"]
+        recent = self.conn.execute(
+            f"SELECT r.* FROM resume_requests r WHERE {where} ORDER BY r.updated_at DESC, r.id DESC LIMIT 5", args).fetchall()
+        out = {"scope": scope, "total": sum(by_status.values()), "by_status": by_status,
+               "recent": [{"id": r["id"], "status": r["status"], "jd_title": self._jd_title(r["jd_id"]),
+                           "associate": self._name(r["associate_id"]), "lead": self._lead_name(r), "updated_at": r["updated_at"],
+                           "coverage": None} for r in recent]}
+        out.update(self._insights(where, args, by_status))
+        if scope == "all":
+            out["job_descriptions"] = self.conn.execute("SELECT count(*) FROM job_descriptions").fetchone()[0]
+            out["without_lead"] = self.conn.execute(
+                "SELECT count(*) FROM employees e WHERE e.id NOT IN (SELECT employee_id FROM rmg_roles)"
+                " AND e.id NOT IN (SELECT employee_id FROM platform_admins)"
+                " AND e.id NOT IN (SELECT associate_id FROM lead_assignments)").fetchone()[0]
+        return out
+
+    TREND_DAYS = 14
+
+    def _insights(self, where: str, args: tuple, by_status: dict) -> dict:
+        """What the dashboard's charts draw: requests per day, how long approval takes, the busiest job descriptions and
+        what has been waiting longest."""
+        today = self._now().date()
+        days = [today - timedelta(days=n) for n in range(self.TREND_DAYS - 1, -1, -1)]
+        per_day = dict.fromkeys(days, 0)
+        waiting, took = [], []
+        for r in self.conn.execute(f"SELECT r.* FROM resume_requests r WHERE {where}", args):
+            made = _day(r["created_at"])
+            if made in per_day:
+                per_day[made] += 1
+            if r["status"] == "approved" and r["decided_at"] and made:
+                took.append(max(0.0, (datetime.fromisoformat(r["decided_at"]) - datetime.fromisoformat(r["created_at"])).total_seconds() / 86400))
+            if r["status"] == "submitted":
+                waiting.append(r)
+        waiting.sort(key=lambda r: r["updated_at"])
+        jds = self.conn.execute(
+            f"SELECT r.jd_id, count(*) AS n, sum(r.status = 'approved') AS done FROM resume_requests r WHERE {where}"
+            " GROUP BY r.jd_id ORDER BY n DESC, r.jd_id LIMIT 5", args).fetchall()
+        counted = sum(by_status.values()) - by_status["cancelled"]
+        return {
+            "trend": [{"date": d.isoformat(), "count": per_day[d]} for d in days],
+            "avg_days_to_approve": round(sum(took) / len(took), 1) if took else None,
+            "completion_rate": round(by_status["approved"] / counted, 2) if counted else None,
+            "top_jds": [{"title": self._jd_title(j["jd_id"]), "total": j["n"], "approved": j["done"] or 0} for j in jds],
+            "attention": [{"id": r["id"], "jd_title": self._jd_title(r["jd_id"]), "associate": self._name(r["associate_id"]),
+                           "days_waiting": max(0, (today - (_day(r["updated_at"]) or today)).days)} for r in waiting[:5]],
+        }
 
     def summaries(self, scope: str) -> list[dict]:
         if scope == "mine":

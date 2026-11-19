@@ -396,3 +396,44 @@ def test_the_download_says_in_a_header_what_the_layout_check_did(client):
     reply = client.get(f"{base}/download", headers=hdr(client, STAFF))
 
     assert reply.status_code == 200 and reply.headers["X-Resume-Layout"] in ("ok", "fixed", "unfixed", "not_checked")
+
+
+# --- the dashboard's numbers ------------------------------------------------------------------------------------
+
+def test_stats_for_rmg_cover_every_request_and_for_an_associate_only_their_own(client):
+    request_id = tagged_request(client)
+
+    rmg = client.get("/resume/stats", headers=hdr(client, STAFF)).json()
+    own = client.get("/resume/stats", headers=hdr(client, RAVI)).json()
+    other = client.get("/resume/stats", headers=hdr(client, DIVYA)).json()
+
+    assert rmg["scope"] == "all" and rmg["total"] == 1 and rmg["by_status"]["requested"] == 1
+    assert rmg["job_descriptions"] == 1 and rmg["without_lead"] >= 1
+    assert own["scope"] == "mine" and own["total"] == 1 and own["recent"][0]["id"] == request_id
+    assert other["total"] == 0 and other["recent"] == [] and "job_descriptions" not in other
+
+
+def test_stats_for_a_competency_lead_cover_their_associates(client):
+    tagged_request(client)  # Ravi is mapped to the demo lead
+
+    lead = client.get("/resume/stats", headers=hdr(client, LEAD)).json()
+
+    assert lead["scope"] == "lead" and lead["total"] == 1
+
+
+def test_stats_carry_what_the_charts_draw(client):
+    tagged_request(client)
+
+    d = client.get("/resume/stats", headers=hdr(client, STAFF)).json()
+
+    assert len(d["trend"]) == 14 and sum(p["count"] for p in d["trend"]) == 1
+    assert d["top_jds"] == [{"title": d["top_jds"][0]["title"], "total": 1, "approved": 0}]
+    assert d["avg_days_to_approve"] is None and d["completion_rate"] == 0.0 and d["attention"] == []
+    assert set(d["by_status"]) == {"requested", "in_progress", "submitted", "changes_requested", "approved", "cancelled"}
+
+
+def test_stats_are_closed_while_the_rmg_module_is_off(client, api_db):
+    api_db.execute("INSERT OR REPLACE INTO platform_modules (module, enabled) VALUES ('rmg', 0)")
+    api_db.commit()
+
+    assert client.get("/resume/stats", headers=hdr(client, RAVI)).status_code == 403

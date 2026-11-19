@@ -20,10 +20,18 @@ def sign_in(page, server, name):
     expect(page.locator("#chat-screen")).to_be_visible()
 
 
-def open_builder(page, server, name):
+WORK_TAB = {"Nancy": "Requests", "Shadrach": "Requests", "Veera": "Review"}  # everyone else works in "My requests"
+
+
+def open_builder(page, server, name, tab=True):
+    """Opens the builder, which lands on the Dashboard, and goes to the tab this person works in."""
     sign_in(page, server, name)
     page.get_by_role("link", name="Resume builder").click()
     expect(page.locator("#who")).to_have_text(name)
+    expect(page.locator(".rb-hero")).to_be_visible()
+    if tab:
+        page.get_by_role("button", name=WORK_TAB.get(name, "My requests"), exact=True).click()
+        expect(page.locator(".rb-hero")).to_have_count(0)  # the tab has loaded: the Dashboard is gone
 
 
 def sign_out(page):
@@ -214,7 +222,7 @@ def test_only_the_rmg_head_sees_the_setup_tab(page, start_server):
 
     assert "Setup" in seen["Nancy"]
     assert "Setup" not in seen["Shadrach"] and "Requests" in seen["Shadrach"]
-    assert seen["Ravi Kumar"] == ["My requests"]
+    assert seen["Ravi Kumar"] == ["Dashboard", "My requests"]  # the Dashboard is everyone's landing page
 
 
 def test_a_job_description_can_be_pasted_instead_of_uploaded(page, start_server):
@@ -569,7 +577,7 @@ def test_rmg_has_a_review_tab_and_can_approve_a_submitted_resume(page, start_ser
     sign_out(page)
 
     open_builder(page, server, "Shadrach")
-    page.get_by_role("button", name="Review").click()
+    page.get_by_role("button", name="Review", exact=True).click()
     expect(page.locator("#view")).to_contain_text("1 waiting for your decision")
     page.get_by_role("button", name="Open").click()
     page.locator("#approve").click()

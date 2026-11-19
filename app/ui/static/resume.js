@@ -115,6 +115,159 @@
         h("button", { class: "btn", type: "button", on: { click: () => openRequest(r.id) } }, "Open")));
   }
 
+  /* ---------- the landing page: a dashboard for the person who signed in ---------- */
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const svg = (tag, attrs = {}, ...kids) => {
+    const node = document.createElementNS(SVG_NS, tag);
+    for (const [key, value] of Object.entries(attrs)) if (value !== null && value !== undefined) node.setAttribute(key, value);
+    for (const kid of kids.flat()) if (kid) node.append(kid);
+    return node;
+  };
+  const calm = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const DASH_SCOPE = {
+    all: "Every resume request across RMG",
+    lead: "Resume requests from the associates you are Competency Lead for",
+    mine: "Your own resume requests",
+  };
+
+  /* Numbers count up to their value; with reduced motion they simply appear. */
+  function countUp(el, target, decimals = 0, suffix = "") {
+    const show = (v) => { el.textContent = v.toFixed(decimals) + suffix; };
+    if (calm() || !target) { show(target || 0); return; }
+    const began = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - began) / 900);
+      show(target * (1 - Math.pow(1 - t, 3)));
+      if (t < 1) requestAnimationFrame(tick); else show(target);
+    };
+    show(0);
+    requestAnimationFrame(tick);
+  }
+
+  /* Run `grow` on the next frame, so a CSS transition has a starting point to move from. */
+  const afterPaint = (grow) => (calm() ? grow() : requestAnimationFrame(() => requestAnimationFrame(grow)));
+
+  function kpi(tone, label, value, sub, opts = {}) {
+    const num = h("div", { class: "num" });
+    countUp(num, value, opts.decimals || 0, opts.suffix || "");
+    return h("div", { class: `rb-kpi k-${tone}` }, h("span", { class: "dot", "aria-hidden": "true" }), h("div", { class: "label", text: label }), num,
+      sub ? h("div", { class: "sub", text: sub }) : null);
+  }
+
+  /* A ring of coloured arcs, one per status. */
+  function donut(byStatus, total) {
+    const R = 46, C = 2 * Math.PI * R;
+    const arcs = [];
+    let used = 0;
+    for (const key of Object.keys(STATUS)) {
+      const n = byStatus[key];
+      if (!n) continue;
+      const len = (n / total) * C;
+      const arc = svg("circle", { class: `seg seg-${key}`, cx: 60, cy: 60, r: R, "stroke-dasharray": `0 ${C}`, "stroke-dashoffset": -used });
+      const label = svg("title"); label.textContent = `${STATUS[key]}: ${n}`;
+      arc.append(label);
+      arcs.push(arc);
+      afterPaint(() => arc.setAttribute("stroke-dasharray", `${Math.max(len - 1.5, 0.5)} ${C}`));
+      used += len;
+    }
+    const centre = svg("text", { x: 60, y: 58, "text-anchor": "middle", class: "c-num" }); centre.textContent = String(total);
+    const word = svg("text", { x: 60, y: 74, "text-anchor": "middle", class: "c-sub" }); word.textContent = total === 1 ? "request" : "requests";
+    return svg("svg", { class: "donut", viewBox: "0 0 120 120", role: "img", "aria-label": `${total} requests by status` },
+      svg("circle", { class: "ring-bg", cx: 60, cy: 60, r: R }), svg("g", { transform: "rotate(-90 60 60)" }, arcs), centre, word);
+  }
+
+  /* An area chart of requests made per day. */
+  function trendChart(trend) {
+    const W = 420, H = 150, L = 26, T = 14, B = 26, max = Math.max(3, ...trend.map((p) => p.count));
+    const x = (i) => L + (i * (W - L - 8)) / (trend.length - 1);
+    const y = (v) => T + (1 - v / max) * (H - T - B);
+    const pts = trend.map((p, i) => [x(i), y(p.count)]);
+    const line = pts.map(([a, b], i) => `${i ? "L" : "M"}${a.toFixed(1)} ${b.toFixed(1)}`).join(" ");
+    const area = `${line} L${x(trend.length - 1).toFixed(1)} ${y(0)} L${x(0).toFixed(1)} ${y(0)} Z`;
+    const grid = [0, 0.5, 1].map((f) => {
+      const gy = y(max * f), t = svg("text", { x: L - 6, y: gy + 3, "text-anchor": "end", class: "axis" }); t.textContent = String(Math.round(max * f));
+      return [svg("line", { class: "grid", x1: L, x2: W - 8, y1: gy, y2: gy }), t];
+    });
+    const short = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    const first = svg("text", { x: L, y: H - 6, class: "axis" }); first.textContent = short(trend[0].date);
+    const last = svg("text", { x: W - 8, y: H - 6, "text-anchor": "end", class: "axis" }); last.textContent = short(trend[trend.length - 1].date);
+    const stroke = svg("path", { class: "t-line", d: line, pathLength: 1 });
+    const fill = svg("path", { class: "t-area", d: area });
+    const dots = trend.map((p, i) => {
+      const dot = svg("circle", { class: "t-dot", cx: pts[i][0], cy: pts[i][1], r: p.count ? 3.5 : 0 });
+      const tip = svg("title"); tip.textContent = `${short(p.date)}: ${p.count}`;
+      dot.append(tip);
+      return dot;
+    });
+    afterPaint(() => { stroke.classList.add("drawn"); fill.classList.add("drawn"); });
+    const defs = svg("defs", {}, svg("linearGradient", { id: "t-grad", x1: 0, y1: 0, x2: 0, y2: 1 },
+      svg("stop", { offset: "0%", "stop-color": "#2563eb", "stop-opacity": 0.35 }), svg("stop", { offset: "100%", "stop-color": "#2563eb", "stop-opacity": 0 })));
+    return svg("svg", { class: "trend", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Requests made per day, last 14 days" },
+      defs, grid, fill, stroke, dots, first, last);
+  }
+
+  function ring(rate) {
+    const R = 30, C = 2 * Math.PI * R;
+    const arc = svg("circle", { class: "hero-arc", cx: 40, cy: 40, r: R, "stroke-dasharray": `0 ${C}` });
+    afterPaint(() => arc.setAttribute("stroke-dasharray", `${(rate || 0) * C} ${C}`));
+    const text = svg("text", { x: 40, y: 45, "text-anchor": "middle", class: "hero-pct" });
+    text.textContent = rate === null ? "n/a" : `${Math.round(rate * 100)}%`;
+    return svg("svg", { class: "hero-ring", viewBox: "0 0 80 80", role: "img", "aria-label": "Share of requests approved" },
+      svg("circle", { class: "hero-bg", cx: 40, cy: 40, r: R }), svg("g", { transform: "rotate(-90 40 40)" }, arc), text);
+  }
+
+  function jdBars(top) {
+    if (!top.length) return h("p", { class: "rb-empty", text: "Job descriptions will appear here once people are tagged." });
+    const most = Math.max(...top.map((j) => j.total));
+    return h("ul", { class: "rb-jdbars" }, top.map((j) => {
+      const all = h("span", { class: "all" }), done = h("span", { class: "done" });
+      afterPaint(() => { all.style.width = `${(j.total / most) * 100}%`; done.style.width = `${(j.approved / most) * 100}%`; });  // through the DOM: the CSP forbids style attributes
+      return h("li", {}, h("div", { class: "top" }, h("span", { class: "nm", text: j.title }), h("span", { class: "ct", text: `${j.approved} of ${j.total} approved` })),
+        h("div", { class: "track" }, all, done));
+    }));
+  }
+
+  async function renderDashboard() {
+    const d = await call("/resume/stats");
+    const open = d.by_status.requested + d.by_status.in_progress + d.by_status.changes_requested;
+    const hour = new Date().getHours();
+    const hello = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+    const first = (state.user.name || "").split(" ")[0];
+    const chip = (text) => h("span", { class: "chip", text });
+    const hero = h("section", { class: "rb-hero" },
+      h("div", { class: "txt" }, h("p", { class: "eyebrow", text: DASH_SCOPE[d.scope] }), h("h2", { text: `${hello}, ${first}` }),
+        h("p", { class: "lede", text: d.total ? `${d.by_status.submitted} waiting for review, ${open} still being worked on.` : "No resume requests yet. They will show up here as soon as RMG tags someone." }),
+        h("div", { class: "chips" }, chip(d.avg_days_to_approve === null ? "No approvals yet" : `Approved in ${d.avg_days_to_approve} ${d.avg_days_to_approve === 1 ? "day" : "days"} on average`),
+          d.scope === "all" ? chip(`${d.job_descriptions} job descriptions`) : null)),
+      h("div", { class: "ring-wrap" }, ring(d.completion_rate), h("span", { class: "ring-label", text: "approved" })));
+    const cards = [
+      kpi("blue", "Requests", d.total, "all time"),
+      kpi("slate", "In progress", open, "requested, being built or changes asked for"),
+      kpi("amber", "Waiting for review", d.by_status.submitted, "with the Competency Lead or RMG"),
+      kpi("green", "Approved", d.by_status.approved, d.completion_rate === null ? null : `${Math.round(d.completion_rate * 100)}% of requests`),
+    ];
+    if (d.scope === "all") cards.push(kpi("violet", "People without a Lead", d.without_lead, "RMG reviews their resumes"));
+    const legend = h("ul", { class: "legend" }, Object.keys(STATUS).map((key) => h("li", {},
+      h("span", { class: `sw seg-${key}` }), h("span", { class: "nm", text: STATUS[key] }), h("span", { class: "ct", text: String(d.by_status[key]) }))));
+    const attention = d.attention.length
+      ? h("ul", { class: "rb-list" }, d.attention.map((r) => h("li", { class: "rb-item" },
+        h("div", {}, h("div", { class: "title", text: r.jd_title }), h("div", { class: "sub", text: `${r.associate} · waiting ${r.days_waiting} ${r.days_waiting === 1 ? "day" : "days"}` })),
+        h("button", { class: "btn", type: "button", on: { click: () => openRequest(r.id) } }, "Open"))))
+      : h("p", { class: "rb-empty", text: "Nothing is waiting for review." });
+    const panel = (title, sub, body, extra = "") => h("section", { class: `rb-panel ${extra}` }, h("h3", { text: title }), sub ? h("p", { class: "sub", text: sub }) : null, body);
+    const layout = [hero, h("div", { class: "rb-kpis" }, cards),
+      h("div", { class: "rb-dash" },
+        panel("Requests by status", "Where every request stands right now",
+          h("div", { class: "donut-wrap" }, donut(d.by_status, d.total), legend), "p-donut"),
+        panel("Requests made", "Per day, over the last 14 days", trendChart(d.trend), "p-trend"),
+        panel("Busiest job descriptions", "Requests, with how many are approved", jdBars(d.top_jds), "p-jds"),
+        panel("Waiting the longest", "Submitted resumes, oldest first", attention, "p-wait"),
+        panel("Recently updated", null, d.recent.length ? h("ul", { class: "rb-list" }, d.recent.map((r) => requestItem(r)))
+          : h("p", { class: "rb-empty", text: "Nothing yet." }), "p-recent"))];
+    $("view").replaceChildren(h("div", { class: "rb-dashboard" }, layout));
+    $("view").querySelectorAll(".rb-hero, .rb-kpi, .rb-panel").forEach((el, i) => { el.style.animationDelay = `${i * 70}ms`; });
+  }
+
   async function renderMine() {
     const { requests } = await call("/resume/requests?scope=mine");
     $("view").replaceChildren(h("h2", { text: "My resume requests" }),
@@ -698,6 +851,7 @@
 
   /* ---------- tabs ---------- */
   const TABS = [
+    { id: "dashboard", label: "Dashboard", show: () => true, render: renderDashboard },
     { id: "mine", label: "My requests", show: () => true, render: renderMine },
     { id: "review", label: "Review", show: () => state.roles.includes("competency_lead") || isRmg(), render: renderReview },
     { id: "board", label: "Requests", show: isRmg, render: renderBoard },
@@ -720,13 +874,17 @@
       if (!available) { location.replace("/"); return; }  // the RMG module is off (or not installed)
       state.user = me;
       state.roles = roles;
-      if (!me.modules.hr) { const home = document.querySelector(".rb-user a.btn"); if (home) home.textContent = "RMG Assistant"; }
+      if (!me.modules.hr) {  // no HR page to go back to, so the heading is just the resume builder
+        document.querySelector(".rb-user a.btn").hidden = true;
+        document.querySelector(".rb-brand h1").textContent = "RMG Resume Builder";
+        document.title = "RMG Resume Builder";
+      }
       $("who").textContent = me.name;
     } catch (error) {
       if (error.message !== "unauthorized") flash("The resume builder is not available right now.", "error");
       return;
     }
-    state.tab = isRmg() ? "board" : state.roles.includes("competency_lead") ? "review" : "mine";
+    state.tab = "dashboard";  // the landing page for everyone
     $("sign-out").addEventListener("click", () => { sessionStorage.removeItem(TOKEN_KEY); location.replace("/"); });
     $("bell").addEventListener("click", () => {
       const open = $("notes").hidden;
