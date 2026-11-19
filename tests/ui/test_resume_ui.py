@@ -17,7 +17,7 @@ def sign_in(page, server, name):
     page.goto(server.url)
     page.get_by_role("button", name=re.compile(rf"^{name}")).click()
     page.get_by_role("button", name="Sign in").click()
-    expect(page.locator("#chat-screen")).to_be_visible()
+    expect(page.locator("#portal-screen:visible, #chat-screen:visible")).to_be_visible()  # the portal when there are several apps
 
 
 WORK_TAB = {"Nancy": "Requests", "Shadrach": "Requests", "Veera": "Review"}  # everyone else works in "My requests"
@@ -26,7 +26,7 @@ WORK_TAB = {"Nancy": "Requests", "Shadrach": "Requests", "Veera": "Review"}  # e
 def open_builder(page, server, name, tab=True):
     """Opens the builder, which lands on the Dashboard, and goes to the tab this person works in."""
     sign_in(page, server, name)
-    page.get_by_role("link", name="Resume builder").click()
+    page.locator('[data-app="rmg"]').click()  # the portal shows one card per app
     expect(page.locator("#who")).to_have_text(name)
     expect(page.locator(".rb-hero")).to_be_visible()
     if tab:
@@ -35,16 +35,17 @@ def open_builder(page, server, name, tab=True):
 
 
 def sign_out(page):
-    page.locator("#sign-out").click()
+    page.locator("#portal-sign-out:visible, #sign-out:visible").click()  # on the portal, in the chat or in the builder
     expect(page.locator("#login-screen")).to_be_visible()
 
 
-def test_the_resume_link_is_hidden_when_the_builder_is_not_configured(page, start_server):
+def test_the_resume_app_is_not_offered_when_the_builder_is_not_configured(page, start_server):
     server = start_server([])
 
-    sign_in(page, server, "Ravi Kumar")
+    sign_in(page, server, "Ravi Kumar")  # only HR is installed, so there is nothing to choose: straight into it
 
-    expect(page.locator("#resume-link")).to_be_hidden()
+    expect(page.locator("#chat-screen")).to_be_visible()
+    expect(page.locator("#portal-screen")).to_be_hidden()
 
 
 def test_a_resume_goes_from_request_to_approved_download(page, start_server):
@@ -378,7 +379,7 @@ def test_a_tab_clicked_while_the_first_screen_is_still_loading_is_not_lost(page,
     click is now remembered and applied when loading finishes."""
     server = start_server([], resume=True)
     sign_in(page, server, "Nancy")
-    page.get_by_role("link", name="Resume builder").click()
+    page.locator('[data-app="rmg"]').click()  # the portal shows one card per app
 
     page.get_by_role("button", name="Setup").click()  # clicked straight away, while the board is still loading
 
@@ -448,6 +449,7 @@ def test_the_app_is_drawn_smaller_and_still_fills_the_screen(page, start_server)
     page.set_viewport_size({"width": 1600, "height": 800})
 
     sign_in(page, server, "Ravi Kumar")
+    page.locator('[data-app="hr"]').click()  # past the portal, into the chat
 
     assert page.evaluate("getComputedStyle(document.documentElement).zoom") == "0.72"
     chat = page.locator("#chat-screen").bounding_box()

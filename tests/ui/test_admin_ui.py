@@ -55,7 +55,8 @@ def test_with_only_rmg_ticked_people_see_the_rmg_module_and_no_hr(page, start_se
     expect(page).to_have_url(re.compile(r"/resume\.html$"))  # straight to the RMG landing page: no chat
     expect(page.locator(".rb-hero h2")).to_contain_text(",")
     expect(page.locator(".rb-kpi")).to_have_count(4)  # an associate sees four numbers
-    expect(page.locator(".rb-brand h1")).to_have_text("RMG Resume Builder")  # no "HR Assistant" in the heading when HR is off
+    expect(page.locator(".rb-brand h1")).not_to_contain_text("HR Assistant")  # no HR in the heading when HR is off
+    expect(page.locator(".rb-brand h1")).to_contain_text("RMG Resume Builder")
     expect(page.locator("svg.donut")).to_be_visible()
     expect(page.locator("svg.trend")).to_be_visible()
     expect(page.locator(".rb-user a.btn")).to_be_hidden()  # and no way back to HR, which is off
@@ -70,7 +71,7 @@ def test_with_only_hr_ticked_people_see_the_hr_module_and_no_rmg(page, start_ser
     expect(page.locator("#chat-screen")).to_be_visible()
     expect(page.locator("#leave-panel")).to_be_visible()
     expect(page.locator("#balances .balance")).to_have_count(3)
-    expect(page.locator("#resume-link")).to_be_hidden()
+    expect(page.locator("#portal-screen")).to_be_hidden()  # one app is on, so there is no portal to choose from
 
 
 def test_with_both_ticked_people_see_both_modules(page, start_server):
@@ -79,6 +80,12 @@ def test_with_both_ticked_people_see_both_modules(page, start_server):
 
     sign_in_as(page, server, "ravi.kumar@example-ideas2it.invalid", "Welcome@123")
 
+    expect(page.locator("#portal-screen")).to_be_visible()  # two apps: the portal, with one card each
+    expect(page.locator(".app-card")).to_have_count(2)
+    expect(page.locator("#portal-hello")).to_contain_text("Ravi")
+    expect(page.locator(".glance")).to_contain_text("Ideas2IT at a glance")
+    page.locator('[data-app="hr"]').click()
     expect(page.locator("#chat-screen")).to_be_visible()
     expect(page.locator("#leave-panel")).to_be_visible()
-    expect(page.locator("#resume-link")).to_be_visible()
+    page.get_by_role("button", name="All apps").click()
+    expect(page.locator("#portal-screen")).to_be_visible()

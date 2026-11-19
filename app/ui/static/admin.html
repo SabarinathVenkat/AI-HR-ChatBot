@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Platform admin</title>
+  <title>Platform admin - Ideas2IT Portal</title>
   <meta name="theme-color" content="#0a1730">
   <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
   <link rel="stylesheet" href="/style.css">
@@ -23,17 +23,10 @@
 
   <main class="admin-main">
     <section class="admin-card" aria-labelledby="modules-title">
-      <h2 id="modules-title">Modules</h2>
-      <p class="muted">Choose what this platform offers. After you save, everyone who signs in sees only the modules that are ticked.</p>
+      <h2 id="modules-title">Apps</h2>
+      <p class="muted">Choose which apps the portal offers. After you save, everyone who signs in sees only the apps that are ticked.</p>
       <form id="modules-form">
-        <label class="module-row" for="module-hr">
-          <input id="module-hr" type="checkbox">
-          <span><strong>HR</strong> Leave balances and requests, holidays and policy answers with citations.</span>
-        </label>
-        <label class="module-row" for="module-rmg">
-          <input id="module-rmg" type="checkbox">
-          <span><strong>RMG</strong> The resume builder (tailored resumes, review and download) and the resource-management assistant.</span>
-        </label>
+        <div id="module-list"></div>
         <p id="admin-message" class="admin-message" role="status" aria-live="polite" hidden></p>
         <button id="save" class="btn primary" type="submit">Save</button>
       </form>

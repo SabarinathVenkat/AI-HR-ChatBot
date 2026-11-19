@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HR Assistant / RMG Resume Builder</title>
-  <meta name="description" content="Ask HR questions, check leave balances, apply for leave, and build resumes tailored to a job description.">
+  <title>Ideas2IT Portal</title>
+  <meta name="description" content="One sign-in for the tools Ideas2IT people use every day: HR answers, resume building and more.">
   <meta name="theme-color" content="#0a1730">
   <link rel="icon" type="image/svg+xml" href="/img/logo.svg">
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/portal.css">
 </head>
 <body>
   <a class="skip-link" href="#composer-input">Skip to the message box</a>
@@ -21,6 +22,8 @@
     <symbol id="i-book" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></symbol>
     <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-document" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
   </svg>
 
@@ -30,21 +33,21 @@
       <aside class="login-hero">
         <div class="brand brand-light">
           <img class="brand-logo" src="/img/logo.svg" alt="" width="40" height="40">
-          <span class="brand-name">HR Assistant / RMG Resume Builder</span>
+          <span class="brand-name">Ideas2IT Portal</span>
         </div>
 
         <div class="hero-copy">
-          <h1>HR answers and resumes, in one place.</h1>
-          <p class="lead">Check your leave, understand company policy and apply for time off with the HR Assistant. Resource management builds resumes tailored to a job description with the RMG Resume Builder. Every answer and every claim is checked against the facts.</p>
+          <h1>Owned by engineers. Obsessed with outcomes.</h1>
+          <p class="lead">One sign-in for the tools Ideas2IT people use every day. After you sign in, pick an app. Every answer and every claim is checked against the facts.</p>
           <ul class="feature-list">
             <li><span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg></span>
-              <span><strong>Your leave, live</strong> Balances, requests and approvals from your own records.</span></li>
-            <li><span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg></span>
-              <span><strong>Policy with citations</strong> Every rule links to the clause it came from.</span></li>
-            <li><span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg></span>
-              <span><strong>You stay in control</strong> Nothing is submitted until you confirm it.</span></li>
+              <span><strong>HR Assistant</strong> Leave balances, requests and policy answers with citations.</span></li>
             <li><span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg></span>
               <span><strong>RMG Resume Builder</strong> A resume in the company template, without inventing a single skill.</span></li>
+            <li><span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg></span>
+              <span><strong>You stay in control</strong> Nothing is submitted until you confirm it.</span></li>
+            <li><span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg></span>
+              <span><strong>Built to grow</strong> New apps appear here as the company adds them.</span></li>
           </ul>
         </div>
 
@@ -75,17 +78,64 @@
     </div>
   </section>
 
+  <!-- The portal: the page after sign-in. One card per app; the apps come from the server, so a new app needs no change here. -->
+  <section id="portal-screen" class="screen portal" hidden>
+    <header class="portal-bar">
+      <div class="brand brand-light">
+        <img class="brand-logo" src="/img/logo.svg" alt="" width="34" height="34">
+        <span class="brand-name">Ideas2IT Portal</span>
+      </div>
+      <div class="portal-user">
+        <span id="portal-who" class="who"></span>
+        <button id="portal-sign-out" class="btn rail-out" type="button"><svg class="icon" aria-hidden="true"><use href="#i-logout"/></svg>Sign out</button>
+      </div>
+    </header>
+
+    <main class="portal-main">
+      <section class="portal-hero">
+        <p class="eyebrow">Ideas2IT</p>
+        <h1 id="portal-hello">Welcome</h1>
+        <p class="tagline">Owned by engineers. Obsessed with outcomes.</p>
+        <p class="lede">Everything you need at work, behind one sign-in. Pick an app to get started.</p>
+      </section>
+
+      <section aria-labelledby="apps-title">
+        <h2 id="apps-title" class="portal-h">Your apps</h2>
+        <div id="portal-apps" class="portal-apps"></div>
+      </section>
+
+      <section class="glance" aria-labelledby="glance-title">
+        <h2 id="glance-title" class="portal-h">Ideas2IT at a glance</h2>
+        <div class="glance-stats">
+          <div class="g-stat"><div class="g-num">15+</div><div class="g-label">years shipping for enterprises and mid-markets</div></div>
+          <div class="g-stat"><div class="g-num">200+</div><div class="g-label">companies served</div></div>
+          <div class="g-stat"><div class="g-num">99%</div><div class="g-label">client renewal rate</div></div>
+          <div class="g-stat"><div class="g-num">700+</div><div class="g-label">forward-deployed engineers</div></div>
+        </div>
+        <p class="glance-line"><strong>What we do</strong></p>
+        <ul class="pills" aria-label="Services">
+          <li>AI</li><li>Custom software</li><li>Application modernization</li><li>Cloud</li><li>Data</li><li>BI and analytics</li>
+        </ul>
+        <p class="glance-line"><strong>Our platforms</strong></p>
+        <ul class="pills soft" aria-label="Platforms">
+          <li>Anticlock</li><li>Explayn</li><li>Legacyleap</li><li>MigratiX</li><li>DataStoryHub</li><li>Qadence</li>
+        </ul>
+        <p class="glance-foot">Headquartered in Dallas, Texas. Figures are taken from ideas2it.com.</p>
+      </section>
+    </main>
+  </section>
+
   <!-- Chat -->
   <section id="chat-screen" class="screen" hidden>
     <div class="app-shell">
       <aside class="rail" aria-label="Account">
         <div class="brand brand-light">
           <img class="brand-logo" src="/img/logo.svg" alt="" width="36" height="36">
-          <span class="brand-name">HR Assistant / RMG Resume Builder</span>
+          <span class="brand-name">Ideas2IT Portal</span>
         </div>
 
         <button id="new-chat" class="btn rail-new" type="button"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>New chat</button>
-        <a id="resume-link" class="btn rail-new" href="/resume.html" hidden>RMG Resume Builder</a>
+        <button id="home-link" class="btn rail-new" type="button" hidden><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg>All apps</button>
 
         <ul id="rail-topics" class="rail-topics">
           <li><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>Leave balances and requests</li>

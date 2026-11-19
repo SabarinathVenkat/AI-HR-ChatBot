@@ -63,11 +63,6 @@ class ChatBody(BaseModel):
     mode: Literal["hr", "rmg"] = "hr"  # which assistant answers: HR (default) or resource management
 
 
-class ModulesBody(BaseModel):
-    hr: bool
-    rmg: bool
-
-
 class DecisionBody(BaseModel):
     decision: Literal["approve", "reject"]
     note: str | None = Field(default=None, max_length=500)
@@ -168,6 +163,10 @@ def create_app(
             "expires_in": settings.token_ttl_minutes * 60,
         }
 
+    def installed() -> dict[str, bool]:
+        """What this server actually has, whatever the admin switched on."""
+        return {"hr": agent is not None, "rmg": resume_engine is not None and resume_files is not None}
+
     def require_module(name: str):
         """A route that belongs to one module: refused (403) while the admin has that module off."""
         def check(conn: sqlite3.Connection = Depends(get_conn)):
@@ -185,6 +184,7 @@ def create_app(
         return {
             "is_admin": platform.is_admin(conn, employee.id),
             "modules": platform.enabled_modules(conn),
+            "apps": platform.apps_for(conn, installed()),
             "id": employee.id,
             "name": employee.name,
             "email": employee.email,
@@ -201,13 +201,13 @@ def create_app(
 
     @app.get("/admin/modules")
     def get_modules(admin: repo.Employee = Depends(current_admin), conn: sqlite3.Connection = Depends(get_conn)):
-        return {"modules": platform.enabled_modules(conn), "available": {"hr": agent is not None, "rmg": rmg_agent is not None}}
+        return {"modules": platform.enabled_modules(conn), "apps": platform.apps_for(conn, everything=True), "installed": installed()}
 
     @app.put("/admin/modules")
-    def put_modules(body: ModulesBody, admin: repo.Employee = Depends(current_admin),
+    def put_modules(body: dict[str, bool], admin: repo.Employee = Depends(current_admin),
                     conn: sqlite3.Connection = Depends(get_conn)):
         try:
-            saved = platform.set_modules(conn, body.model_dump(), admin.id, now().isoformat(timespec="seconds"))
+            saved = platform.set_modules(conn, body, admin.id, now().isoformat(timespec="seconds"))
         except platform.ModuleError as exc:
             raise HTTPException(422, str(exc)) from None
         issue_log.event("modules_changed", by=admin.name, **{m: saved[m] for m in platform.MODULES})

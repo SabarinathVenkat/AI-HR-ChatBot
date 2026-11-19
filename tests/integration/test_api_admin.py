@@ -150,3 +150,44 @@ def test_the_choice_is_kept_for_the_next_sign_in(client):
     assert client.get("/me", headers=auth_headers(client, "Arjun Rao")).json()["modules"] == {"hr": False, "rmg": True}
     save(client, True, True)
     assert client.get("/me", headers=auth_headers(client, "Arjun Rao")).json()["modules"] == {"hr": True, "rmg": True}
+
+
+# --- the portal is generic: apps come from a catalog ---------------------------------------------------------------
+
+def test_me_lists_the_apps_this_person_can_open(client):
+    both = [a["id"] for a in client.get("/me", headers=auth_headers(client, RAVI)).json()["apps"]]
+    save(client, False, True)
+    only_rmg = client.get("/me", headers=auth_headers(client, RAVI)).json()["apps"]
+
+    assert both == ["hr", "rmg"] and [a["id"] for a in only_rmg] == ["rmg"]
+    assert {"name", "tagline", "description", "href", "icon"} <= set(only_rmg[0])
+
+
+def test_the_admin_page_gets_every_app_with_its_switch(client):
+    save(client, False, True)
+
+    apps = client.get("/admin/modules", headers=admin_headers(client)).json()["apps"]
+
+    assert [(a["id"], a["enabled"]) for a in apps] == [("hr", False), ("rmg", True)]
+
+
+def test_an_app_that_is_not_in_the_catalog_is_refused(client):
+    response = client.put("/admin/modules", json={"hr": True, "rmg": True, "payroll": True}, headers=admin_headers(client))
+
+    assert response.status_code == 422 and "payroll" in response.json()["error"]["message"]
+
+
+def test_a_database_made_when_only_hr_and_rmg_were_allowed_keeps_its_choice_and_accepts_new_apps(tmp_path):
+    from app.db.connection import connect, init_schema
+
+    conn = connect(str(tmp_path / "old.db"))
+    conn.execute("CREATE TABLE platform_modules (module TEXT PRIMARY KEY CHECK (module IN ('hr', 'rmg')),"
+                 " enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)), changed_by INTEGER, changed_at TEXT)")
+    conn.execute("INSERT INTO platform_modules (module, enabled) VALUES ('hr', 0)")
+    conn.commit()
+
+    init_schema(conn)
+    conn.execute("INSERT INTO platform_modules (module, enabled) VALUES ('payroll', 1)")  # refused by the old rule
+
+    assert dict(conn.execute("SELECT module, enabled FROM platform_modules ORDER BY module").fetchall()) == {"hr": 0, "payroll": 1}
+    conn.close()

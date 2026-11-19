@@ -231,7 +231,7 @@ CREATE TABLE IF NOT EXISTS platform_admins (
 );
 
 CREATE TABLE IF NOT EXISTS platform_modules (
-    module     TEXT PRIMARY KEY CHECK (module IN ('hr', 'rmg')),
+    module     TEXT PRIMARY KEY,  -- an app id from the catalog in app/platform_admin.py
     enabled    INTEGER NOT NULL CHECK (enabled IN (0, 1)),
     changed_by INTEGER REFERENCES employees(id),
     changed_at TEXT

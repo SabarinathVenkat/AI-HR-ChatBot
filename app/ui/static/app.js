@@ -12,6 +12,7 @@
     token: sessionStorage.getItem(TOKEN_KEY),
     threadId: sessionStorage.getItem(THREAD_KEY),
     modules: { hr: true, rmg: true }, // which modules the admin has turned on
+    apps: [], // the apps this person can open: switched on by the admin and installed on this server
     user: null,
     busy: false,
   };
@@ -59,6 +60,7 @@
   function showScreen(name) {
     $("login-screen").hidden = name !== "login";
     $("chat-screen").hidden = name !== "chat";
+    $("portal-screen").hidden = name !== "portal";
   }
 
   const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("");
@@ -494,33 +496,66 @@
     greet();
   }
 
-  /* The resume builder is a separate page. Show its link only when this deployment has it. */
-  async function probeResume() {
-    if (!state.modules.rmg) { $("resume-link").hidden = true; return; }
-    try {
-      const response = await api("/resume/me");
-      $("resume-link").hidden = !(response.ok && (await response.json()).available === true);
-    } catch {
-      $("resume-link").hidden = true;
-    }
+  /* ---------- the portal: one card per app ---------- */
+  function icon(name) {
+    const node = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    node.setAttribute("class", "icon");
+    node.setAttribute("aria-hidden", "true");
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    use.setAttribute("href", `#i-${name}`);
+    node.append(use);
+    return node;
   }
 
-  async function enterChat() {
-    const response = await api("/me");
-    if (!response.ok) throw new Error("not ok");
-    state.user = await response.json();
-    if (state.user.is_admin) { location.replace("/admin.html"); return; }  // the admin manages the platform, not chats
-    state.modules = state.user.modules || { hr: true, rmg: true };
-    if (!state.modules.hr) { location.replace("/resume.html"); return; }  // RMG only: straight to its landing page
+  /* An address like "/#hr" is a screen inside this page; anything else is a page of its own. */
+  function openApp(app) {
+    if (app.href.startsWith("/#")) openChat();
+    else location.assign(app.href);
+  }
+
+  function renderPortal() {
+    const first = state.user.name.split(" ")[0];
+    const hour = new Date().getHours();
+    $("portal-hello").textContent = `${hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"}, ${first}`;
+    $("portal-who").textContent = state.user.name;
+    $("portal-apps").replaceChildren(...state.apps.map((app, i) => {
+      const card = h("a", { class: "app-card", href: app.href, "data-app": app.id, on: { click: (event) => {
+        if (app.href.startsWith("/#")) { event.preventDefault(); openApp(app); }
+      } } },
+        h("span", { class: "app-icon", "aria-hidden": "true" }, icon(app.icon)),
+        h("span", { class: "app-name", text: app.name }),
+        h("span", { class: "app-tag", text: app.tagline }),
+        h("span", { class: "app-desc", text: app.description }),
+        h("span", { class: "app-go", text: "Open" }));
+      card.style.animationDelay = `${i * 80}ms`;
+      return card;
+    }));
+  }
+
+  /* The HR chat screen. */
+  function openChat() {
     $("who").textContent = `${state.user.name} · ${ROLE_LABELS[state.user.role] || state.user.role}`;
     $("avatar").textContent = initials(state.user.name);
-    $("approvals-section").hidden = !state.modules.hr || state.user.role !== "manager";
-    $("leave-panel").hidden = !state.modules.hr;
-    probeResume();
+    $("approvals-section").hidden = state.user.role !== "manager";
+    $("home-link").hidden = state.apps.length < 2;
     showScreen("chat");
     greet();
     refreshPanel();
     $("composer-input").focus();
+  }
+
+  /* After sign-in: one app goes straight into it, several show the portal, none says so. */
+  async function enterChat() {
+    const response = await api("/me");
+    if (!response.ok) throw new Error("not ok");
+    state.user = await response.json();
+    if (state.user.is_admin) { location.replace("/admin.html"); return; }  // the admin manages the platform, not apps
+    state.modules = state.user.modules || { hr: true, rmg: true };
+    state.apps = state.user.apps || [];
+    if (!state.apps.length) { signOut("No apps are available to you yet. Please ask your administrator."); return; }
+    if (state.apps.length === 1) { openApp(state.apps[0]); return; }
+    renderPortal();
+    showScreen("portal");
   }
 
   function signOut(message) {
@@ -599,6 +634,8 @@
   function init() {
     $("login-form").addEventListener("submit", onLogin);
     $("sign-out").addEventListener("click", () => signOut(""));
+    $("portal-sign-out").addEventListener("click", () => signOut(""));
+    $("home-link").addEventListener("click", () => { renderPortal(); showScreen("portal"); });
     $("new-chat").addEventListener("click", newChat);
     $("composer").addEventListener("submit", (event) => {
       event.preventDefault();

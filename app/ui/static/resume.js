@@ -874,10 +874,9 @@
       if (!available) { location.replace("/"); return; }  // the RMG module is off (or not installed)
       state.user = me;
       state.roles = roles;
-      if (!me.modules.hr) {  // no HR page to go back to, so the heading is just the resume builder
+      if ((me.apps || []).length < 2) {  // nothing else to go back to: no "All apps" button, and the title is not a link
         document.querySelector(".rb-user a.btn").hidden = true;
-        document.querySelector(".rb-brand h1").textContent = "RMG Resume Builder";
-        document.title = "RMG Resume Builder";
+        document.querySelector(".rb-brand-link").removeAttribute("href");
       }
       $("who").textContent = me.name;
     } catch (error) {

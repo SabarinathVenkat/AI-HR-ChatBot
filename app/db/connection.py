@@ -52,6 +52,20 @@ def _make_lead_optional(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))  # the indexes went with the old table: make them again
 
 
+def _allow_any_app(conn: sqlite3.Connection) -> None:
+    """platform_modules first allowed only 'hr' and 'rmg'. The portal now takes any app in its catalog, so a database made
+    with that rule gets the table rebuilt without it."""
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'platform_modules'").fetchone()
+    if row is None or "CHECK (module IN" not in row["sql"]:
+        return
+    conn.commit()
+    conn.execute("ALTER TABLE platform_modules RENAME TO platform_modules_old")
+    conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    conn.execute("INSERT INTO platform_modules SELECT * FROM platform_modules_old")
+    conn.execute("DROP TABLE platform_modules_old")
+    conn.commit()
+
+
 def upgrade_schema(conn: sqlite3.Connection) -> None:
     """Add any column an older database lacks, and relax what has since become optional. Safe to run again."""
     for table, column, definition in ADDED_COLUMNS:
@@ -60,6 +74,7 @@ def upgrade_schema(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
     conn.commit()
     _make_lead_optional(conn)
+    _allow_any_app(conn)
 
 
 def init_schema(conn: sqlite3.Connection) -> None:
