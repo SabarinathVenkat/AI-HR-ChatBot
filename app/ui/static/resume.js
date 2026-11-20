@@ -456,9 +456,70 @@
 
   const download = (id) => downloadFile(`/resume/requests/${id}/download`, "resume.docx",
     (response) => (response.headers.get("X-Resume-Draft") === "true" ? "Downloaded a DRAFT copy (not approved yet)." : "Downloaded the approved resume.")
-      + (response.headers.get("X-Resume-Check") === "pass" ? "" : " The template check has things to look at: see the Template check above.")
+      + (response.headers.get("X-Resume-Check") === "pass" || !(state.detail && state.detail.relations.includes("rmg")) ? "" : " The template check has things to look at: see the Template check above.")
       + (LAYOUT_NOTE[response.headers.get("X-Resume-Layout")] || ""), "Preparing and checking the Word file…");
   const downloadJd = (path) => downloadFile(path, "job-description.docx", () => "Downloaded the job description.");
+
+  const versionTime = (iso) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
+  /* ---------- the build popup: a loader, what is happening, and a short briefing on the job ---------- */
+  const BUILD_STEPS = {
+    polish: ["Reading your resume", "Reading the job description", "Matching your skills to the job", "Polishing your projects", "Checking every line against your resume", "Preparing the Word file"],
+    deep: ["Reading your resume", "Reading the job description", "Matching your skills to the job", "Rebuilding your projects around the job", "Writing your summary and key highlights", "Checking every claim against your resume", "Preparing the Word file"],
+  };
+  const STEP_MS = 5500;
+  const BRIEF_MS = 7000;
+
+  /* Shows the popup while `work` runs, rotating the steps and the briefing, then offers OK. Resolves with the result, or null if the
+     work failed (the popup then says why). The popup cannot be dismissed while the work is running. */
+  async function withBuildPopup(brief, mode, work) {
+    const dialog = $("build-dialog");
+    const timers = [];
+    const points = brief && brief.points && brief.points.length ? brief.points : [];
+    let step = 0, shown = 0, building = true;
+    const steps = BUILD_STEPS[mode] || BUILD_STEPS.polish;
+    const show = (n) => {
+      shown = n;
+      const p = points[n];
+      if (!p) return;
+      const card = $("brief-card");
+      card.classList.remove("in");
+      void card.offsetWidth;  // restart the fade
+      $("brief-title").textContent = p.title;
+      $("brief-text").textContent = p.text;
+      card.classList.add("in");
+      [...$("brief-dots").children].forEach((dot, i) => dot.classList.toggle("on", i === n));
+    };
+    dialog.className = "rb-dialog rb-build building";
+    $("build-title").textContent = mode === "deep" ? "Rebuilding your resume around the job" : "Building your resume";
+    $("build-step").textContent = steps[0];
+    $("build-ok").hidden = true;
+    $("build-brief").hidden = !points.length;
+    $("brief-headline").textContent = brief ? brief.headline : "";
+    $("brief-dots").replaceChildren(...points.map((p, i) => h("button", { type: "button", class: "dot", "aria-label": `Show tip ${i + 1}`, on: { click: () => show(i) } })));
+    show(0);
+    const onCancel = (event) => { if (building) event.preventDefault(); };  // Esc does not close it while the resume is building
+    dialog.addEventListener("cancel", onCancel);
+    dialog.showModal();
+    timers.push(setInterval(() => { step = Math.min(step + 1, steps.length - 1); $("build-step").textContent = steps[step]; }, STEP_MS));
+    if (points.length > 1) timers.push(setInterval(() => show((shown + 1) % points.length), BRIEF_MS));
+
+    let result = null, failure = null;
+    try { result = await work(); } catch (error) { failure = error; }
+    building = false;
+    timers.forEach(clearInterval);
+    dialog.className = `rb-dialog rb-build ${failure ? "failed" : "done"}`;
+    $("build-title").textContent = failure ? "We could not build the resume" : "Your resume is ready";
+    $("build-step").textContent = failure ? (failure.message || "Something went wrong. Please try again.")
+      : "Review what changed, edit anything you like, then save and submit it.";
+    $("build-ok").textContent = failure ? "Close" : "OK";
+    $("build-ok").hidden = false;
+    $("build-ok").focus();
+    await new Promise((resolve) => { $("build-ok").onclick = resolve; });
+    dialog.removeEventListener("cancel", onCancel);
+    dialog.close();
+    return failure ? null : result;
+  }
 
   /* How the resume is adapted to the job. Polish rewords what is there; Deep match rebuilds the resume around the job. */
   const BUILD_MODES = [
@@ -498,11 +559,16 @@
     }
     if (can.build) btn("build", d.resume ? "Rebuild (discard my edits)" : "Build tailored resume", async () => {
       const mode = state.buildMode || "polish";
-      const rebuilt = await post(`/resume/requests/${d.id}/build`, { force: Boolean(d.resume), mode });
+      const rebuilt = await withBuildPopup(d.jd.briefing, mode, () => post(`/resume/requests/${d.id}/build`, { force: Boolean(d.resume), mode }));
+      if (!rebuilt) return;  // the popup already said what went wrong
       flash(`Your tailored draft is ready (${MODE_NAME[mode]}). Review the changes, edit anything, then save and submit.`, "ok");
       await refreshDetail(rebuilt);
-    }, "btn primary", state.buildMode === "deep" ? "Rebuilding your resume around the job… this can take a couple of minutes." : "Building your tailored resume… this can take a minute.");
-    if (can.save) btn("save", "Save version", async () => { const r = await post(`/resume/requests/${d.id}/save`); flash(`Saved as version ${r.version}.`, "ok"); await refreshDetail(); });
+    }, "btn primary");
+    if (can.save) btn("save", "Save version", async () => {
+      const r = await post(`/resume/requests/${d.id}/save`);
+      flash(r.unchanged ? `Nothing has changed since version ${r.version}, so no new version was made.` : `Saved as version ${r.version}.`, "ok");
+      await refreshDetail();
+    });
     if (can.submit) btn("submit", "Submit for review", async () => { await post(`/resume/requests/${d.id}/submit`); flash("Submitted. Your reviewers have been notified.", "ok"); await refreshDetail(); }, "btn primary");
     if (can.reopen) btn("reopen", "Reopen to edit", async () => { await post(`/resume/requests/${d.id}/reopen`); await refreshDetail(); });
     if (can.download) buttons.push(h("button", { id: "download", class: "btn", type: "button", on: { click: () => download(d.id) } }, d.status === "approved" ? "Download approved resume" : "Download draft"));
@@ -610,7 +676,7 @@
         d.can.edit ? h("p", { class: "muted", text: "Anything you add is marked as your own statement, so only add what is true." }) : null) : null,
       cov ? confirmSkillsPanel(d, cov) : null,
       d.versions.length ? h("div", { class: "rb-card" }, h("h3", { text: "Versions" }),
-        h("ul", { class: "rb-list" }, d.versions.map((v) => h("li", { class: "sub", text: `v${v.version}: ${v.kind}` })))) : null);
+        h("ul", { class: "rb-list" }, d.versions.map((v) => h("li", { class: "sub", text: `v${v.version}: ${v.kind}, ${versionTime(v.created_at)}` })))) : null);
   }
 
   /* One editable line of the resume: text, where it came from, and tools if the associate may edit. */
@@ -894,12 +960,12 @@
       h("div", { class: "rb-strip" },
         d.render_notes && d.render_notes.length ? h("div", { class: "rb-info", id: "render-notes" },
           h("strong", { text: "About the Word file" }), d.render_notes.map((n) => h("div", { text: n }))) : null,
-        d.can && d.can.download ? checkCard() : null),
+        d.can && d.can.download && d.relations.includes("rmg") ? checkCard() : null),  // the template check is for RMG, not for the associate
       actionBar(d), decisionCard(d),
       h("div", { class: "rb-grid rb-work" }, jdCard(d), resumeCard(d), changesCard(d)),
     ].filter(Boolean));
     wireLinks();
-    if (d.can && d.can.download) loadCheck(d.id);
+    if (d.can && d.can.download && d.relations.includes("rmg")) loadCheck(d.id);
   }
 
   /* ---------- tabs ---------- */

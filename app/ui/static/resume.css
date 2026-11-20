@@ -365,3 +365,47 @@ button.chip.suggest:hover, button.chip.suggest:focus-visible { background: var(-
 .rb-cs-row:first-child { border-top: 0; }
 .rb-cs-where { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 4px 0 2px 26px; }
 .rb-cs-where[hidden] { display: none; }
+
+/* The build popup: loader, current step and a short briefing on the job */
+.rb-build { width: min(580px, calc(92 * var(--vw))); }
+.rb-build-body { padding: 28px 30px 24px; text-align: center; }
+.rb-build-body h2 { margin: 4px 0 4px; font-size: 21px; }
+.rb-build-body #build-step { margin: 0; min-height: 1.4em; }
+.rb-loader { position: relative; width: 88px; height: 88px; margin: 0 auto 14px; }
+.rb-loader span { position: absolute; inset: 0; border-radius: 50%; border: 4px solid transparent; }
+.rb-loader span:nth-child(1) { border-top-color: #2563eb; border-left-color: rgba(37, 99, 235, .25); animation: rb-spin 1.1s linear infinite; }
+.rb-loader span:nth-child(2) { inset: 11px; border-right-color: #0d9488; border-bottom-color: rgba(13, 148, 136, .25); animation: rb-spin 1.7s linear infinite reverse; }
+.rb-loader span:nth-child(3) { inset: 22px; border-bottom-color: #f59e0b; border-right-color: rgba(245, 158, 11, .25); animation: rb-spin .85s linear infinite; }
+.rb-tick { display: none; position: absolute; inset: 6px; border-radius: 50%; background: #10b981; box-shadow: 0 8px 20px rgba(16, 185, 129, .35); animation: rb-pop .4s cubic-bezier(.2, .9, .3, 1.4) both; }
+.rb-tick::after { content: "\2713"; position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 38px; font-weight: 700; }
+.done .rb-loader span, .failed .rb-loader span { display: none; }
+.done .rb-tick, .failed .rb-tick { display: block; }
+.failed .rb-tick { background: #ef4444; box-shadow: 0 8px 20px rgba(239, 68, 68, .35); }
+.failed .rb-tick::after { content: "!"; }
+.rb-bar-track { height: 6px; background: var(--bg); border-radius: 999px; overflow: hidden; margin: 14px 0 18px; }
+.rb-bar-run { height: 100%; width: 38%; border-radius: 999px; background: linear-gradient(90deg, #2563eb, #0d9488); animation: rb-slide 1.5s ease-in-out infinite; }
+.done .rb-bar-run { animation: none; width: 100%; background: #10b981; transition: width .5s; }
+.failed .rb-bar-run { animation: none; width: 100%; background: #ef4444; }
+.rb-brief { text-align: left; background: var(--primary-soft); border-radius: 14px; padding: 14px 18px 12px; }
+.rb-brief[hidden] { display: none; }
+.rb-brief .eyebrow { margin: 0; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--primary-dark); font-weight: 700; }
+.rb-brief h3 { margin: 4px 0 10px; font-size: 16px; }
+.rb-brief-card { min-height: 78px; }
+.rb-brief-card.in { animation: rb-fade .55s ease both; }
+.rb-brief-card strong { display: block; margin-bottom: 2px; }
+.rb-brief-card p { margin: 0; line-height: 1.5; }
+.rb-dots { display: flex; gap: 7px; margin-top: 8px; }
+.rb-dots .dot { width: 9px; height: 9px; min-width: 0; padding: 0; border: 0; border-radius: 50%; background: #bccdf3; cursor: pointer; transition: background .2s, transform .2s; }
+.rb-dots .dot.on { background: var(--primary); transform: scale(1.25); }
+#build-ok { margin-top: 18px; min-width: 120px; }
+#build-ok[hidden] { display: none; }
+.done #build-brief, .failed #build-brief { opacity: .85; }
+@keyframes rb-spin { to { transform: rotate(360deg); } }
+@keyframes rb-slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(300%); } }
+@keyframes rb-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes rb-pop { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .rb-loader span { animation-duration: 4s !important; }
+  .rb-bar-run { animation-duration: 4s; }
+  .rb-brief-card.in, .rb-tick { animation: none; }
+}

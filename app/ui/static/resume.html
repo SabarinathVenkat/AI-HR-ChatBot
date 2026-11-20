@@ -33,6 +33,23 @@
     <ul id="notes-list" class="rb-list"></ul>
   </section>
 
+  <!-- Shown while a resume builds: an animated loader, what the build is doing, and a short briefing on the job. -->
+  <dialog id="build-dialog" class="rb-dialog rb-build" aria-labelledby="build-title">
+    <div class="rb-build-body">
+      <div id="build-loader" class="rb-loader" aria-hidden="true"><span></span><span></span><span></span><i class="rb-tick"></i></div>
+      <h2 id="build-title">Building your resume</h2>
+      <p id="build-step" class="muted" role="status" aria-live="polite"></p>
+      <div class="rb-bar-track" aria-hidden="true"><div id="build-bar" class="rb-bar-run"></div></div>
+      <section class="rb-brief" id="build-brief" aria-labelledby="brief-headline">
+        <p class="eyebrow">While you wait: about this job</p>
+        <h3 id="brief-headline"></h3>
+        <div id="brief-card" class="rb-brief-card" aria-live="off"><strong id="brief-title"></strong><p id="brief-text"></p></div>
+        <div id="brief-dots" class="rb-dots"></div>
+      </section>
+      <button id="build-ok" class="btn primary" type="button" hidden>OK</button>
+    </div>
+  </dialog>
+
   <dialog id="jd-preview" class="rb-dialog" aria-labelledby="jd-preview-title">
     <div class="rb-dialog-head"><h2 id="jd-preview-title"></h2><button id="jd-preview-close" class="btn" type="button">Close</button></div>
     <div id="jd-preview-body" class="rb-dialog-body"></div>

@@ -161,6 +161,7 @@ CREATE TABLE IF NOT EXISTS job_descriptions (
     filename   TEXT NOT NULL,
     jd_json    TEXT NOT NULL,
     file_key   TEXT,
+    briefing_json TEXT,  -- a short briefing per role, written when the JD is uploaded and shown while a resume builds
     created_by INTEGER NOT NULL REFERENCES employees(id),
     created_at TEXT NOT NULL
 );

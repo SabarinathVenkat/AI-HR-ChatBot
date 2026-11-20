@@ -20,6 +20,14 @@ def sign_in(page, server, name):
     expect(page.locator("#portal-screen:visible, #chat-screen:visible")).to_be_visible()  # the portal when there are several apps
 
 
+def build_and_confirm(page):
+    """Clicks Build, waits for the popup to say the resume is ready, and clicks OK."""
+    page.locator("#build").click()
+    expect(page.locator("#build-title")).to_have_text("Your resume is ready")
+    page.locator("#build-ok").click()
+    expect(page.locator("#build-dialog")).not_to_have_attribute("open", "")
+
+
 WORK_TAB = {"Nancy": "Requests", "Shadrach": "Requests", "Veera": "Review"}  # everyone else works in "My requests"
 
 
@@ -78,12 +86,11 @@ def test_a_resume_goes_from_request_to_approved_download(page, start_server):
     page.locator("#resume-file").set_input_files({"name": "cv.txt", "mimeType": "text/plain", "buffer": b"Ravi Kumar, backend engineer"})
     page.locator("#upload-resume").click()
     expect(page.locator("#message")).to_contain_text("Resume uploaded")
-    page.locator("#build").click()
+    build_and_confirm(page)
     expect(page.locator("#resume")).to_contain_text("Anil Verma")
     expect(page.locator("#coverage")).to_contain_text("Required skills covered")
     expect(page.locator("#coverage")).to_contain_text("not in your resume")
-    expect(page.locator("#template-check-status")).to_contain_text("template")  # the Word file is checked against the setup template
-    expect(page.locator("#template-check")).to_contain_text("All checks")
+    expect(page.locator("#template-check")).to_have_count(0)  # the associate is not shown the template check
     page.locator("#resume .rb-project .edit").first.click()
     page.get_by_label("New wording").fill("Wrote Java services for payments.")
     page.locator(".save-edit").click()
@@ -111,6 +118,8 @@ def test_a_resume_goes_from_request_to_approved_download(page, start_server):
     # RMG downloads the approved resume.
     open_builder(page, server, "Shadrach")
     page.get_by_role("button", name="Open").click()
+    expect(page.locator("#template-check-status")).to_contain_text("template")  # RMG still sees how the Word file matches the template
+    expect(page.locator("#template-check")).to_contain_text("All checks")
     with page.expect_download() as info:
         page.locator("#download").click()
     assert info.value.suggested_filename.endswith("_FINAL.docx")
@@ -136,7 +145,7 @@ def test_the_lead_can_send_a_resume_back_and_the_associate_sees_why(page, start_
     page.get_by_role("button", name="Open").first.click()
     page.locator("#resume-file").set_input_files({"name": "cv.txt", "mimeType": "text/plain", "buffer": b"Ravi"})
     page.locator("#upload-resume").click()
-    page.locator("#build").click()
+    build_and_confirm(page)
     expect(page.locator("#resume")).to_contain_text("Anil Verma")
     page.locator("#submit").click()
     expect(page.locator("#message")).to_contain_text("Submitted")
@@ -260,7 +269,7 @@ def build_as_ravi(page, server):
     page.get_by_role("button", name="Open").first.click()
     page.locator("#resume-file").set_input_files({"name": "cv.txt", "mimeType": "text/plain", "buffer": b"Ravi"})
     page.locator("#upload-resume").click()
-    page.locator("#build").click()
+    build_and_confirm(page)
     expect(page.locator("#skills-section")).to_be_visible()
 
 
@@ -637,7 +646,7 @@ def test_the_associate_chooses_polish_or_deep_match_before_building(page, start_
     page.locator("label[for=mode-deep]").click()
     expect(page.locator("#mode-deep")).to_be_checked()
     expect(page.locator(".rb-mode").nth(1)).to_contain_text("Skills you do not have are never added")
-    page.locator("#build").click()
+    build_and_confirm(page)
 
     # This test server has no deep drafter, so it says so and polishes instead: a build never fails because of the mode.
     expect(page.locator("#message")).to_contain_text("Your tailored draft is ready")
@@ -694,3 +703,128 @@ def test_confirming_with_nothing_ticked_asks_to_tick_first_and_changes_nothing(p
 
     expect(page.locator("#message")).to_contain_text("Tick the skills you have first")
     assert page.locator("#coverage h3").inner_text() == before
+
+
+# --- the build popup, the briefing, Save version and the template check -----------------------------------------------
+
+def open_ravis_request(page, server):
+    """Everything is set up and Ravi has uploaded his resume, but has not built yet."""
+    open_builder(page, server, "Nancy")
+    page.get_by_role("button", name="Setup").click()
+    page.locator("#tpl-file").set_input_files({"name": "template.docx", "mimeType": "application/octet-stream", "buffer": template_bytes()})
+    page.locator("#tpl-go").click()
+    expect(page.locator("#message")).to_contain_text("Template uploaded")
+    page.goto(server.url)
+    sign_out(page)
+    open_builder(page, server, "Shadrach")
+    page.get_by_label(re.compile("Ravi Kumar")).check()
+    page.locator("#tag-go").click()
+    expect(page.locator("#message")).to_contain_text("Tagged 1")
+    page.goto(server.url)
+    sign_out(page)
+    open_builder(page, server, "Ravi Kumar")
+    page.get_by_role("button", name="Open").first.click()
+    page.locator("#resume-file").set_input_files({"name": "cv.txt", "mimeType": "text/plain", "buffer": b"Ravi"})
+    page.locator("#upload-resume").click()
+    expect(page.locator("#build")).to_be_visible()
+
+
+def test_the_build_popup_shows_a_loader_the_steps_and_the_job_briefing_until_ok(page, start_server):
+    server = start_server([], resume=True)
+    open_ravis_request(page, server)
+
+    def slow(route):
+        page.wait_for_timeout(1500)  # keep the build busy long enough to see the popup working
+        route.continue_()
+
+    page.route("**/build", slow)
+    page.locator("#build").click()
+
+    expect(page.locator("#build-dialog")).to_have_attribute("open", "")
+    expect(page.locator("#build-dialog.building")).to_be_visible()
+    expect(page.locator("#build-title")).to_have_text("Building your resume")
+    expect(page.locator("#build-step")).to_contain_text("Reading your resume")
+    expect(page.locator("#build-loader")).to_be_visible()
+    expect(page.locator("#build-brief")).to_be_visible()
+    expect(page.locator("#brief-headline")).not_to_be_empty()  # the briefing saved when RMG uploaded the JD
+    expect(page.locator("#brief-title")).not_to_be_empty()
+    expect(page.locator("#brief-text")).not_to_be_empty()
+    expect(page.locator("#build-ok")).to_be_hidden()  # no OK until it is finished
+    page.keyboard.press("Escape")
+    expect(page.locator("#build-dialog")).to_have_attribute("open", "")  # and Esc cannot close it while it builds
+
+    expect(page.locator("#build-title")).to_have_text("Your resume is ready")
+    expect(page.locator("#build-dialog.done")).to_be_visible()
+    expect(page.locator("#build-ok")).to_be_visible()
+    expect(page.locator("#skills-section")).to_have_count(0)  # the page behind waits for OK
+    page.locator("#build-ok").click()
+
+    expect(page.locator("#build-dialog")).not_to_have_attribute("open", "")
+    expect(page.locator("#skills-section")).to_be_visible()
+    expect(page.locator("#message")).to_contain_text("Your tailored draft is ready")
+
+
+def test_a_failed_build_says_why_in_the_popup_and_offers_close(page, start_server):
+    server = start_server([], resume=True)
+    open_ravis_request(page, server)
+    page.route("**/build", lambda route: route.fulfill(status=422, content_type="application/json",
+                                                       body='{"error":{"code":"resume_invalid","message":"The resume could not be understood.","trace_id":"t"}}'))
+
+    page.locator("#build").click()
+
+    expect(page.locator("#build-title")).to_have_text("We could not build the resume")
+    expect(page.locator("#build-step")).to_contain_text("could not be understood")
+    expect(page.locator("#build-dialog.failed")).to_be_visible()
+    expect(page.locator("#build-ok")).to_have_text("Close")
+    page.locator("#build-ok").click()
+    expect(page.locator("#build-dialog")).not_to_have_attribute("open", "")
+    expect(page.locator("#build")).to_be_visible()  # still on the request, free to try again
+
+
+def test_the_briefing_tips_can_be_stepped_through_by_the_dots(page, start_server):
+    server = start_server([], resume=True)
+    open_ravis_request(page, server)
+    page.route("**/build", lambda route: (page.wait_for_timeout(1500), route.continue_()))
+
+    page.locator("#build").click()
+    expect(page.locator("#brief-dots .dot")).not_to_have_count(0)
+    first = page.locator("#brief-title").inner_text()
+    page.locator("#brief-dots .dot").nth(1).click()
+
+    expect(page.locator("#brief-title")).not_to_have_text(first)
+    expect(page.locator("#brief-dots .dot").nth(1)).to_have_class(re.compile("on"))
+    expect(page.locator("#build-title")).to_have_text("Your resume is ready")
+    page.locator("#build-ok").click()
+
+
+def test_the_associate_does_not_see_the_template_check_but_rmg_does(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)  # leaves Ravi on his built request
+
+    expect(page.locator("#download")).to_be_visible()  # he can download, and still sees no template check
+    expect(page.locator("#template-check")).to_have_count(0)
+    expect(page.locator("body")).not_to_contain_text("Template check")
+
+
+def test_save_version_says_when_nothing_changed_and_lists_each_version_with_a_time(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+
+    page.locator("#save").click()
+    expect(page.locator("#message")).to_have_text("Saved as version 1.")
+    expect(page.locator("text=/^v1: /")).to_have_count(1)  # the page has finished refreshing: a click during an action is ignored
+    page.locator("#save").click()
+    expect(page.locator("#message")).to_have_text("Nothing has changed since version 1, so no new version was made.")
+    expect(page.locator("text=/^v[0-9]+: /")).to_have_count(1)  # no duplicate
+
+    card = page.locator("#confirm-skills-card")
+    card.locator("[data-skill]").first.check()
+    page.locator("#confirm-skills").click()
+    expect(page.locator("#message")).to_contain_text("Added 1 skill")
+    expect(page.locator("#coverage")).to_be_visible()
+    page.wait_for_timeout(400)
+    page.locator("#save").click()
+    expect(page.locator("#message")).to_have_text("Saved as version 2.")
+    expect(page.locator("text=/^v2: /")).to_have_count(1)
+    versions = page.locator("text=/^v[0-9]+: /").all_inner_texts()
+    assert len(versions) == 2 and versions[0].startswith("v1: saved, ") and any(c.isdigit() for c in versions[0].split(", ", 1)[1])

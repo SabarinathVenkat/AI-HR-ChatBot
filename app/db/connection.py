@@ -23,7 +23,7 @@ def connect(path: str = ":memory:") -> sqlite3.Connection:
 
 # Columns added after a table first shipped. CREATE TABLE IF NOT EXISTS leaves an older database as it was, so each is
 # added here when missing.
-ADDED_COLUMNS = [("job_descriptions", "file_key", "TEXT"), ("resume_drafts", "mode", "TEXT NOT NULL DEFAULT 'polish'")]
+ADDED_COLUMNS = [("job_descriptions", "file_key", "TEXT"), ("job_descriptions", "briefing_json", "TEXT"), ("resume_drafts", "mode", "TEXT NOT NULL DEFAULT 'polish'")]
 
 
 def _make_lead_optional(conn: sqlite3.Connection) -> None:

@@ -21,6 +21,7 @@ from datetime import date, datetime, timedelta
 
 from app import issue_log
 from app.db.repositories import Employee
+from app.rmg.resume.briefing import Briefing, briefings_for, plain_briefing
 from app.rmg.resume.changelog import build_change_log
 from app.rmg.resume.conformance import WARN, Check, Report, check_conformance
 from app.rmg.resume.chat import EditCommand, explain
@@ -68,6 +69,7 @@ class ResumeEngine:
     interpreter: object | None = None  # reads a chat instruction into an edit command (see chat.py)
     polisher: object | None = None  # checks and fixes a finished file's layout: (docx, template) -> Polish (see layout_fix.py)
     weaver: object | None = None  # words the bullet for skills the associate confirms (see deep.py); None uses a plain sentence
+    briefer: object | None = None  # writes the briefing shown while a resume builds, when a JD is uploaded (see briefing.py)
 
 
 def _day(stamp: str | None) -> date | None:
@@ -244,9 +246,10 @@ class ResumeService:
             raise ServiceError(e.code, str(e), 422) from None
         name = (title or jd.roles[0].title)[:150]
         key = self.files.put(data, {"docx": ".docx", "pdf": ".pdf", "txt": ".txt"}[document.kind])  # keep the original file
+        briefings = json.dumps([b.model_dump() for b in briefings_for(jd.roles, self.engine.briefer)])  # prepared now, shown at build time
         cursor = self.conn.execute(
-            "INSERT INTO job_descriptions (title, filename, jd_json, file_key, created_by, created_at) VALUES (?,?,?,?,?,?)",
-            (name, document.filename, jd.model_dump_json(), key, self.actor.id, self._iso()))
+            "INSERT INTO job_descriptions (title, filename, jd_json, file_key, briefing_json, created_by, created_at) VALUES (?,?,?,?,?,?,?)",
+            (name, document.filename, jd.model_dump_json(), key, briefings, self.actor.id, self._iso()))
         self._audit("jd_created", {"jd_id": cursor.lastrowid})
         self.conn.commit()
         return self._jd_view(cursor.lastrowid)
@@ -259,6 +262,14 @@ class ResumeService:
         if not cleaned:
             raise ServiceError("empty", "Paste the job description, or a list of skills, first.", 422)
         return self.create_jd("pasted-job-description.txt", cleaned.encode("utf-8"), title)
+
+    def _briefing(self, jd_id: int, role_index: int, role) -> dict:
+        """The briefing for a role of a JD: the one saved at upload, or a plain one for a JD uploaded before briefings existed."""
+        row = self.conn.execute("SELECT briefing_json FROM job_descriptions WHERE id = ?", (jd_id,)).fetchone()
+        try:
+            return Briefing.model_validate(json.loads(row["briefing_json"])[role_index]).model_dump()
+        except (TypeError, ValueError, IndexError, KeyError):
+            return plain_briefing(role).model_dump()
 
     def _jd_view(self, jd_id: int) -> dict:
         row = self.conn.execute("SELECT * FROM job_descriptions WHERE id = ?", (jd_id,)).fetchone()
@@ -489,7 +500,8 @@ class ResumeService:
             "id": row["id"], "status": row["status"], "created_at": row["created_at"], "updated_at": row["updated_at"],
             "decision_note": row["decision_note"], "base_filename": row["base_filename"],
             "relations": sorted(relations),
-            "jd": {"id": row["jd_id"], "title": self._jd_title(row["jd_id"]), "role": role.model_dump(), "flagged": jd.flagged},
+            "jd": {"id": row["jd_id"], "title": self._jd_title(row["jd_id"]), "role": role.model_dump(), "flagged": jd.flagged,
+                   "briefing": self._briefing(row["jd_id"], row["role_index"], role)},
             "associate": {"id": row["associate_id"], "name": self._name(row["associate_id"])},
             "lead": {"id": row["lead_id"], "name": self._lead_name(row)},
             "review_by": "Competency Lead" if row["lead_id"] else "RMG",
@@ -622,12 +634,16 @@ class ResumeService:
     def save(self, request_id: int) -> dict:
         row = self._as_associate(request_id, EDITABLE)
         draft = self._need_draft(request_id)
+        latest = self.conn.execute("SELECT version, resume_json FROM resume_versions WHERE request_id = ? ORDER BY version DESC LIMIT 1",
+                                   (request_id,)).fetchone()
+        if latest is not None and latest["resume_json"] == draft["working_json"]:
+            return {"version": latest["version"], "unchanged": True}  # nothing changed since the last version: do not make a copy
         version = self._add_version(request_id, "saved", draft["working_json"], draft["years_text"], draft["template_id"])
         if row["status"] == "changes_requested":
             self._set_status(request_id, "in_progress")
         self._audit("resume_saved", {"request_id": request_id, "version": version})
         self.conn.commit()
-        return {"version": version}
+        return {"version": version, "unchanged": False}
 
     def _need_draft(self, request_id: int):
         draft = self._draft(request_id)

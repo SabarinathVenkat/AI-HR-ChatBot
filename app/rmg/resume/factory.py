@@ -2,6 +2,7 @@
 import logging
 
 from app.rmg.resume.chat import LLMEditInterpreter
+from app.rmg.resume.briefing import LLMBriefer
 from app.rmg.resume.deep import LLMSkillWeaver, LLMSummarizer
 from app.rmg.resume.draft import DEEP_SETTINGS, LLMProjectDrafter, TailoringSettings
 from app.rmg.resume.extract import LLMResumeExtractor, anthropic_factory
@@ -25,4 +26,4 @@ def build_live_resume_engine(settings: TailoringSettings | None = None) -> Resum
     if renderer is None:
         log.warning("LibreOffice is not installed: downloads will not have their layout checked")
     polisher = LayoutPolisher(renderer, LLMLayoutJudge(make_model)) if renderer is not None else None
-    return ResumeEngine(deps, LLMEditInterpreter(make_model), polisher, LLMSkillWeaver(make_model))
+    return ResumeEngine(deps, LLMEditInterpreter(make_model), polisher, LLMSkillWeaver(make_model), LLMBriefer(make_model))

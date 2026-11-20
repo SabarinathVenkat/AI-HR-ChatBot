@@ -103,7 +103,7 @@ def test_a_resume_goes_from_request_to_approved_download(client):
     draft = client.get(f"{base}/download", headers=hdr(client, STAFF))
     assert draft.status_code == 200 and draft.headers["x-resume-draft"] == "true" and "_DRAFT.docx" in draft.headers["content-disposition"]
 
-    assert client.post(f"{base}/save", headers=hdr(client, RAVI)).json() == {"version": 1}
+    assert client.post(f"{base}/save", headers=hdr(client, RAVI)).json() == {"version": 1, "unchanged": False}
     assert client.post(f"{base}/submit", headers=hdr(client, RAVI)).json()["status"] == "submitted"
     assert client.get("/resume/requests?scope=lead", headers=hdr(client, LEAD)).json()["requests"][0]["status"] == "submitted"
     decided = client.post(f"{base}/decide", json={"decision": "approve", "note": "Good"}, headers=hdr(client, LEAD))
@@ -571,3 +571,84 @@ def test_confirming_skills_can_be_undone(client):
     client.post(f"/resume/requests/{request_id}/edit", json={"action": "undo"}, headers=hdr(client, RAVI))
 
     assert client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()["resume"] == before
+
+
+# --- Save version ---------------------------------------------------------------------------------------------------
+
+def versions_in_db(api_db, request_id):
+    return [dict(r) for r in api_db.execute("SELECT version, kind, resume_json FROM resume_versions WHERE request_id = ? ORDER BY version", (request_id,))]
+
+
+def test_saving_twice_without_a_change_makes_one_version_and_says_nothing_changed(client, api_db):
+    request_id = built_for_ravi(client)
+    first = client.post(f"/resume/requests/{request_id}/save", headers=hdr(client, RAVI)).json()
+
+    second = client.post(f"/resume/requests/{request_id}/save", headers=hdr(client, RAVI)).json()
+
+    assert first == {"version": 1, "unchanged": False}
+    assert second == {"version": 1, "unchanged": True}
+    assert len(versions_in_db(api_db, request_id)) == 1
+
+
+def test_a_version_keeps_the_resume_as_it_was_when_saved_even_after_later_edits(client, api_db):
+    request_id = built_for_ravi(client)
+    client.post(f"/resume/requests/{request_id}/save", headers=hdr(client, RAVI))
+    saved_then = versions_in_db(api_db, request_id)[0]["resume_json"]
+
+    confirm(client, request_id, [{"skill": "Kafka", "projects": [0]}])  # an edit after the save
+    again = client.post(f"/resume/requests/{request_id}/save", headers=hdr(client, RAVI)).json()
+    versions = versions_in_db(api_db, request_id)
+
+    assert again == {"version": 2, "unchanged": False}
+    assert versions[0]["resume_json"] == saved_then  # version 1 did not move
+    assert versions[1]["resume_json"] != saved_then and "Kafka" in versions[1]["resume_json"]
+
+
+def test_saving_after_changes_were_asked_for_puts_the_request_back_in_progress(client, api_db):
+    request_id = built_for_ravi(client)
+    client.post(f"/resume/requests/{request_id}/submit", headers=hdr(client, RAVI))
+    client.post(f"/resume/requests/{request_id}/decide", json={"decision": "send_back", "note": "Please add Kafka."}, headers=hdr(client, LEAD))
+    missing = client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()["changelog"]["coverage"]["missing_required"][0]
+    changed = confirm(client, request_id, [{"skill": missing, "projects": []}])  # a change the associate makes in answer to the note
+    assert changed.status_code == 200, changed.text
+
+    saved = client.post(f"/resume/requests/{request_id}/save", headers=hdr(client, RAVI))
+    assert saved.status_code == 200, saved.text
+
+    assert client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()["status"] == "in_progress"
+
+
+def test_only_the_associate_can_save_a_version(client):
+    request_id = built_for_ravi(client)
+
+    assert client.post(f"/resume/requests/{request_id}/save", headers=hdr(client, DIVYA)).status_code in (403, 404)
+
+
+# --- the briefing, prepared when the JD is uploaded ----------------------------------------------------------------
+
+def test_every_job_description_gets_a_briefing_that_the_request_page_carries(client):
+    request_id = tagged_request(client)
+
+    briefing = client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()["jd"]["briefing"]
+
+    assert briefing["headline"] and 1 <= len(briefing["points"]) <= 6
+    assert all(p["title"] and p["text"] for p in briefing["points"])
+
+
+def test_the_briefing_is_written_once_at_upload_and_saved(client, api_db):
+    uploaded = client.post("/resume/jds/text", json={"text": "Java, Spring Boot, Kafka", "title": "Uploaded now"}, headers=hdr(client, STAFF))
+    assert uploaded.status_code == 200, uploaded.text
+
+    stored = api_db.execute("SELECT briefing_json FROM job_descriptions WHERE id = ?", (uploaded.json()["id"],)).fetchone()[0]
+
+    assert stored and stored.startswith("[")  # one briefing per role of the JD, saved with it
+
+
+def test_a_job_description_from_before_briefings_still_gets_one_when_read(client, api_db):
+    request_id = tagged_request(client)
+    api_db.execute("UPDATE job_descriptions SET briefing_json = NULL")
+    api_db.commit()
+
+    briefing = client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()["jd"]["briefing"]
+
+    assert briefing["points"]
