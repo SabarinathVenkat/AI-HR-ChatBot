@@ -283,3 +283,41 @@ def test_a_summary_that_fails_the_check_is_tried_once_more_and_the_good_second_t
     result, notes = rewrite_summary(BASE, BASE, PLAN, ROLE, Twice())
 
     assert result.summary.text == "Backend engineer who builds Java payment platforms." and notes == ()
+
+
+# --- skills the associate confirms ------------------------------------------------------------------------------
+
+def test_the_bullet_for_confirmed_skills_uses_the_models_wording_when_it_names_every_skill_and_adds_no_number():
+    from app.rmg.resume.deep import DraftedSkillBullet, skill_bullet
+
+    def weaver(project, skills):
+        return DraftedSkillBullet(text="Designed the payment APIs on Kubernetes and Snowflake.")
+
+    assert skill_bullet(BASE.projects[0], ["Kubernetes", "Snowflake"], weaver) == "Designed the payment APIs on Kubernetes and Snowflake."
+
+
+def test_the_bullet_falls_back_to_a_plain_sentence_when_the_model_drops_a_skill_adds_a_number_or_fails():
+    from app.rmg.resume.deep import DraftedSkillBullet, plain_skill_bullet, skill_bullet
+
+    def drops(project, skills):
+        return DraftedSkillBullet(text="Designed the payment APIs on Kubernetes.")
+
+    def invents(project, skills):
+        return DraftedSkillBullet(text="Ran Kubernetes and Snowflake for 900 users.")
+
+    def breaks(project, skills):
+        raise ExtractionError("model_error")
+
+    plain = plain_skill_bullet(["Kubernetes", "Snowflake"])
+    assert plain == "Worked with Kubernetes and Snowflake on this project."
+    for weaver in (drops, invents, breaks, None):
+        assert skill_bullet(BASE.projects[0], ["Kubernetes", "Snowflake"], weaver) == plain
+
+
+def test_a_number_that_the_project_already_has_may_appear_in_the_bullet():
+    from app.rmg.resume.deep import DraftedSkillBullet, skill_bullet
+
+    def weaver(project, skills):
+        return DraftedSkillBullet(text="Built APIs for 14 partner systems on Kubernetes.")
+
+    assert skill_bullet(BASE.projects[0], ["Kubernetes"], weaver).startswith("Built APIs for 14")

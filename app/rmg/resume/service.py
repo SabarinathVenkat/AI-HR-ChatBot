@@ -24,7 +24,7 @@ from app.db.repositories import Employee
 from app.rmg.resume.changelog import build_change_log
 from app.rmg.resume.conformance import WARN, Check, Report, check_conformance
 from app.rmg.resume.chat import EditCommand, explain
-from app.rmg.resume.deep import MODES
+from app.rmg.resume.deep import MODES, skill_bullet
 from app.rmg.resume.edit import (
     EditError, add_certification_as, add_dates_as, add_fact, add_skill_as, move_bullet, move_project, remove_item, set_role_line,
     set_text, stamp_reviewer,
@@ -67,6 +67,7 @@ class ResumeEngine:
     deps: PipelineDeps
     interpreter: object | None = None  # reads a chat instruction into an edit command (see chat.py)
     polisher: object | None = None  # checks and fixes a finished file's layout: (docx, template) -> Polish (see layout_fix.py)
+    weaver: object | None = None  # words the bullet for skills the associate confirms (see deep.py); None uses a plain sentence
 
 
 def _day(stamp: str | None) -> date | None:
@@ -761,6 +762,37 @@ class ResumeService:
         self._audit("resume_edited", {"request_id": request_id, "action": cmd.action, "path": cmd.path, "by": by, "reviewer": reviewing})
         self.conn.commit()
         return True, message
+
+    def confirm_skills(self, request_id: int, entries: list[dict]) -> dict:
+        """The associate says which skills they really have and where they used them. Each skill is added to their skills, and every
+        project they name gets one bullet that states the skills used there. All of it is their own statement (user_added): the
+        reviewers see it marked as added by the associate. Only the associate can do this, never an assistant or a reviewer."""
+        draft, _, working, _ = self._editing(request_id)  # the associate only, and only while the draft is theirs to write
+        per_project: dict[int, list[str]] = {}
+        added = []
+        try:
+            for entry in entries:
+                skill = " ".join(str(entry.get("skill", "")).split())
+                try:
+                    working = add_skill_as(working, skill, category="Other relevant skills", by="user")
+                    added.append(skill)
+                except EditError as e:
+                    if e.code != "duplicate":  # a skill that is already there still gets written into the projects
+                        raise
+                for index in dict.fromkeys(entry.get("projects", [])):
+                    if not 0 <= index < len(working.projects):
+                        raise EditError("no_such_item")
+                    per_project.setdefault(index, []).append(skill)
+            for index, skills in sorted(per_project.items()):
+                text = skill_bullet(working.projects[index], list(dict.fromkeys(skills)), self.engine.weaver)
+                working = add_fact(working, index, text)
+        except EditError as e:
+            raise ServiceError(f"edit_{e.code}", str(e), 422) from None
+        self._store(request_id, draft, working)
+        self._audit("skills_confirmed", {"request_id": request_id, "skills": added, "projects": sorted(per_project)})
+        self.conn.commit()
+        self._log("skills_confirmed", request_id=request_id, skills=len(added), projects=len(per_project))
+        return self.detail(request_id)
 
     def edit(self, request_id: int, cmd: EditCommand) -> dict:
         """An edit from a button or a form (by="user"): the associate's own words, or a reviewer's while it waits for review."""

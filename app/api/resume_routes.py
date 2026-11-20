@@ -36,6 +36,15 @@ class BuildBody(BaseModel):
     mode: Literal["polish", "deep"] = "polish"  # polish rewords; deep match rebuilds the resume around the job
 
 
+class SkillEntry(BaseModel):
+    skill: str = Field(min_length=1, max_length=60)
+    projects: list[int] = Field(default_factory=list, max_length=30)  # indexes of the projects it was used in
+
+
+class ConfirmSkillsBody(BaseModel):
+    items: list[SkillEntry] = Field(min_length=1, max_length=30)
+
+
 class DecideBody(BaseModel):
     decision: Literal["approve", "send_back"]
     note: str | None = Field(default=None, max_length=1000)
@@ -192,6 +201,10 @@ def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Cal
     @app.post("/resume/requests/{request_id}/build")
     def build(request_id: int, body: BuildBody | None = None, svc: ResumeService = Depends(service)):
         return svc.build(request_id, force=bool(body and body.force), mode=body.mode if body else "polish")
+
+    @app.post("/resume/requests/{request_id}/skills/confirm")
+    def confirm_skills(request_id: int, body: ConfirmSkillsBody, svc: ResumeService = Depends(service)):
+        return svc.confirm_skills(request_id, [e.model_dump() for e in body.items])
 
     @app.post("/resume/requests/{request_id}/edit")
     def edit(request_id: int, body: EditCommand, svc: ResumeService = Depends(service)):

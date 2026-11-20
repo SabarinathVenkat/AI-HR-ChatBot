@@ -488,3 +488,86 @@ def test_an_unknown_build_mode_is_refused(client):
     upload_ravis_resume(client, request_id)
 
     assert client.post(f"/resume/requests/{request_id}/build", json={"mode": "turbo"}, headers=hdr(client, RAVI)).status_code == 422
+
+
+# --- the associate confirms the skills they have ------------------------------------------------------------------
+
+def built_for_ravi(client):
+    request_id = tagged_request(client)
+    upload_ravis_resume(client, request_id)
+    client.post(f"/resume/requests/{request_id}/build", headers=hdr(client, RAVI))
+    return request_id
+
+
+def confirm(client, request_id, items, who=RAVI):
+    return client.post(f"/resume/requests/{request_id}/skills/confirm", json={"items": items}, headers=hdr(client, who))
+
+
+def skill_names(detail) -> list[str]:
+    return [i["text"] for g in detail["resume"]["skill_groups"] for i in g["items"]]
+
+
+def test_confirming_skills_adds_them_to_the_skills_and_writes_them_into_the_projects_named(client):
+    request_id = built_for_ravi(client)
+    before = client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()
+    missing = before["changelog"]["coverage"]["missing_required"]
+    assert len(missing) >= 2
+
+    detail = confirm(client, request_id, [{"skill": missing[0], "projects": [0]}, {"skill": missing[1], "projects": []}]).json()["detail"] \
+        if False else confirm(client, request_id, [{"skill": missing[0], "projects": [0]}, {"skill": missing[1], "projects": []}]).json()
+
+    assert missing[0] in skill_names(detail) and missing[1] in skill_names(detail)
+    first_project = detail["resume"]["projects"][0]["bullets"]
+    assert any(missing[0] in b["text"] and b["origin"] == "user_added" for b in first_project)
+    assert not any(missing[1] in b["text"] for p in detail["resume"]["projects"] for b in p["bullets"])  # no project was named for it
+    covered = detail["changelog"]["coverage"]
+    assert covered["required_after"] > before["changelog"]["coverage"]["required_after"]
+    assert missing[0] not in covered["missing_required"] and missing[1] not in covered["missing_required"]
+
+
+def test_what_the_associate_confirms_is_marked_as_added_by_them_for_the_reviewers(client):
+    request_id = built_for_ravi(client)
+    skill = client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()["changelog"]["coverage"]["missing_required"][0]
+
+    detail = confirm(client, request_id, [{"skill": skill, "projects": [0]}]).json()
+
+    kinds = [e["kind"] for e in detail["changelog"]["entries"]]
+    assert "added_by_you" in kinds
+
+
+def test_a_skill_already_in_the_resume_is_not_added_twice_but_is_still_written_into_the_project(client):
+    request_id = built_for_ravi(client)
+    skill = client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()["changelog"]["coverage"]["missing_required"][0]
+    confirm(client, request_id, [{"skill": skill, "projects": []}])
+
+    detail = confirm(client, request_id, [{"skill": skill, "projects": [0]}]).json()
+
+    assert skill_names(detail).count(skill) == 1
+    assert any(skill in b["text"] for b in detail["resume"]["projects"][0]["bullets"])
+
+
+def test_only_the_associate_may_confirm_skills(client):
+    request_id = built_for_ravi(client)
+
+    assert confirm(client, request_id, [{"skill": "Kafka", "projects": []}], who=LEAD).status_code in (403, 404)
+    assert confirm(client, request_id, [{"skill": "Kafka", "projects": []}], who=DIVYA).status_code in (403, 404)
+
+
+def test_confirming_for_a_project_that_does_not_exist_is_refused_and_changes_nothing(client):
+    request_id = built_for_ravi(client)
+    before = client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()
+
+    response = confirm(client, request_id, [{"skill": "Kafka", "projects": [99]}])
+
+    assert response.status_code == 422
+    assert client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()["resume"] == before["resume"]
+
+
+def test_confirming_skills_can_be_undone(client):
+    request_id = built_for_ravi(client)
+    before = client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()["resume"]
+    confirm(client, request_id, [{"skill": "Kafka", "projects": [0]}])
+
+    client.post(f"/resume/requests/{request_id}/edit", json={"action": "undo"}, headers=hdr(client, RAVI))
+
+    assert client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()["resume"] == before

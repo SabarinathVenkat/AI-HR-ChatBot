@@ -552,6 +552,35 @@
     $("jd-preview").showModal();
   }
 
+  /* The associate says which of the missing skills they really have, and in which projects they used them. One click adds them all, as
+     their own statement, and writes each into the projects they named. A skill is a claim, so nothing is added for them. */
+  function confirmSkillsPanel(d, cov) {
+    const wanted = [...cov.missing_required, ...cov.missing_nice];
+    if (!d.can.edit || !wanted.length || !d.resume) return null;
+    const projects = d.resume.projects;
+    const list = h("ul", { class: "rb-cs" });
+    wanted.forEach((skill, i) => {
+      const box = h("input", { type: "checkbox", id: `cs-${i}`, "data-skill": skill });
+      const where = h("div", { class: "rb-cs-where", hidden: true }, h("span", { class: "muted", text: "Used in:" }),
+        projects.map((p, n) => h("label", { class: "rb-check" }, h("input", { type: "checkbox", "data-project": String(n) }), h("span", { text: p.name }))));
+      box.addEventListener("change", () => { where.hidden = !box.checked; });
+      list.append(h("li", { class: "rb-cs-row" }, h("label", { class: "rb-check", for: `cs-${i}` }, box, h("span", { text: skill })), where));
+    });
+    const go = h("button", { id: "confirm-skills", class: "btn primary", type: "button", on: { click: () => attempt(async () => {
+      const items = [...list.querySelectorAll(".rb-cs-row")].filter((row) => row.querySelector("[data-skill]").checked).map((row) => ({
+        skill: row.querySelector("[data-skill]").dataset.skill,
+        projects: [...row.querySelectorAll("[data-project]")].filter((p) => p.checked).map((p) => Number(p.dataset.project)),
+      }));
+      if (!items.length) { flash("Tick the skills you have first.", "error"); return; }
+      const detail = await post(`/resume/requests/${d.id}/skills/confirm`, { items });
+      flash(`Added ${items.length} ${items.length === 1 ? "skill" : "skills"}. They are marked as added by you.`, "ok");
+      await refreshDetail(detail);
+    }, "Adding your skills…") } }, "Add the skills I have");
+    return h("div", { class: "rb-card", id: "confirm-skills-card" }, h("h3", { text: "Confirm the skills you have" }),
+      h("p", { class: "muted", text: "Tick each skill you have really worked with and the projects you used it in. They are added to your skills and written into those projects." }),
+      list, h("p", { class: "muted", text: "By adding them you confirm they are true. They are marked as added by you, and your reviewers see that." }), go);
+  }
+
   function jdCard(d) {
     const role = d.jd.role;
     const cov = d.changelog && d.changelog.coverage;
@@ -579,6 +608,7 @@
         cov.missing_required.length ? [h("p", { class: "muted", text: d.can.edit ? "Required, but not in your resume (not claimed). Click one that is true to add it:" : "Required, but not in the resume (not claimed)" }), suggestions(cov.missing_required, "missing")] : null,
         cov.missing_nice.length ? [h("p", { class: "muted", text: d.can.edit ? "Nice to have, not in your resume. Click to add if true:" : "Nice to have, not in the resume" }), suggestions(cov.missing_nice, "nice")] : null,
         d.can.edit ? h("p", { class: "muted", text: "Anything you add is marked as your own statement, so only add what is true." }) : null) : null,
+      cov ? confirmSkillsPanel(d, cov) : null,
       d.versions.length ? h("div", { class: "rb-card" }, h("h3", { text: "Versions" }),
         h("ul", { class: "rb-list" }, d.versions.map((v) => h("li", { class: "sub", text: `v${v.version}: ${v.kind}` })))) : null);
   }

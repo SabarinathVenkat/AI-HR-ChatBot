@@ -661,3 +661,36 @@ def test_the_two_mode_cards_are_side_by_side_and_readable_not_stretched(page, st
         assert box["textW"] > 150, boxes  # the text has room to read
     assert boxes[0]["left"] != boxes[1]["left"], boxes  # side by side
     assert page.evaluate("document.documentElement.scrollWidth - window.innerWidth") <= 0  # and the page does not scroll sideways
+
+
+def test_the_associate_confirms_skills_and_the_projects_they_used_them_in(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+    card = page.locator("#confirm-skills-card")
+    expect(card).to_be_visible()
+    expect(card).to_contain_text("By adding them you confirm they are true")
+    before = page.locator("#coverage h3").inner_text()
+    first = card.locator("[data-skill]").first
+    skill = first.get_attribute("data-skill")
+
+    expect(card.locator(".rb-cs-where").first).to_be_hidden()  # no project is asked about until the skill is ticked
+    first.check()
+    expect(card.locator(".rb-cs-where").first).to_be_visible()
+    card.locator(".rb-cs-where").first.locator("[data-project]").first.check()
+    page.locator("#confirm-skills").click()
+
+    expect(page.locator("#message")).to_contain_text("Added 1 skill")
+    expect(page.locator("#skills-section")).to_contain_text(skill)
+    expect(page.locator("#coverage h3")).not_to_have_text(before)  # the score moved
+    expect(page.get_by_text(f"Worked with {skill} on this project.").first).to_be_visible()  # written into the project they named
+
+
+def test_confirming_with_nothing_ticked_asks_to_tick_first_and_changes_nothing(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+    before = page.locator("#coverage h3").inner_text()
+
+    page.locator("#confirm-skills").click()
+
+    expect(page.locator("#message")).to_contain_text("Tick the skills you have first")
+    assert page.locator("#coverage h3").inner_text() == before
