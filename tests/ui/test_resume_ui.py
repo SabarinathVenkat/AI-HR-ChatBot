@@ -624,3 +624,22 @@ def test_the_download_message_never_says_undefined_whatever_the_layout_check_rep
 
     expect(page.locator("#message")).to_contain_text("Downloaded a DRAFT copy")
     expect(page.locator("#message")).not_to_contain_text("undefined")
+
+
+def test_the_associate_chooses_polish_or_deep_match_before_building(page, start_server):
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)  # leaves Ravi on a request that is already built with the default
+
+    expect(page.locator("#built-with")).to_have_text("Built with: Polish")
+    expect(page.locator(".rb-mode")).to_have_count(2)
+    expect(page.locator("#mode-polish")).to_be_checked()  # polish is the default
+
+    page.locator("label[for=mode-deep]").click()
+    expect(page.locator("#mode-deep")).to_be_checked()
+    expect(page.locator(".rb-mode").nth(1)).to_contain_text("Skills you do not have are never added")
+    page.locator("#build").click()
+
+    # This test server has no deep drafter, so it says so and polishes instead: a build never fails because of the mode.
+    expect(page.locator("#message")).to_contain_text("Your tailored draft is ready")
+    expect(page.locator("#built-with")).to_have_text("Built with: Polish")
+    expect(page.locator(".rb-warn").first).to_contain_text("Deep match is not available")

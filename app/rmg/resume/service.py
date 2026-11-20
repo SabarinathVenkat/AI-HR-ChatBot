@@ -24,6 +24,7 @@ from app.db.repositories import Employee
 from app.rmg.resume.changelog import build_change_log
 from app.rmg.resume.conformance import WARN, Check, Report, check_conformance
 from app.rmg.resume.chat import EditCommand, explain
+from app.rmg.resume.deep import MODES
 from app.rmg.resume.edit import (
     EditError, add_certification_as, add_dates_as, add_fact, add_skill_as, move_bullet, move_project, remove_item, set_role_line,
     set_text, stamp_reviewer,
@@ -404,7 +405,9 @@ class ResumeService:
         self._log("resume_uploaded", request_id=request_id, filename=document.filename, size=len(data), kind=document.kind, pages=document.pages)
         return {"filename": document.filename}
 
-    def build(self, request_id: int, force: bool = False) -> dict:
+    def build(self, request_id: int, force: bool = False, mode: str = "polish") -> dict:
+        if mode not in MODES:
+            raise ServiceError("bad_mode", "Choose polish or deep match.", 422)
         row = self._as_associate(request_id, OPEN_FOR_ASSOCIATE)
         if not row["base_file_key"]:
             raise ServiceError("no_resume", "Upload your resume first.", 409)
@@ -415,11 +418,11 @@ class ResumeService:
             raise ServiceError("no_template", "RMG has not set up a resume template yet.", 409)
         request = PipelineRequest(
             resume_file=(row["base_filename"], self.files.get(row["base_file_key"])), jd=self._jd(row["jd_id"]),
-            template=self.files.get(template["file_key"]), role_index=row["role_index"], today=self._now().date())
+            template=self.files.get(template["file_key"]), role_index=row["role_index"], today=self._now().date(), mode=mode)
         started = time.perf_counter()
         context = {"request_id": request_id, "filename": row["base_filename"], "size": len(request.resume_file[1]),
                    "template": template["filename"], "jd_id": row["jd_id"], "role_index": row["role_index"]}
-        self._log("build_started", forced=force, **context)
+        self._log("build_started", forced=force, mode=mode, **context)
         try:
             result = run_pipeline(self.engine.deps, request)
         except PipelineError as e:
@@ -432,16 +435,17 @@ class ResumeService:
         years = result.experience.describe() if result.experience.months else ""
         self.conn.execute(
             "INSERT INTO resume_drafts (request_id, base_json, working_json, undo_json, warnings_json, years_text,"
-            " read_coverage, template_id, updated_at) VALUES (?,?,?,'[]',?,?,?,?,?)"
+            " read_coverage, template_id, mode, updated_at) VALUES (?,?,?,'[]',?,?,?,?,?,?)"
             " ON CONFLICT(request_id) DO UPDATE SET base_json = excluded.base_json, working_json = excluded.working_json,"
             " undo_json = '[]', warnings_json = excluded.warnings_json, years_text = excluded.years_text,"
-            " read_coverage = excluded.read_coverage, template_id = excluded.template_id, updated_at = excluded.updated_at",
+            " read_coverage = excluded.read_coverage, template_id = excluded.template_id, mode = excluded.mode,"
+            " updated_at = excluded.updated_at",
             (request_id, result.original.model_dump_json(), result.tailored.model_dump_json(), json.dumps(result.warnings),
-             years, result.read_coverage, template["id"], self._iso()))
+             years, result.read_coverage, template["id"], result.mode, self._iso()))
         self._set_status(request_id, "in_progress")
-        self._audit("resume_built", {"request_id": request_id, "forced": force})
+        self._audit("resume_built", {"request_id": request_id, "forced": force, "mode": result.mode})
         self.conn.commit()
-        self._log("build_succeeded", request_id=request_id, duration_ms=round((time.perf_counter() - started) * 1000),
+        self._log("build_succeeded", request_id=request_id, mode=result.mode, duration_ms=round((time.perf_counter() - started) * 1000),
                   read_coverage=result.read_coverage, warnings=len(result.warnings), projects=len(result.tailored.projects),
                   highlights=len(result.tailored.highlights), missing_required=len(result.plan.missing_required))
         for warning in result.warnings:
@@ -488,7 +492,7 @@ class ResumeService:
             "associate": {"id": row["associate_id"], "name": self._name(row["associate_id"])},
             "lead": {"id": row["lead_id"], "name": self._lead_name(row)},
             "review_by": "Competency Lead" if row["lead_id"] else "RMG",
-            "resume": None, "changelog": None, "warnings": [], "years_text": "", "read_coverage": None, "render_notes": [],
+            "resume": None, "changelog": None, "warnings": [], "years_text": "", "read_coverage": None, "render_notes": [], "mode": None,
             "versions": [dict(v) for v in self.conn.execute(
                 "SELECT version, kind, created_at FROM resume_versions WHERE request_id = ? ORDER BY version", (request_id,))],
             "can": self._can(row, relations, draft is not None),
@@ -496,7 +500,8 @@ class ResumeService:
         if draft is not None:
             log, _ = self._changelog(row, draft)
             view.update(resume=json.loads(draft["working_json"]), changelog=asdict(log), warnings=json.loads(draft["warnings_json"]),
-                        years_text=draft["years_text"], read_coverage=draft["read_coverage"], render_notes=self._render_notes(draft))
+                        years_text=draft["years_text"], read_coverage=draft["read_coverage"], render_notes=self._render_notes(draft),
+                        mode=draft["mode"])
         return view
 
     def _render_notes(self, draft) -> list[str]:

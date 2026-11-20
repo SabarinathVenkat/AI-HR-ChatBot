@@ -92,7 +92,7 @@ def _summary(entries, coverage: Coverage, required_total: int) -> str:
     if "rejected" in counts:
         parts.append(_count(counts["rejected"], "change", "changes", "rejected"))
     if "written" in counts:
-        parts.append(_count(counts["written"], "highlight", "highlights", "written for you"))
+        parts.append(_count(counts["written"], "point", "points", "written for you"))
     if "added_by_you" in counts:
         parts.append(_count(counts["added_by_you"], "item", "items", "added by you"))
     text = ("Changes: " + ", ".join(parts) + ".") if parts else "No changes were made."
@@ -147,9 +147,16 @@ def build_change_log(original: Resume, tailored: Resume, role: Role, report: Gro
     # a key highlight is "written" (not reworded) when it was made from other lines, or from one a highlight already uses
     highlight_uses = Counter(item.source for path, item in tailored.all_items() if path.startswith("highlights."))
 
+    bullet_uses = Counter(item.source for path, item in tailored.all_items() if ".bullets." in path)
+
     def is_written(path: str, item) -> bool:
-        return (path.startswith("highlights.") and item.origin is Origin.REWORDED
-                and (not (item.source or "").startswith("highlights.") or highlight_uses[item.source] > 1))
+        if item.origin is not Origin.REWORDED:
+            return False
+        if path.startswith("highlights."):
+            return not (item.source or "").startswith("highlights.") or highlight_uses[item.source] > 1
+        if path == "summary" or ".bullets." in path:  # built from several lines, or from a line other bullets also use (deep match)
+            return "+" in (item.source or "") or (".bullets." in path and bullet_uses[item.source] > 1)
+        return False
 
     # items whose wording changed
     for path, item in tailored.all_items():
@@ -168,8 +175,9 @@ def build_change_log(original: Resume, tailored: Resume, role: Role, report: Gro
     # highlights written from the resume's projects and skills, rather than found in it
     for path, item in tailored.all_items():
         if is_written(path, item):
-            entries.append(ChangeEntry("written", _where(path, tailored), item.source, None, item.text,
-                                       "Written from your projects and skills, so the top of the resume speaks to this role.", path))
+            why = ("Written from your projects and skills, so the top of the resume speaks to this role." if path.startswith("highlights.")
+                   else "Written from your project work, so this point speaks to the role.")
+            entries.append(ChangeEntry("written", _where(path, tailored), item.source, None, item.text, why, path))
 
     # original items that are gone, skills included (the baseline already has duplicate skills removed)
     kept_sources = {s for _, item in tailored.all_items() if item.origin is not Origin.USER_ADDED for s in (item.source or "").split("+")}

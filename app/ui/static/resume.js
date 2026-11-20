@@ -460,6 +460,26 @@
       + (LAYOUT_NOTE[response.headers.get("X-Resume-Layout")] || ""), "Preparing and checking the Word file…");
   const downloadJd = (path) => downloadFile(path, "job-description.docx", () => "Downloaded the job description.");
 
+  /* How the resume is adapted to the job. Polish rewords what is there; Deep match rebuilds the resume around the job. */
+  const BUILD_MODES = [
+    { id: "polish", name: "Polish", text: "Keeps your resume as written. Fixes the wording and the sentences and puts what the job asks for first." },
+    { id: "deep", name: "Deep match", text: "Rebuilds the resume around the job: every point rewritten job-first, new points drawn from your real project work, a new summary and more key highlights. Skills you do not have are never added; you get them as suggestions to confirm." },
+  ];
+  const MODE_NAME = { polish: "Polish", deep: "Deep match" };
+
+  function modePicker(d) {
+    state.buildMode = state.buildMode || d.mode || "polish";
+    const group = h("div", { class: "rb-modes", role: "radiogroup", "aria-label": "How to adapt your resume" });
+    for (const m of BUILD_MODES) {
+      const input = h("input", { type: "radio", name: "build-mode", value: m.id, id: `mode-${m.id}` });
+      input.checked = state.buildMode === m.id;
+      input.addEventListener("change", () => { state.buildMode = m.id; });
+      group.append(h("label", { class: "rb-mode", for: `mode-${m.id}` }, input,
+        h("span", {}, h("strong", {}, m.name), h("span", { class: "sub", text: m.text }))));
+    }
+    return group;
+  }
+
   function actionBar(d) {
     const can = d.can;
     const fileInput = h("input", { id: "resume-file", type: "file", accept: ".docx,.pdf,.txt", "aria-label": "Your resume file" });
@@ -477,16 +497,19 @@
       });
     }
     if (can.build) btn("build", d.resume ? "Rebuild (discard my edits)" : "Build tailored resume", async () => {
-      const rebuilt = await post(`/resume/requests/${d.id}/build`, { force: Boolean(d.resume) });
-      flash("Your tailored draft is ready. Review the changes, edit anything, then save and submit.", "ok");
+      const mode = state.buildMode || "polish";
+      const rebuilt = await post(`/resume/requests/${d.id}/build`, { force: Boolean(d.resume), mode });
+      flash(`Your tailored draft is ready (${MODE_NAME[mode]}). Review the changes, edit anything, then save and submit.`, "ok");
       await refreshDetail(rebuilt);
-    }, "btn primary", "Building your tailored resume… this can take a minute.");
+    }, "btn primary", state.buildMode === "deep" ? "Rebuilding your resume around the job… this can take a couple of minutes." : "Building your tailored resume… this can take a minute.");
     if (can.save) btn("save", "Save version", async () => { const r = await post(`/resume/requests/${d.id}/save`); flash(`Saved as version ${r.version}.`, "ok"); await refreshDetail(); });
     if (can.submit) btn("submit", "Submit for review", async () => { await post(`/resume/requests/${d.id}/submit`); flash("Submitted. Your reviewers have been notified.", "ok"); await refreshDetail(); }, "btn primary");
     if (can.reopen) btn("reopen", "Reopen to edit", async () => { await post(`/resume/requests/${d.id}/reopen`); await refreshDetail(); });
     if (can.download) buttons.push(h("button", { id: "download", class: "btn", type: "button", on: { click: () => download(d.id) } }, d.status === "approved" ? "Download approved resume" : "Download draft"));
     if (can.cancel) btn("cancel", "Cancel request", async () => { await post(`/resume/requests/${d.id}/cancel`); flash("Request cancelled.", "ok"); await refreshDetail(); });
-    return h("div", { class: "rb-toolbar" }, buttons);
+    return h("div", {}, can.build ? modePicker(d) : null,
+      d.mode ? h("p", { class: "rb-built-with", id: "built-with", text: `Built with: ${MODE_NAME[d.mode] || d.mode}` }) : null,
+      h("div", { class: "rb-toolbar" }, buttons));
   }
 
   function decisionCard(d) {

@@ -2,7 +2,8 @@
 import logging
 
 from app.rmg.resume.chat import LLMEditInterpreter
-from app.rmg.resume.draft import LLMProjectDrafter, TailoringSettings
+from app.rmg.resume.deep import LLMSummarizer
+from app.rmg.resume.draft import DEEP_SETTINGS, LLMProjectDrafter, TailoringSettings
 from app.rmg.resume.extract import LLMResumeExtractor, anthropic_factory
 from app.rmg.resume.highlights import LLMHighlighter
 from app.rmg.resume.jd import JDExtractor
@@ -19,7 +20,7 @@ def build_live_resume_engine(settings: TailoringSettings | None = None) -> Resum
     settings = settings or TailoringSettings()
     make_model = anthropic_factory()  # a small, fast model: it copies and rewords, it does not decide
     deps = PipelineDeps(LLMResumeExtractor(make_model), JDExtractor(make_model), LLMProjectDrafter(make_model, settings), settings,
-                        LLMHighlighter(make_model))
+                        LLMHighlighter(make_model), LLMProjectDrafter(make_model, DEEP_SETTINGS, deep=True), LLMSummarizer(make_model))
     renderer = default_renderer()  # LibreOffice, when the server has it: it draws the pages the layout judge looks at
     if renderer is None:
         log.warning("LibreOffice is not installed: downloads will not have their layout checked")

@@ -1,7 +1,7 @@
 """The whole resume-builder run as one LangGraph graph.
 
     check_template -> extract_resume ─┐
-                   -> extract_jd ─────┴-> join -> analyse -> tailor -> ground -> highlights -> changelog -> render
+                   -> extract_jd ─────┴-> join -> analyse -> tailor -> ground -> summary -> highlights -> changelog -> render
 
   check_template   refuses a template that is not a readable Word file before anything costly happens
   extract_*        read and extract the resume and the JD at the same time (two static parallel branches); an
@@ -10,7 +10,8 @@
   analyse          pick the JD role, remove duplicate skills, compute experience, build the match plan
   tailor           draft every project in parallel (the tailor graph), then put skills the JD wants first
   ground           put back the original wording of anything the resume does not support
-  highlights       if the resume has fewer than five key highlights, write the rest from its projects and skills (each one grounded)
+  summary          deep match only: rewrite the summary for the job (grounded)
+  highlights       if the resume has fewer than five key highlights (eight in deep match), write the rest from its projects and skills
   changelog        compare original and result, in code
   render           clone the template's paragraphs
 
@@ -25,11 +26,12 @@ from typing import Annotated, Protocol, TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from app.rmg.resume.changelog import ChangeLog, build_change_log
-from app.rmg.resume.draft import TailoringSettings
+from app.rmg.resume.deep import DEEP_HIGHLIGHTS, Summarizer, drop_repeated_bullets, rewrite_summary
+from app.rmg.resume.draft import DEEP_SETTINGS, TailoringSettings
 from app.rmg.resume.extract import ExtractionError, ExtractionResult
 from app.rmg.resume.facts import Experience, dedupe_skills, experience
 from app.rmg.resume.grounding import enforce_grounding
-from app.rmg.resume.highlights import Highlighter, fill_highlights
+from app.rmg.resume.highlights import MIN_HIGHLIGHTS, Highlighter, fill_highlights
 from app.rmg.resume.ingest import IngestError, SourceDocument, read_document
 from app.rmg.resume.jd import JobDescription, Role
 from app.rmg.resume.match import MatchPlan, build_match_plan, order_skills
@@ -55,6 +57,8 @@ class PipelineDeps:
     drafter: Drafter
     settings: TailoringSettings = TailoringSettings()
     highlighter: Highlighter | None = None  # writes missing key highlights; None leaves the resume's highlights as they are
+    deep_drafter: Drafter | None = None  # the project drafter for deep match; None means deep match falls back to polish
+    summarizer: Summarizer | None = None  # rewrites the summary in deep match
 
 
 @dataclass(frozen=True)
@@ -65,6 +69,7 @@ class PipelineRequest:
     jd: JobDescription | None = None  # a job description that was already read (it is stored once and reused)
     role_index: int = 0  # which role of the JD to tailor for
     today: date | None = None  # for experience; defaults to today
+    mode: str = "polish"  # "polish" rewords what is there; "deep" rebuilds the resume around the job (see deep.py)
 
 
 class PipelineError(Exception):
@@ -85,6 +90,7 @@ class PipelineResult:
     rendered: RenderResult
     warnings: tuple[str, ...]  # projects that could not be tailored
     read_coverage: float | None  # how completely the resume was read; None for scans
+    mode: str = "polish"  # the mode that was actually used
 
 
 class State(TypedDict, total=False):
@@ -142,18 +148,33 @@ def build_pipeline(deps: PipelineDeps):
         worked = experience(base.jobs, request.today or date.today())
         return {"role": role, "base": base, "experience": worked, "plan": build_match_plan(base, role, worked)}
 
+    def is_deep(state: State) -> bool:
+        return state["request"].mode == "deep" and deps.deep_drafter is not None
+
     def tailor(state: State):
-        result = tailor_projects(state["base"], state["role"], state["plan"], deps.drafter, deps.settings)
-        return {"tailored": order_skills(result.resume, state["plan"]), "warnings": result.warnings}
+        deep = is_deep(state)
+        drafter, settings = (deps.deep_drafter, DEEP_SETTINGS) if deep else (deps.drafter, deps.settings)
+        result = tailor_projects(state["base"], state["role"], state["plan"], drafter, settings)
+        notes = result.warnings
+        if state["request"].mode == "deep" and not deep:
+            notes = ("Deep match is not available on this server, so your resume was polished instead.", *notes)
+        return {"tailored": order_skills(result.resume, state["plan"]), "warnings": notes}
 
     def ground(state: State):
         grounded, report = enforce_grounding(state["base"], state["tailored"], state["plan"])
-        return {"grounded": grounded, "report": report}
+        return {"grounded": drop_repeated_bullets(grounded) if is_deep(state) else grounded, "report": report}
+
+    def summary(state: State):
+        if not is_deep(state) or deps.summarizer is None:
+            return {}
+        rewritten, notes = rewrite_summary(state["base"], state["grounded"], state["plan"], state["role"], deps.summarizer)
+        return {"grounded": rewritten, "warnings": (*state.get("warnings", ()), *notes)}
 
     def highlights(state: State):
         if deps.highlighter is None:
             return {}
-        filled, notes = fill_highlights(state["base"], state["grounded"], state["plan"], state["role"], deps.highlighter)
+        filled, notes = fill_highlights(state["base"], state["grounded"], state["plan"], state["role"], deps.highlighter,
+                                        minimum=DEEP_HIGHLIGHTS if is_deep(state) else MIN_HIGHLIGHTS)
         return {"grounded": filled, "warnings": (*state.get("warnings", ()), *notes)}
 
     def changelog(state: State):
@@ -167,7 +188,7 @@ def build_pipeline(deps: PipelineDeps):
     graph = StateGraph(State)
     for name, node in (("check_template", check_template_node), ("extract_resume", extract_resume), ("extract_jd", extract_jd),
                        ("join", join), ("analyse", analyse), ("tailor", tailor), ("ground", ground),
-                       ("highlights", highlights), ("changelog", changelog), ("render", render)):
+                       ("summary", summary), ("highlights", highlights), ("changelog", changelog), ("render", render)):
         graph.add_node(name, node)
     graph.add_edge(START, "check_template")
     graph.add_edge("check_template", "extract_resume")
@@ -176,7 +197,8 @@ def build_pipeline(deps: PipelineDeps):
     graph.add_edge("join", "analyse")
     graph.add_edge("analyse", "tailor")
     graph.add_edge("tailor", "ground")
-    graph.add_edge("ground", "highlights")
+    graph.add_edge("ground", "summary")
+    graph.add_edge("summary", "highlights")
     graph.add_edge("highlights", "changelog")
     graph.add_edge("changelog", "render")
     graph.add_edge("render", END)
@@ -188,4 +210,5 @@ def run_pipeline(deps: PipelineDeps, request: PipelineRequest) -> PipelineResult
     return PipelineResult(
         original=out["base"], tailored=out["grounded"], jd=out["jd"], role=out["role"], experience=out["experience"],
         plan=out["plan"], changelog=out["changelog"], rendered=out["rendered"], warnings=out["warnings"],
-        read_coverage=out["extraction"].coverage)
+        read_coverage=out["extraction"].coverage,
+        mode="deep" if out["request"].mode == "deep" and deps.deep_drafter is not None else "polish")

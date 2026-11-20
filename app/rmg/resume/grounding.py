@@ -59,6 +59,19 @@ def _looks_technical(token: str, position: int) -> bool:
             or (token[0].isupper() and position > 0))
 
 
+_SENTENCE_END = re.compile(r"[.!?]\s+$")
+
+
+def _words(text: str) -> list[tuple[str, int]]:
+    """The words of `text` with a position each. The word that opens a sentence gets position 0, like the first word of the whole
+    text, so a capital letter at the start of a later sentence ("Redesigned the batch jobs.") is not taken for the name of a
+    technology. A CamelCase word, or one with digits or + or #, still counts as technical wherever it stands."""
+    out: list[tuple[str, int]] = []
+    for n, m in enumerate(_TOKEN.finditer(text)):
+        out.append((m.group(0), 0 if _SENTENCE_END.search(text[:m.start()]) else n))
+    return out
+
+
 def check_grounding(original: Resume, tailored: Resume, plan: MatchPlan) -> GroundingReport:
     by_source = {item.source: item for _, item in original.all_items()}
     vocabulary = {t.casefold() for t in _TOKEN.findall(_resume_text(original))}
@@ -87,7 +100,7 @@ def check_grounding(original: Resume, tailored: Resume, plan: MatchPlan) -> Grou
                 flagged_words.update(w.casefold() for w in skill.split())
         allowed_numbers = set(_NUMBER.findall(source_text))
         violations += [Violation("new_number", path, n) for n in dict.fromkeys(_NUMBER.findall(item.text)) if n not in allowed_numbers]
-        for position, token in enumerate(_TOKEN.findall(item.text)):
+        for token, position in _words(item.text):
             key = token.casefold()
             if key not in vocabulary and key not in flagged_words and _looks_technical(token, position):
                 violations.append(Violation("new_term", path, token))

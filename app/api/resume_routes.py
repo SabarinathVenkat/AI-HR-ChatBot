@@ -33,6 +33,7 @@ class LeadBody(BaseModel):
 
 class BuildBody(BaseModel):
     force: bool = False
+    mode: Literal["polish", "deep"] = "polish"  # polish rewords; deep match rebuilds the resume around the job
 
 
 class DecideBody(BaseModel):
@@ -190,7 +191,7 @@ def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Cal
 
     @app.post("/resume/requests/{request_id}/build")
     def build(request_id: int, body: BuildBody | None = None, svc: ResumeService = Depends(service)):
-        return svc.build(request_id, force=bool(body and body.force))
+        return svc.build(request_id, force=bool(body and body.force), mode=body.mode if body else "polish")
 
     @app.post("/resume/requests/{request_id}/edit")
     def edit(request_id: int, body: EditCommand, svc: ResumeService = Depends(service)):

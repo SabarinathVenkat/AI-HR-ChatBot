@@ -17,6 +17,7 @@ from app.rmg.resume.service import ResumeEngine
 from tests.integration.conftest import SECRET, auth_headers
 from tests.unit.resume_fakes import FakeJDExtractor, FakeResumeExtractor, keep_as_written
 from tests.unit.resume_templates import make_template
+from tests.unit.test_resume_deep import deep_drafter
 
 HEAD, STAFF, LEAD, RAVI, DIVYA, SANJAY = "Nancy", "Shadrach", "Veera", "Ravi Kumar", "Divya Menon", "Sanjay Patel"
 
@@ -29,9 +30,10 @@ def template_bytes() -> bytes:
 
 @pytest.fixture
 def make_client(api_db, clock, tmp_path, argon_hash):
-    def build(with_resume=True):
+    def build(with_resume=True, deep=False):
         seed_resume_demo(api_db, hash_password=lambda p: argon_hash)
-        engine = ResumeEngine(PipelineDeps(FakeResumeExtractor(), FakeJDExtractor(), keep_as_written, TailoringSettings()),
+        engine = ResumeEngine(PipelineDeps(FakeResumeExtractor(), FakeJDExtractor(), keep_as_written, TailoringSettings(),
+                                           deep_drafter=deep_drafter if deep else None),
                               lambda message, resume: EditCommand(action="remove", path="projects.0.bullets.0", reply="Removed."))
         app = create_app(Settings(jwt_secret=SECRET), connection=lambda: nullcontext(api_db), clock=clock,
                          resume_engine=engine if with_resume else None,
@@ -437,3 +439,52 @@ def test_stats_are_closed_while_the_rmg_module_is_off(client, api_db):
     api_db.commit()
 
     assert client.get("/resume/stats", headers=hdr(client, RAVI)).status_code == 403
+
+
+# --- polish and deep match --------------------------------------------------------------------------------------
+
+def upload_ravis_resume(client, request_id):
+    return client.post(f"/resume/requests/{request_id}/resume?filename=cv.txt", content=b"Ravi's resume", headers=hdr(client, RAVI))
+
+
+def bullet_count(detail) -> int:
+    return sum(len(p["bullets"]) for p in detail["resume"]["projects"])
+
+
+def test_a_build_is_polish_unless_deep_match_is_chosen(client):
+    request_id = tagged_request(client)
+    upload_ravis_resume(client, request_id)
+
+    built = client.post(f"/resume/requests/{request_id}/build", headers=hdr(client, RAVI)).json()
+
+    assert built["mode"] == "polish"
+
+
+def test_deep_match_rebuilds_with_more_points_and_the_draft_remembers_the_mode(make_client):
+    client = make_client(deep=True)
+    request_id = tagged_request(client)
+    upload_ravis_resume(client, request_id)
+    polish = client.post(f"/resume/requests/{request_id}/build", json={"mode": "polish"}, headers=hdr(client, RAVI)).json()
+
+    deep = client.post(f"/resume/requests/{request_id}/build", json={"mode": "deep", "force": True}, headers=hdr(client, RAVI)).json()
+
+    assert polish["mode"] == "polish" and deep["mode"] == "deep"
+    assert bullet_count(deep) > bullet_count(polish)
+    assert client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()["mode"] == "deep"
+    assert any(e["kind"] == "written" for e in deep["changelog"]["entries"])
+
+
+def test_deep_match_on_a_server_without_it_falls_back_to_polish_and_says_so(client):
+    request_id = tagged_request(client)
+    upload_ravis_resume(client, request_id)
+
+    built = client.post(f"/resume/requests/{request_id}/build", json={"mode": "deep"}, headers=hdr(client, RAVI)).json()
+
+    assert built["mode"] == "polish" and any("Deep match is not available" in w for w in built["warnings"])
+
+
+def test_an_unknown_build_mode_is_refused(client):
+    request_id = tagged_request(client)
+    upload_ravis_resume(client, request_id)
+
+    assert client.post(f"/resume/requests/{request_id}/build", json={"mode": "turbo"}, headers=hdr(client, RAVI)).status_code == 422

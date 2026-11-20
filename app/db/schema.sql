@@ -197,6 +197,7 @@ CREATE TABLE IF NOT EXISTS resume_drafts (
     years_text   TEXT NOT NULL DEFAULT '',
     read_coverage REAL,
     template_id  INTEGER REFERENCES resume_templates(id),
+    mode         TEXT NOT NULL DEFAULT 'polish',  -- how it was built: polish or deep (deep match)
     updated_at   TEXT NOT NULL
 );
 
