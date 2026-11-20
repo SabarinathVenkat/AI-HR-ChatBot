@@ -643,3 +643,21 @@ def test_the_associate_chooses_polish_or_deep_match_before_building(page, start_
     expect(page.locator("#message")).to_contain_text("Your tailored draft is ready")
     expect(page.locator("#built-with")).to_have_text("Built with: Polish")
     expect(page.locator(".rb-warn").first).to_contain_text("Deep match is not available")
+
+
+def test_the_two_mode_cards_are_side_by_side_and_readable_not_stretched(page, start_server):
+    """A global style once made the radio buttons full width, so each card became a tall box with its text squeezed into a sliver."""
+    server = start_server([], resume=True)
+    build_as_ravi(page, server)
+
+    boxes = page.evaluate("""() => [...document.querySelectorAll('.rb-mode')].map(el => {
+        const r = el.getBoundingClientRect(), t = el.querySelector('span').getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height), textW: Math.round(t.width), left: Math.round(r.left) };
+    })""")
+
+    assert len(boxes) == 2
+    for box in boxes:
+        assert box["h"] < 160, boxes  # a short card, not a tall box
+        assert box["textW"] > 150, boxes  # the text has room to read
+    assert boxes[0]["left"] != boxes[1]["left"], boxes  # side by side
+    assert page.evaluate("document.documentElement.scrollWidth - window.innerWidth") <= 0  # and the page does not scroll sideways
