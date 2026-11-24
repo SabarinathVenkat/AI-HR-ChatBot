@@ -26,6 +26,10 @@ The model talks; code decides facts and permissions.
 Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Measured results:
 [`docs/EVALUATION.md`](docs/EVALUATION.md).
 
+The app is a portal with two apps today (HR Assistant and RMG Resume Builder), switched on and off by an admin:
+[`docs/PORTAL.md`](docs/PORTAL.md) (portal, admin, adding an app, deploying) and
+[`docs/RESUME_BUILDER.md`](docs/RESUME_BUILDER.md) (the resume builder).
+
 ## Quick start
 
 You need an Anthropic API key.
