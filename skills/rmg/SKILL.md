@@ -42,6 +42,8 @@ template. The result goes to a client, so it must be true: the candidate will be
    copy of the template with python-docx: replace the text inside its existing paragraphs and cells, and copy an existing
    paragraph when you need one more bullet. Do not change styles, fonts, colours or spacing. No typed bullet characters, no
    blank lines used for spacing, no page breaks. Keep within the template's page design (never more than 10 pages).
+   Then run the check once more on the finished Word file, adding `--template assets/template.docx` so the template's own
+   headings are not mistaken for claims. Also make sure no sample text from the template is left.
 7. **Hand over two things**, as described in `reference/output-format.md`: the tailored `.docx`, and a short "JD match and
    gaps" note for RMG only (it is not for the client).
 

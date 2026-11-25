@@ -143,6 +143,19 @@ def test_a_capital_letter_that_only_starts_a_sentence_is_not_a_technology(checke
     assert any(p["detail"] == "FooBarDB" for p in checker.check(original, "Built payment APIs in Java. Used FooBarDB too.", [], []))
 
 
+def test_the_templates_own_words_are_not_claims_but_the_template_never_excuses_a_missing_skill(checker):
+    original = "Built payment APIs in Java."
+    tailored = "KEY HIGHLIGHTS\nBuilt payment APIs in Java and Kubernetes."
+    template = "KEY HIGHLIGHTS\nSample highlight\nKubernetes"
+
+    without = {(p["kind"], p["detail"]) for p in checker.check(original, tailored, [], ["Kubernetes"])}
+    with_template = {(p["kind"], p["detail"]) for p in checker.check(original, tailored, [], ["Kubernetes"], template=template)}
+
+    assert ("new_term", "KEY") in without and ("new_term", "HIGHLIGHTS") in without
+    assert not any(kind == "new_term" for kind, _ in with_template)  # the heading is the template's
+    assert ("missing_skill", "Kubernetes") in with_template  # but a skill the resume lacks is still reported
+
+
 def test_a_word_or_number_that_a_person_checked_can_be_allowed(checker):
     problems = checker.check("Built APIs in Java.", "Built APIs in Java for 8 years.", [], [], allow=["8"])
 
