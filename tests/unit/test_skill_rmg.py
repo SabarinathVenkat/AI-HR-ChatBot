@@ -221,6 +221,25 @@ def test_the_zip_has_the_skill_folder_at_its_top_with_skill_md_inside(tmp_path):
     assert not any("__pycache__" in n or n.endswith(".pyc") for n in names)
 
 
+def test_the_light_zip_leaves_the_company_template_out_but_keeps_everything_else(tmp_path, monkeypatch):
+    builder = load(ROOT / "build_zip.py", "skill_build_zip_light")
+    source = tmp_path / "rmg"
+    (source / "assets").mkdir(parents=True)
+    (source / "SKILL.md").write_text(chr(10).join(["---", "name: x", "description: y", "---", ""]))
+    (source / "assets" / "template.docx").write_bytes(b"company document")
+    (source / "assets" / "README.md").write_text("where the template goes")
+    monkeypatch.setattr(builder, "SOURCE", source)
+
+    full = zipfile.ZipFile(builder.build(tmp_path / "out", with_template=True)).namelist()
+    light_path = builder.build(tmp_path / "out", with_template=False)
+    light = zipfile.ZipFile(light_path).namelist()
+
+    assert light_path.name == "rmg-resume-tailor-without-template.zip"
+    assert "rmg-resume-tailor/assets/template.docx" in full
+    assert "rmg-resume-tailor/assets/template.docx" not in light
+    assert "rmg-resume-tailor/SKILL.md" in light and "rmg-resume-tailor/assets/README.md" in light
+
+
 def test_installing_copies_the_skill_under_its_real_name_and_replaces_an_old_copy(tmp_path):
     installer = load(ROOT / "install.py", "skill_install")
     stale = tmp_path / "rmg-resume-tailor"
