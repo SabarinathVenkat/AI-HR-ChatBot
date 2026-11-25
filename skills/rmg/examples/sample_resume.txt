@@ -1,0 +1,22 @@
+Anil Verma
+Backend Engineer
+
+Summary
+Backend engineer building payment platforms for retail banks.
+
+Skills
+Java, Spring Boot, Kafka, PostgreSQL, Docker, Jenkins
+
+Projects
+
+Payment Gateway
+- Designed REST APIs for 14 partner systems using Java and Spring Boot.
+- Tuned PostgreSQL queries, reducing the daily report time from 40 seconds to 6 seconds.
+- Wrote integration tests that run in the pipeline on every merge.
+
+Fraud Alerts
+- Built Kafka consumers that handle 5,000 events per second.
+- Containerised services with Docker and deployed them through Jenkins pipelines.
+
+Education
+B.E. Computer Science, Anna University, 2015

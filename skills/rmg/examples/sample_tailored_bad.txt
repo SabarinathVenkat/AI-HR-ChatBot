@@ -1,0 +1,18 @@
+Anil Verma
+Backend Engineer
+
+Summary
+Backend engineer who builds Java payment platforms on Kubernetes for retail banks.
+
+Skills
+Java, Spring Boot, Kafka, PostgreSQL, Docker, Jenkins, Kubernetes
+
+Projects
+
+Payment Gateway
+- Designed REST APIs for 200 partner systems using Java and Spring Boot.
+- Tuned PostgreSQL queries, reducing the daily report time from 40 seconds to 6 seconds.
+
+Fraud Alerts
+- Built Kafka consumers that handle 5,000 events per second.
+- Provisioned infrastructure with TerraformCloud and deployed them through Jenkins pipelines.

@@ -21,3 +21,8 @@ docs/learning/
 ~$*
 var/
 demo_template.docx
+
+# Skills: the company template stays out of the public repository; built zips and the installed copy are generated
+skills/rmg/assets/*.docx
+skills/dist/
+.claude/skills/rmg-resume-tailor/

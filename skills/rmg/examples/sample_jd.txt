@@ -1,0 +1,6 @@
+Senior Java Developer (Fintech)
+
+We are looking for a Senior Java Developer with at least 5 years of experience to build payment services for a retail bank.
+
+Must have: Java, Spring Boot, REST, Kafka, SQL
+Nice to have: AWS, Docker, Kubernetes
