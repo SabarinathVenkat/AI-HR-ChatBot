@@ -30,6 +30,9 @@ template. The result goes to a client, so it must be true: the candidate will be
 1. **Read the JD.** List the must-have skills and the nice-to-have skills as the JD words them. Note the minimum years and the
    domain. If the JD has several roles, ask RMG which one.
 2. **Read the resume.** Note the summary, skills, projects and their bullets, certifications and education.
+   If the resume is a Word file, also run `python scripts/extract_badges.py <resume.docx> badges` to take out the small pictures
+   in its header (certification badges). If it finds any, show RMG the file names and alt text and **ask which to keep**: a photo
+   of the candidate looks the same as a badge, and nothing is placed without RMG's answer.
 3. **Measure the match.** Run
    `python scripts/coverage.py --resume <resume file> --required "A, B, C" --nice "D, E"`.
    It lists which JD skills the resume shows and which are gaps, with a percentage for the must-haves.
@@ -44,6 +47,8 @@ template. The result goes to a client, so it must be true: the candidate will be
    blank lines used for spacing, no page breaks. Keep within the template's page design (never more than 10 pages).
    Then run the check once more on the finished Word file, adding `--template assets/template.docx` so the template's own
    headings are not mistaken for claims. Also make sure no sample text from the template is left.
+   If RMG chose pictures to keep, run `python scripts/place_badges.py <finished.docx> <final.docx> badges/badge1.png ...` with only
+   those. It puts them in the header's empty right cell, under the company logo. If it says "not placed", tell RMG in the note.
 7. **Hand over two things**, as described in `reference/output-format.md`: the tailored `.docx`, and a short "JD match and
    gaps" note for RMG only (it is not for the client).
 

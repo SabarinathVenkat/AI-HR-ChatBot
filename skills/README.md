@@ -27,6 +27,8 @@ skills/rmg/
   scripts/coverage.py       counts how many of the job's skills the resume shows
   scripts/check_claims.py   the guardrail: finds anything the tailored resume claims that the original does not
   scripts/inspect_template.py  prints the structure of the Word template
+  scripts/extract_badges.py takes certification badges out of a Word resume's header (RMG chooses which to keep)
+  scripts/place_badges.py   puts the chosen badges in the template's empty header cell
   examples/                 a sample job description, resume, an honest rewrite and a cheating one
   assets/                   where the company template.docx goes (kept out of git; see assets/README.md)
 ```

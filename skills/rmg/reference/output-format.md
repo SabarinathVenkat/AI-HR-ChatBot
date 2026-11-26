@@ -17,6 +17,7 @@ Keep it short. Use these headings, in this order, in plain text:
   "Have you worked with Kafka? If yes, in which project?". Must-haves first, then nice-to-haves.
 - **What changed**: a few lines, for example "Reordered projects (Payments first)", "Rewrote the summary", "Wrote two key
   highlights from the Fraud Alerts project".
+- **Pictures**: which header pictures RMG kept and placed, or that none were found, or that they could not be placed.
 - **Candidate-confirmed skills** (only if there are any): the skill and the projects it was written into.
 - **Check result**: say that `check_claims.py` passed, or what you put back and why.
 - **Look at before sending**: anything you were unsure about (an unclear date, a bullet you left as written).
