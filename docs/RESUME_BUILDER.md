@@ -305,6 +305,33 @@ these pictures are carried over instead of lost:
 A resume can be up to 10 MB (Word files often carry embedded fonts and are several MB). A job description stays at 5 MB. A file over
 the limit is refused with a clear message.
 
+### RMG can edit when the associate is away
+
+RMG can edit a resume while the associate is still working on it (in progress, or sent back), as well as while it waits for review.
+The Competency Lead can still edit only a resume that is waiting for review. Nobody edits an approved resume: the associate
+reopens it first. What RMG adds or rewords carries RMG's name, the associate gets a notification ("... edited your resume"), and the
+edit is in the audit trail. RMG does not get the assistant chat, Save version, Submit or "Confirm the skills you have": those are
+the associate's own statements. If both edit at the same moment the last save wins; every change can be undone.
+
+### How the match percentage is counted
+
+"Required skills shown" is the share of the job's must-have skills that the resume actually shows (skills section, summary,
+highlights or a project). Nothing is added to raise it: neither Polish nor Deep match may claim a skill the resume lacks, so both
+give the same number. A low number means the resume does not show many of the skills: the list under "Required, but not in your
+resume" says which, and only the associate can add one (Confirm the skills you have). The counting recognises other spellings of the
+same skill ("RESTful" for "REST APIs", "k8s" for "Kubernetes", "Postgres", "Amazon Web Services", "Node.js" and "NodeJS") and a pair
+written with a slash (".NET/C#" counts when both are in the resume). See `EQUIVALENT_FORMS` in `match.py`; add a pair only if the two
+really mean the same skill, because this list decides what counts as shown.
+
+### The download keeps the template's format
+
+Whatever the template is, the downloaded file keeps its page size, margins, columns, alignment, indents, fonts and sizes. After the
+resume is poured in, `fidelity.py` compares the file with the template and puts the template's settings back where they differ: page
+setup of every section; alignment and indents of headings, bullets and text (judged against what the template itself uses for that
+kind of paragraph, inside a table or not, so deliberate variety is kept); a font the template does not use; a size far outside the
+template's range (the fit step may shrink text to 9 pt: that stays). The words are never changed, and the right-aligned badge
+paragraph is left alone. What was fixed is logged as `format_restored`, and the template check shows a "format" line.
+
 ### The template check is for RMG only
 
 The "Template check" card described above is now shown to RMG only. The associate and the Lead no longer see it; the
@@ -337,4 +364,5 @@ The browser tests open Chromium and need memory. If the machine is short of memo
 - `layout_check.py`, `layout_fix.py`: the download layout check and its whitelisted fixes.
 - `fit.py`, `repair.py`: page estimation and render-time layout repairs.
 - `highlights.py`: key highlights. `conformance.py`: the template check.
+- `fidelity.py`: puts the template's page setup, alignment, indents and fonts back in the finished file.
 - `badges.py`: takes badge pictures out of the uploaded resume and cleans them; `render.py` places them in the header.

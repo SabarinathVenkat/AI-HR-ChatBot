@@ -19,6 +19,7 @@ from docx import Document
 from docx.oxml import OxmlElement
 
 from app.rmg.resume.emphasis import emphasise, terms_of
+from app.rmg.resume.fidelity import restore_format
 from app.rmg.resume.fit import MAX_PAGES, capacity, compact_document, fit, height_of, keep_row_height
 from app.rmg.resume.model import Resume
 from app.rmg.resume.repair import repair_layout
@@ -43,6 +44,7 @@ class RenderResult:
     docx: bytes
     problems: tuple[str, ...]  # content the template could not hold
     used_standard_layout: bool = False  # the company template could not be used
+    format_fixes: tuple[str, ...] = ()  # what was put back to match the template's page setup, alignment, indents and fonts
 
 
 # --- cloning ----------------------------------------------------------------------------------------
@@ -578,12 +580,13 @@ def render_resume(template: bytes, resume: Resume, *, years_text: str = "", badg
     problems += _render_projects(m, resume)
     repair_layout(doc)
     pages = compact_document(doc).pages
+    format_fixes = restore_format(Document(io.BytesIO(template)), doc)  # margins, alignment, indents and fonts stay the template's
     if pages > MAX_PAGES:
         problems.append(f"the resume is long: it will run to about {pages} pages, and {MAX_PAGES} is the limit, so some of it should be shortened")
 
     out = io.BytesIO()
     doc.save(out)
-    return RenderResult(docx=out.getvalue(), problems=tuple(problems))
+    return RenderResult(docx=out.getvalue(), problems=tuple(problems), format_fixes=tuple(format_fixes))
 
 
 def render_best(template: bytes, resume: Resume, *, years_text: str = "", badges=()) -> RenderResult:

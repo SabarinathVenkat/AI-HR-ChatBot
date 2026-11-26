@@ -12,6 +12,7 @@ Checks:
   bullets       the template's own bullets, not a different kind
   bold          bold only where the template uses bold for key words
   fonts         only the fonts and sizes the template uses
+  format        the template's page size, margins, columns, alignment and indents
   pages         within the page limit, and no nearly empty last page
   breaks        no typed page breaks, runs of blank lines or trailing blank lines
 """
@@ -21,6 +22,7 @@ from dataclasses import dataclass
 
 from docx import Document
 
+from app.rmg.resume.fidelity import format_differences
 from app.rmg.resume.fit import LAST_PAGE_MIN_FILL, MAX_PAGES, estimate_pages
 from app.rmg.resume.model import Resume
 from app.rmg.resume.template import (
@@ -288,6 +290,13 @@ def _fonts_check(tdoc, odoc) -> Check:
     return Check("fonts", PASS, "Fonts and sizes are the template's.")
 
 
+def _format_check(tdoc, odoc) -> Check:
+    differences = format_differences(tdoc, odoc)
+    if differences:
+        return Check("format", WARN, "The file's format differs from the template: " + _listed(differences) + ".")
+    return Check("format", PASS, "Page setup, alignment and indents are the template's.")
+
+
 def _pages_check(odoc) -> Check:
     estimate = estimate_pages(odoc)
     if estimate.pages > MAX_PAGES:
@@ -335,6 +344,7 @@ def check_conformance(template: bytes, output: bytes, resume: Resume, *, used_st
         _bullets_check(tdoc, odoc),
         _bold_check(tmap, omap),
         _fonts_check(tdoc, odoc),
+        _format_check(tdoc, odoc),
         _pages_check(odoc),
         _breaks_check(odoc),
     ))

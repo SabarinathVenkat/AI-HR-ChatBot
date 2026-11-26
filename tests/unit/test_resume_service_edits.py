@@ -53,11 +53,12 @@ def test_a_bad_edit_is_a_clear_422_and_changes_nothing(ready):  # noqa: F811
     assert (code_of(e), e.value.status) == ("edit_no_such_item", 422)
 
 
-def test_only_the_associate_can_edit_and_only_while_it_is_editable(ready):  # noqa: F811
+def test_only_the_associate_and_rmg_can_edit_while_it_is_editable_and_the_associate_not_once_submitted(ready):  # noqa: F811
     built(ready)
     with pytest.raises(ServiceError) as e:
-        ready.as_(STAFF).edit(ready.request_id, EditCommand(action="undo"))
+        ready.as_(LEAD).edit(ready.request_id, EditCommand(action="undo"))  # the lead waits until it is submitted
     assert code_of(e) == "forbidden"
+    assert ready.as_(STAFF).edit(ready.request_id, EditCommand(action="undo"))["changed"] is False  # RMG may step in (nothing to undo yet)
     ready.as_(RAVI).submit(ready.request_id)
     with pytest.raises(ServiceError) as e:
         ready.as_(RAVI).edit(ready.request_id, EditCommand(action="undo"))

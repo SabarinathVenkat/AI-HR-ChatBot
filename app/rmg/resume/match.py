@@ -15,14 +15,45 @@ REQUIRED_WEIGHT = 2
 NICE_WEIGHT = 1
 
 
-def mentions(text: str, skill: str) -> bool:
-    """True if `skill` appears in `text` as a whole word, ignoring case and spacing ("Java" is not in "JavaScript",
-    "C" is not in "C++")."""
+# Different ways people write the same skill. A JD saying "REST APIs" is met by a resume saying "RESTful", and so on. Only true
+# equivalents belong here: this decides what counts as "the resume shows it", so a loose pairing would claim skills nobody has.
+EQUIVALENT_FORMS = [
+    ("rest", "rest api", "rest apis", "restful", "restful api", "restful apis", "restful services", "rest services"),
+    ("kubernetes", "k8s"),
+    ("aws", "amazon web services"),
+    ("gcp", "google cloud platform", "google cloud"),
+    ("postgresql", "postgres"),
+    ("node.js", "nodejs", "node js"),
+    ("mongodb", "mongo db"),
+    ("microservices", "microservice", "micro-services", "micro services"),
+    ("golang", "go lang"),
+    ("ci/cd", "cicd", "ci cd", "ci-cd"),
+    ("c#", "csharp", "c sharp"),
+    ("sql server", "ms sql server", "mssql", "microsoft sql server"),
+    ("oidc", "openid connect"),
+    ("unit testing", "unit tests", "unit test"),
+    ("javascript", "java script"),
+]
+_FORMS = {form: group for group in EQUIVALENT_FORMS for form in group}
+
+
+def _literal(text: str, skill: str) -> bool:
     words = skill.split()
     if not words:
         return False
     pattern = r"(?<![A-Za-z0-9])" + r"\s+".join(re.escape(w) for w in words) + r"(?![A-Za-z0-9+#])"
     return re.search(pattern, text, re.IGNORECASE) is not None
+
+
+def mentions(text: str, skill: str) -> bool:
+    """True if `skill` appears in `text` as a whole word, ignoring case and spacing ("Java" is not in "JavaScript",
+    "C" is not in "C++"). Other common spellings of the same skill count ("RESTful" for "REST APIs", "k8s" for "Kubernetes"),
+    and a pair written with a slash (".NET/C#") counts when both halves are in the text."""
+    forms = _FORMS.get(" ".join(skill.casefold().split()), (skill,))
+    if any(_literal(text, form) for form in forms):
+        return True
+    parts = [part.strip() for part in skill.split("/")]
+    return len(parts) > 1 and all(len(part) >= 2 for part in parts) and all(mentions(text, part) for part in parts)
 
 
 @dataclass(frozen=True)

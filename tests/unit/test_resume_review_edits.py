@@ -55,15 +55,45 @@ def test_the_associate_still_cannot_edit_while_it_is_waiting_and_other_people_ca
     assert e.value.status in (403, 404)
 
 
-def test_nobody_edits_once_it_is_approved_and_a_reviewer_cannot_edit_before_it_is_submitted(ready):  # noqa: F811
+def test_nobody_edits_once_it_is_approved_and_the_lead_cannot_edit_before_it_is_submitted(ready):  # noqa: F811
     built(ready)
     with pytest.raises(ServiceError):
-        edit_highlight(ready, LEAD)  # still the associate's to write
+        edit_highlight(ready, LEAD)  # still the associate's to write; only RMG may step in (next test)
 
     ready.as_(RAVI).submit(ready.request_id)
     ready.as_(LEAD).decide(ready.request_id, "approve")
     with pytest.raises(ServiceError):
         edit_highlight(ready, LEAD)
+    with pytest.raises(ServiceError):
+        edit_highlight(ready, STAFF)  # approved means approved: the associate reopens it first
+
+
+def test_rmg_can_edit_while_the_associate_is_still_writing_and_the_associate_is_told(ready):  # noqa: F811
+    built(ready)  # in progress, the associate has not submitted
+
+    assert ready.as_(STAFF).detail(ready.request_id)["can"]["edit"] is True
+    assert edit_highlight(ready, STAFF, "Built event-driven systems for large retail banks.")["changed"] is True
+
+    assert "large retail banks" in resume_of(ready, RAVI)["highlights"][0]["text"]
+    assert any("edited your resume" in n["message"] for n in ready.as_(RAVI).notifications())
+    assert ready.as_(RAVI).detail(ready.request_id)["can"]["edit"] is True  # the associate keeps their own access
+
+
+def test_rmg_can_edit_after_the_resume_is_sent_back_but_the_lead_still_cannot(ready):  # noqa: F811
+    submitted(ready)
+    ready.as_(LEAD).decide(ready.request_id, "send_back", "Please add more on Kafka")
+
+    assert edit_highlight(ready, STAFF)["changed"] is True
+    assert ready.as_(LEAD).detail(ready.request_id)["can"]["edit"] is False
+    with pytest.raises(ServiceError):
+        edit_highlight(ready, LEAD)
+
+
+def test_rmg_does_not_stand_in_for_the_associates_own_claims(ready):  # noqa: F811
+    built(ready)
+    detail = ready.as_(STAFF).detail(ready.request_id)
+
+    assert detail["can"]["chat"] is False and detail["can"]["save"] is False and detail["can"]["submit"] is False
 
 
 def test_the_screen_is_told_who_may_edit_and_that_the_assistant_chat_is_the_associates_only(ready):  # noqa: F811

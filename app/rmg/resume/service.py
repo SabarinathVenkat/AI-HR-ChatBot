@@ -519,13 +519,22 @@ class ResumeService:
         report = check_grounding(base, working, build_match_plan(base, role, worked))
         return build_change_log(base, working, role, report, worked), report
 
+    @staticmethod
+    def _reviewer_may_edit(relations: set[str], status: str) -> bool:
+        """Not the associate. The Competency Lead or RMG may edit a resume that is waiting for review; RMG may also edit it while
+        the associate is still working on it (or has been sent it back), so a resume can be finished when the associate is away."""
+        if "associate" in relations:
+            return False
+        if status == "submitted":
+            return "lead" in relations or "rmg" in relations
+        return "rmg" in relations and status in EDITABLE
+
     def _can(self, row, relations: set[str], has_draft: bool) -> dict:
         status, associate = row["status"], "associate" in relations
-        reviewer = ("lead" in relations or "rmg" in relations) and not associate
         return {
             "upload": associate and status in OPEN_FOR_ASSOCIATE,
             "build": associate and status in OPEN_FOR_ASSOCIATE and bool(row["base_file_key"]),
-            "edit": has_draft and ((associate and status in EDITABLE) or (reviewer and status == "submitted")),
+            "edit": has_draft and ((associate and status in EDITABLE) or self._reviewer_may_edit(relations, status)),
             "chat": associate and has_draft and status in EDITABLE,  # the assistant is the associate's: it cannot make claims for anyone else
             "save": associate and has_draft and status in EDITABLE,
             "submit": associate and has_draft and status in EDITABLE,
@@ -752,10 +761,9 @@ class ResumeService:
     # ------------------------------------------------------------------------------------ edits (the draft only)
     def _editing(self, request_id: int, *, reviewer_ok: bool = False):
         """The draft to change. The associate may while it is theirs to write; a reviewer (the Competency Lead or RMG) may
-        while it is waiting for review."""
+        while it is waiting for review, and RMG may also while the associate is still writing it (see _reviewer_may_edit)."""
         row = self._visible(request_id)
-        as_reviewer = (reviewer_ok and "associate" not in self._relations(row) and self._can_review(row)
-                       and row["status"] == "submitted")
+        as_reviewer = reviewer_ok and self._reviewer_may_edit(self._relations(row), row["status"])
         if not as_reviewer:
             row = self._as_associate(request_id, EDITABLE)
         draft = self._need_draft(request_id)
@@ -821,6 +829,10 @@ class ResumeService:
             self._store(request_id, draft, changed_resume)
             message = cmd.reply or "Done."
         self._audit("resume_edited", {"request_id": request_id, "action": cmd.action, "path": cmd.path, "by": by, "reviewer": reviewing})
+        row = self._row(request_id)
+        if reviewing and row["status"] in EDITABLE and cmd.action != "explain":  # RMG edited while the associate still owns the draft
+            self._notify(row["associate_id"], f"{self.actor.name} (RMG) edited your resume for {self._jd_title(row['jd_id'])}. "
+                         "Open it to see what changed.", request_id)
         self.conn.commit()
         return True, message
 
@@ -900,6 +912,8 @@ class ResumeService:
         resume = Resume.model_validate_json(source["resume_json"] if approved is not None else draft["working_json"])
         template_bytes = self.files.get(template["file_key"])
         rendered = render_best(template_bytes, resume, years_text=source["years_text"], badges=self._badge_images(resume))
+        if rendered.format_fixes:
+            self._log("format_restored", request_id=request_id, fixes="; ".join(rendered.format_fixes))
         return row, approved is not None, resume, template_bytes, rendered
 
     def _check(self, request_id: int, resume, template_bytes: bytes, rendered, where: str):

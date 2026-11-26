@@ -159,3 +159,32 @@ def test_skills_are_ordered_inside_each_group_with_the_wanted_ones_first_and_pro
     assert result.skill_groups[0].items[0].source == "skills.0.2"
     assert [g.category for g in result.skill_groups] == ["One", "Two"]
     assert [i.text for i in r.skill_groups[0].items] == ["Python", "Kafka", "Java"]  # the input is untouched
+
+
+# --- other spellings of the same skill ------------------------------------------------------------------------------
+
+def test_common_other_spellings_of_a_skill_count_as_showing_it():
+    from app.rmg.resume.match import mentions
+
+    assert mentions("Built RESTful services on Spring Boot", "REST APIs")
+    assert mentions("Deployed to k8s clusters", "Kubernetes")
+    assert mentions("Amazon Web Services (EC2, S3)", "AWS")
+    assert mentions("PostgreSQL and Postgres tuning", "Postgres") and mentions("Postgres", "PostgreSQL")
+    assert mentions("Microsoft SQL Server", "SQL Server")
+
+
+def test_a_pair_written_with_a_slash_needs_both_halves_in_the_resume():
+    from app.rmg.resume.match import mentions
+
+    assert mentions(".NET Core, C#, ASP.NET MVC", ".NET/C#")
+    assert not mentions(".NET Core and Java", ".NET/C#")  # one half is not enough
+    assert mentions("CI/CD pipelines in Jenkins", "CI/CD")
+
+
+def test_looser_matches_do_not_claim_skills_that_are_not_there():
+    from app.rmg.resume.match import mentions
+
+    assert not mentions("A restaurant booking site", "REST")
+    assert not mentions("Wrote C++ drivers", "C#")
+    assert not mentions("Java and JavaScript", "Go")
+    assert not mentions("Spring Cloud", "AWS")
