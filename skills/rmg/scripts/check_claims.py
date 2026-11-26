@@ -9,11 +9,13 @@ reads both texts and reports, line by line, anything in the tailored resume that
                  that appears nowhere in the original
 
 A skill the candidate has confirmed is theirs to claim, so pass it with --confirmed and it is not reported.
+A skill you inferred from evidence in the resume (Spring from Spring Boot) goes in --inferred: it is accepted only if the resume really
+contains such evidence (see related.py); otherwise it is reported.
 When you check a finished Word file, pass the template with --template: its own words (headings such as KEY HIGHLIGHTS) are
 the template's, not claims. The template never excuses a skill the resume lacks: missing_skill is still reported.
 
 Usage:
-  python check_claims.py --original resume.txt --tailored tailored.txt --required "Java, Kafka" --nice "AWS" [--confirmed "Kafka"] [--template assets/template.docx]
+  python check_claims.py --original resume.txt --tailored tailored.txt --required "Java, Kafka" --nice "AWS" [--confirmed "Kafka"] [--inferred "Spring"] [--template assets/template.docx]
 Files may be .txt, .md or .docx. Exit code 0 means clean; 1 means something was reported; 2 means a file could not be read.
 Needs only the standard library, plus python-docx for .docx files.
 """
@@ -22,6 +24,8 @@ import json
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # related.py sits beside this file
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)*%?")
 _TOKEN = re.compile(r"[A-Za-z](?:[A-Za-z0-9+#.]*[A-Za-z0-9+#])?")
@@ -76,14 +80,24 @@ def _looks_technical(token: str, position: int) -> bool:
 
 
 def check(original: str, tailored: str, required: list[str], nice: list[str], confirmed: list[str] = (),
-          allow: list[str] = (), template: str = "") -> list[dict]:
+          allow: list[str] = (), template: str = "", inferred: list[str] = ()) -> list[dict]:
     """Everything in `tailored` that `original` does not support, as a list of {line, kind, detail, text}.
     `template` is the text of the company template: its words are not claims, so they are not reported as new terms."""
     vocabulary = {t.casefold() for t in _TOKEN.findall(original)} | {t.casefold() for t in _TOKEN.findall(template)}
     numbers = set(_NUMBER.findall(original))
-    accepted = {a.casefold() for a in [*confirmed, *allow]}
-    not_shown = [s for s in [*required, *nice] if not mentions(original, s) and s.casefold() not in accepted]
+    from related import evidence_for
+
     problems: list[dict] = []
+    supported = []
+    for skill in inferred:
+        if evidence_for(skill, original):
+            supported.append(skill)
+        else:
+            problems.append({"line": 0, "kind": "inferred_without_evidence", "detail": skill,
+                             "text": "the resume has nothing that shows this skill: only the candidate can claim it (use --confirmed)"})
+    accepted = {a.casefold() for a in [*confirmed, *allow, *supported]}
+    accepted |= {part.casefold() for a in [*confirmed, *supported] for part in _TOKEN.findall(a)}  # the parts of "CI/CD" are not new terms
+    not_shown = [s for s in [*required, *nice] if not mentions(original, s) and s.casefold() not in accepted]
     for number, line in enumerate(tailored.splitlines(), 1):
         if not line.strip():
             continue
@@ -110,6 +124,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--required", default="", help="must-have JD skills, comma separated")
     parser.add_argument("--nice", default="", help="nice-to-have JD skills, comma separated")
     parser.add_argument("--confirmed", default="", help="skills the candidate confirmed they have, comma separated")
+    parser.add_argument("--inferred", default="", help="skills inferred from evidence in the resume (checked against related.py)")
     parser.add_argument("--template", help="the company template (.docx): its own words are not claims")
     parser.add_argument("--allow", default="", help="other words or numbers you have checked and accept, comma separated")
     parser.add_argument("--json", action="store_true", help="print the result as JSON")
@@ -121,7 +136,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Could not read a file: {error}", file=sys.stderr)
         return 2
     problems = check(original, tailored, split_skills(args.required), split_skills(args.nice),
-                     split_skills(args.confirmed), split_skills(args.allow), template)
+                     split_skills(args.confirmed), split_skills(args.allow), template, split_skills(args.inferred))
     if args.json:
         print(json.dumps({"ok": not problems, "problems": problems}, indent=2))
     elif not problems:

@@ -258,3 +258,78 @@ def test_the_company_template_is_never_committed():
 
     assert "skills/rmg/assets/*.docx" in ignore and "skills/dist/" in ignore
     assert not list((SKILL / "assets").glob("*.docx")) or "skills/rmg/assets/*.docx" in ignore
+
+
+# --- match levels (Mirror, Bridge, Summit) ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def levels():
+    import sys
+
+    sys.path.insert(0, str(SKILL / "scripts"))
+    return load(SKILL / "scripts" / "match_level.py", "skill_match_level")
+
+
+def test_the_three_levels_have_their_own_names_and_targets(levels):
+    assert levels.LEVELS == {"mirror": None, "bridge": 50, "summit": 80}
+
+
+def test_mirror_has_no_target_and_still_lists_what_is_evidenced_and_what_to_ask(levels):
+    result = levels.plan("Java, PostgreSQL, Jenkins", ["Java", "SQL", "Kafka"], ["AWS"], "mirror")
+
+    assert result["target_percent"] is None and result["needed_more"] == 0 and result["reached_with_evidence"] is True
+    assert list(result["evidence"]) == ["SQL"] and result["ask_the_candidate"] == ["Kafka", "AWS"]
+
+
+def test_summit_counts_how_many_more_must_haves_are_needed(levels):
+    result = levels.plan("Java, Spring Boot", ["Java", "Spring Boot", "Kafka", "SQL", "REST"], [], "summit")
+
+    assert result["required_percent"] == 40 and result["needed_more"] == 2  # 4 of 5 are needed
+
+
+def test_evidence_can_reach_a_level_but_a_gap_with_no_evidence_never_counts(levels):
+    reachable = levels.plan("Java, Spring Boot, PostgreSQL", ["Java", "Spring", "SQL", "Kafka"], [], "bridge")
+    stuck = levels.plan("Java", ["Java", "Kafka", "Terraform", "FHIR", "AWS"], [], "summit")
+
+    assert reachable["reached_with_evidence"] is True and reachable["percent_with_evidence"] == 75
+    assert stuck["reached_with_evidence"] is False and stuck["percent_with_evidence"] == 20
+    assert stuck["must_haves_the_candidate_would_have_to_confirm"] == 3 and set(stuck["ask_the_candidate"]) == {"Kafka", "Terraform", "FHIR", "AWS"}
+
+
+def test_a_skill_the_candidate_confirmed_counts_as_shown(levels):
+    result = levels.plan("Java", ["Java", "Kafka"], [], "bridge", confirmed=["Kafka"])
+
+    assert result["required_percent"] == 100 and result["needed_more"] == 0
+
+
+def test_an_inferred_skill_is_accepted_only_when_the_resume_really_shows_something_that_implies_it(checker):
+    original = "Built services with Spring Boot and PostgreSQL. Used Jenkins for builds."
+    tailored = "Built Spring services with PostgreSQL; ran CI/CD in Jenkins."
+
+    assert checker.check(original, tailored, ["Spring", "CI/CD"], [], inferred=["Spring", "CI/CD"]) == []
+
+    refused = checker.check(original, "Built services on Kubernetes.", ["Kubernetes"], [], inferred=["Kubernetes"])
+    assert {p["kind"] for p in refused} >= {"inferred_without_evidence"}
+
+
+def test_inferring_does_not_excuse_a_skill_that_was_not_listed_as_inferred(checker):
+    problems = checker.check("Built services with Spring Boot.", "Built Spring services and CI/CD pipelines.", ["Spring", "CI/CD"], [],
+                             inferred=["Spring"])
+
+    assert [p["detail"] for p in problems if p["kind"] == "missing_skill"] == ["CI/CD"]
+
+
+def test_the_evidence_list_is_strict_about_what_it_implies(levels):
+    import related
+
+    assert related.evidence_for("Spring", "Spring Boot") == ["Spring Boot"]
+    assert related.evidence_for("Kubernetes", "Docker, AWS, Terraform") == []  # same field is not evidence
+    assert related.evidence_for("Spring", "Java developer") == []  # knowing the language is not knowing the framework
+    assert related.evidence_for("Kafka", "RabbitMQ") == []
+
+
+def test_the_level_instructions_say_what_to_do_when_the_target_cannot_be_reached_honestly():
+    text = (SKILL / "reference" / "match-levels.md").read_text(encoding="utf-8")
+
+    assert all(name in text for name in ("Mirror", "Bridge", "Summit"))
+    assert "do not add the skills" in text.lower() and "not reached" in text.lower()

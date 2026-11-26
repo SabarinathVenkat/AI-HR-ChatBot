@@ -13,7 +13,8 @@ template. The result goes to a client, so it must be true: the candidate will be
 - The JD: a file, pasted text, or just a list of skills.
 - The candidate's current resume (.docx, .pdf or .txt).
 - The company template: `assets/template.docx` in this skill if it is there, otherwise ask RMG to attach it.
-- The mode. **Polish** (the default) or **Deep match**. If RMG did not say, use Polish and mention that Deep match exists.
+- The level. **Mirror** (as is, the default), **Bridge** (aim for at least 50 percent of the must-haves shown) or **Summit** (at least
+  80 percent). If RMG did not say, use Mirror and mention the others. Read `reference/match-levels.md` for Bridge and Summit.
 
 ## Rules you never break
 
@@ -36,10 +37,14 @@ template. The result goes to a client, so it must be true: the candidate will be
 3. **Measure the match.** Run
    `python scripts/coverage.py --resume <resume file> --required "A, B, C" --nice "D, E"`.
    It lists which JD skills the resume shows and which are gaps, with a percentage for the must-haves.
-4. **Tailor.** Follow `reference/playbook.md` for the chosen mode. Write the tailored resume as plain text first.
+4. **Tailor.** Follow `reference/playbook.md` (Bridge and Summit are tailored the Deep match way). Write the tailored resume as plain
+   text first. For Bridge or Summit, run `python scripts/match_level.py --resume <file> --required "..." --nice "..." --level bridge`
+   and follow `reference/match-levels.md`: write in only what the resume gives evidence for, list it as inferred, and never add a skill
+   it does not show.
 5. **Check it.** Save the tailored text and run
    `python scripts/check_claims.py --original <resume file> --tailored <your text file> --required "A, B, C" --nice "D, E"`
-   (add `--confirmed "X, Y"` for skills the candidate confirmed). If it reports a problem, put the original wording back for
+   (add `--confirmed "X, Y"` for skills the candidate confirmed, and `--inferred "A, B"` for skills inferred from evidence in the
+   resume; the checker refuses an inference that has none). If it reports a problem, put the original wording back for
    that line and run it again. **Do not show text that fails the check.**
 6. **Fill the template.** Run `python scripts/inspect_template.py assets/template.docx` to see its structure. Then edit a
    copy of the template with python-docx: replace the text inside its existing paragraphs and cells, and copy an existing
@@ -51,6 +56,14 @@ template. The result goes to a client, so it must be true: the candidate will be
    those. It puts them in the header's empty right cell, under the company logo. If it says "not placed", tell RMG in the note.
 7. **Hand over two things**, as described in `reference/output-format.md`: the tailored `.docx`, and a short "JD match and
    gaps" note for RMG only (it is not for the client).
+
+## Levels, then Polish and Deep match
+
+The level is the goal; Polish and Deep match describe how deeply the text is rewritten. Mirror uses Polish. Bridge and Summit use
+Deep match. After the first build, ask RMG once whether the candidate has any other listed skill (must-have or nice-to-have), and
+which project it was used in; if there is no answer, deliver what evidence supports and say what level was reached. If RMG says
+"just match the JD" or "I do not know", do the evidence pass only and report the level reached: never add a skill without evidence
+or the candidate's confirmation, even to reach the target.
 
 ## Polish and Deep match, in one paragraph
 
