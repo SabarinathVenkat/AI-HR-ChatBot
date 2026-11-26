@@ -34,11 +34,11 @@ def label_value(container, label, value):
 def make_template(*, education_first=False, header_in_table=False, numbered_bullets=True, certifications=False, title_style=True,
                   spaced_highlights=False, blanks_before_projects=0, skills_heading="SKILLS",
                   highlights_heading="KEY HIGHLIGHTS", projects_heading="PROJECT DETAILS", highlights_subheading=None,
-                  omit_projects=False):
+                  omit_projects=False, header_cols=1):
     doc = Document()
     holder = doc
     if header_in_table:
-        table = doc.add_table(rows=1, cols=1)
+        table = doc.add_table(rows=1, cols=header_cols)  # a second column is the empty cell beside the name, like the real template's
         holder = table.cell(0, 0)
     style = "Title" if title_style else "Normal"
     holder.add_paragraph("Sample Name", style=style)

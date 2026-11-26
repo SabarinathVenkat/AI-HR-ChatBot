@@ -267,10 +267,15 @@ def test_a_pipeline_failure_becomes_a_friendly_error_and_changes_nothing(ready):
 
 # --- save, submit, decide -------------------------------------------------------------------------------------
 
-def test_saving_makes_numbered_versions(ready):
+def test_saving_makes_numbered_versions_and_a_save_with_no_change_makes_none(ready):
+    from app.rmg.resume.chat import EditCommand
+
     ravi = built(ready)
 
-    assert ravi.save(ready.request_id)["version"] == 1 and ravi.save(ready.request_id)["version"] == 2
+    assert ravi.save(ready.request_id) == {"version": 1, "unchanged": False}
+    assert ravi.save(ready.request_id) == {"version": 1, "unchanged": True}  # nothing changed: no copy
+    ravi.edit(ready.request_id, EditCommand(action="add_skill", text="Docker", category="Tools"))
+    assert ravi.save(ready.request_id) == {"version": 2, "unchanged": False}
     assert [v["kind"] for v in ravi.detail(ready.request_id)["versions"]] == ["saved", "saved"]
 
 
@@ -324,6 +329,7 @@ def test_approving_makes_an_approved_version_and_tells_the_associate_and_rmg(rea
 
 
 def test_sending_back_needs_a_note_and_reopens_editing_for_the_associate(ready):
+    from app.rmg.resume.chat import EditCommand
     ravi = submitted(ready)
     with pytest.raises(ServiceError) as e:
         ready.as_(LEAD).decide(ready.request_id, "send_back", "  ")
@@ -334,6 +340,7 @@ def test_sending_back_needs_a_note_and_reopens_editing_for_the_associate(ready):
     detail = ravi.detail(ready.request_id)
     assert detail["status"] == "changes_requested" and detail["decision_note"] == "Please add more on Kafka"
     assert detail["can"]["edit"] and "Kafka" in ravi.notifications()[0]["message"]
+    ravi.edit(ready.request_id, EditCommand(action="add_skill", text="Docker", category="Tools"))
     ravi.save(ready.request_id)
     assert ravi.detail(ready.request_id)["status"] == "in_progress"
 
@@ -347,6 +354,7 @@ def test_an_unknown_decision_is_refused(ready):
 
 
 def test_after_approval_the_associate_can_reopen_and_the_next_save_is_a_new_version(ready):
+    from app.rmg.resume.chat import EditCommand
     ravi = submitted(ready)
     with pytest.raises(ServiceError):
         ravi.reopen(ready.request_id)  # not approved yet
@@ -355,6 +363,7 @@ def test_after_approval_the_associate_can_reopen_and_the_next_save_is_a_new_vers
     ravi.reopen(ready.request_id)
 
     assert ravi.detail(ready.request_id)["status"] == "in_progress"
+    ravi.edit(ready.request_id, EditCommand(action="add_skill", text="Docker", category="Tools"))
     assert ravi.save(ready.request_id)["version"] == 3  # submitted, approved, then this one
 
 

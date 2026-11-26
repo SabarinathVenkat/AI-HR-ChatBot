@@ -40,3 +40,15 @@ def test_a_file_can_be_deleted_and_deleting_twice_is_harmless(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         store.get(key)
+
+
+def test_a_badge_picture_can_be_stored_and_a_key_with_another_picture_type_is_still_refused(tmp_path):
+    store = FileStore(tmp_path)
+
+    key = store.put(b"png bytes", ".png")
+
+    assert key.endswith(".png") and store.get(key) == b"png bytes"
+    with pytest.raises(ValueError):
+        store.put(b"x", ".gif")
+    with pytest.raises(FileNotFoundError):
+        store.get("0" * 32 + ".gif")

@@ -286,6 +286,25 @@ requests by status, requests made per day over two weeks, the busiest job descri
 updates. It is scoped by role: RMG sees every request, a Competency Lead sees their associates', anyone else sees their own. The
 numbers come from `GET /resume/stats`. Animations stop when the visitor prefers reduced motion.
 
+### Logos and badges in the uploaded resume
+
+Many resumes carry small pictures in the header, such as certification badges. The company template has its own logo and banner, so
+these pictures are carried over instead of lost:
+
+- On upload, the pictures in the header table of a Word resume are taken out (inline pictures only, PNG or JPEG, at most 6). Each is
+  checked for size, re-drawn as a clean PNG (this removes hidden data in the file) and stored. Nothing is read from the picture.
+- The associate sees them in a "Pictures from your resume" card, each with a thumbnail and a tick. All are kept by
+  default. A photo of the person is not told apart from a badge, so the associate unticks anything that should not go to the client.
+- At download, the kept pictures go into the empty cell of the template's header, right-aligned and under the company logo, side by
+  side. Their size is taken from the cell width so that they stay in one row. If the template has no such cell, the download says
+  the pictures were not included.
+- Layout was checked with LibreOffice drawings only; open one file in Word before relying on it.
+
+### Upload size limits
+
+A resume can be up to 10 MB (Word files often carry embedded fonts and are several MB). A job description stays at 5 MB. A file over
+the limit is refused with a clear message.
+
 ### The template check is for RMG only
 
 The "Template check" card described above is now shown to RMG only. The associate and the Lead no longer see it; the
@@ -298,6 +317,7 @@ The "Template check" card described above is now shown to RMG only. The associat
 3. In "Confirm the skills you have" tick two skills and one project, click Add. The score moves and the lines are marked "added by you".
 4. Click **Save version** twice: the second says nothing changed.
 5. As **Nancy** or **Shadrach**, open the request and click Download. The page says whether the layout was fixed.
+6. Upload a Word resume that has badges in its header: they show under "Pictures from your resume". Untick one, then download as RMG: only the kept ones appear under the logo.
 
 ### Run the automated tests in groups
 
@@ -317,3 +337,4 @@ The browser tests open Chromium and need memory. If the machine is short of memo
 - `layout_check.py`, `layout_fix.py`: the download layout check and its whitelisted fixes.
 - `fit.py`, `repair.py`: page estimation and render-time layout repairs.
 - `highlights.py`: key highlights. `conformance.py`: the template check.
+- `badges.py`: takes badge pictures out of the uploaded resume and cleans them; `render.py` places them in the header.

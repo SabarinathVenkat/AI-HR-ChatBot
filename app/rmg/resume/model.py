@@ -28,6 +28,7 @@ MAX_HIGHLIGHTS = 15
 MAX_EDUCATION = 10
 MAX_CERTIFICATIONS = 20
 MAX_JOBS = 20
+MAX_BADGES = 6
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_ITEM_CHARS)]
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_SHORT_CHARS)]
@@ -101,6 +102,15 @@ class Project(_Model):
     bullets: list[Item] = Field(default_factory=list, max_length=MAX_BULLETS_PER_PROJECT)
 
 
+class Badge(_Model):
+    """A small picture kept from the header of the uploaded resume (for example a certification badge). The picture itself is in
+    the file store under `key`; the associate can leave it out of the Word file by setting `keep` to false."""
+
+    key: ShortText
+    label: ShortText | None = None
+    keep: bool = True
+
+
 class Resume(_Model):
     name: ShortText
     role_title: Item | None = None
@@ -111,6 +121,7 @@ class Resume(_Model):
     highlights: list[Item] = Field(default_factory=list, max_length=MAX_HIGHLIGHTS)
     jobs: list[Job] = Field(default_factory=list, max_length=MAX_JOBS)
     projects: list[Project] = Field(default_factory=list, max_length=MAX_PROJECTS)
+    badges: list[Badge] = Field(default_factory=list, max_length=MAX_BADGES)
 
     @field_validator("certifications", mode="before")
     @classmethod

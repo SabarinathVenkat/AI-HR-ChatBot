@@ -812,6 +812,27 @@
       h("button", { type: "button", class: "rb-linkbtn", on: { click: () => { state.addingSkill = null; renderWorkspace(); } } }, "Cancel"));
   }
 
+  /* Pictures kept from the header of the uploaded Word file (certification badges). The associate chooses which go into the download. */
+  function badgesSection(d) {
+    if (!d.badges || !d.badges.length) return null;
+    const rows = d.badges.map((b) => {
+      const name = b.label || `Picture ${b.index + 1}`;
+      const box = h("input", { type: "checkbox", id: `badge-${b.index}`, "aria-label": `Include ${name} in the Word file` });
+      box.checked = b.keep;
+      box.disabled = !d.can.edit;
+      box.addEventListener("change", () => attempt(async () => {
+        const detail = await post(`/resume/requests/${d.id}/badges/${b.index}`, { keep: box.checked });
+        await refreshDetail(detail);
+      }));
+      return h("li", { class: "rb-badge" },
+        b.thumb ? h("img", { src: b.thumb, alt: name, width: "48", height: "48" }) : h("span", { class: "rb-badge-missing", text: "?" }),
+        h("label", { class: "rb-check", for: `badge-${b.index}` }, box, h("span", { text: name })));
+    });
+    return h("div", { class: "section", id: "badges-section" }, h("h4", { text: "Pictures from your resume" }),
+      h("p", { class: "muted", text: d.can.edit ? "These were in the header of your Word file. Tick the ones to put in the downloaded resume." : "Pictures the associate chose to put in the Word file." }),
+      h("ul", { class: "rb-badges" }, rows));
+  }
+
   function resumeCard(d) {
     const r = d.resume;
     if (!r) {
@@ -824,6 +845,8 @@
       sections.push(h("div", { class: "section", id: "skills-section" }, h("h4", { text: "Skills" }),
         r.skill_groups.map((g, gi) => skillGroup(d, g, gi)), d.can.edit ? newGroupControl(d) : null));
     }
+    const badges = badgesSection(d);
+    if (badges) sections.push(badges);
     if (r.education.length) sections.push(h("div", { class: "section" }, h("h4", { text: "Education" }),
       r.education.map((e) => h("p", { text: [e.degree, e.institution].filter(Boolean).join(", ") + (e.year ? ` ${e.year}` : "") }))));
     if (r.certifications.length || d.can.edit) {

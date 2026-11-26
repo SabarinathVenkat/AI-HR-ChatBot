@@ -7,8 +7,8 @@ import re
 import uuid
 from pathlib import Path
 
-KEY = re.compile(r"^[0-9a-f]{32}\.(docx|pdf|txt)$")
-SUFFIXES = frozenset({".docx", ".pdf", ".txt"})
+KEY = re.compile(r"^[0-9a-f]{32}\.(docx|pdf|txt|png)$")
+SUFFIXES = frozenset({".docx", ".pdf", ".txt", ".png"})
 
 
 class FileStore:

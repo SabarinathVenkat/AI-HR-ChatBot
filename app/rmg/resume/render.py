@@ -173,6 +173,124 @@ def _years_sample(role) -> str | None:
     return found.group(0) if found else None
 
 
+BADGE_INCHES = 0.68  # tall enough to read, small enough to fit under the company logo without making the banner row grow
+BADGE_FLOOR_INCHES = 0.4
+BADGE_GAP_INCHES = 0.0  # pictures sit side by side with no space characters between them (a space is wide in this template); they carry their own padding
+LOGO_GAP_INCHES = 0.08  # clear space between the logo and the first badge
+FIRST_LINE_INCHES = 0.17  # the template's first (empty) paragraph, a 10 pt line, sits above the header table
+EMU_PER_INCH = 914400
+WP_NS = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+
+
+def _badge_cell(m: TemplateMap):
+    """The empty cell beside the name in the header table, where badges go. None if the template has no such cell."""
+    if m.name is None:
+        return None
+    cell = next(iter(m.name.iterancestors(W + "tc")), None)
+    if cell is None:
+        return None
+    last = cell.getparent().findall(W + "tc")[-1]
+    if last is cell or "".join(t.text or "" for t in last.iter(W + "t")).strip():
+        return None
+    return last
+
+
+def _margins_inches(cell) -> tuple[float, float]:
+    """(left, right, top) cell margins would be three values; this returns the left+right total and the top, in inches."""
+    def one(side: str, default: int) -> float:
+        node = cell.find(f"{W}tcPr/{W}tcMar/{W}{side}")
+        try:
+            return int(node.get(W + "w")) / 1440 if node is not None else default / 1440
+        except (TypeError, ValueError):
+            return default / 1440
+
+    return one("left", 115) + one("right", 115), one("top", 100)
+
+
+def _cell_inches(cell) -> float:
+    """The cell's width, from the table's column grid (a cell's own width is often not stored); 3 inches if unknown."""
+    row = cell.getparent()
+    table = row.getparent()
+    position = list(row.findall(W + "tc")).index(cell)
+    grid = table.find(W + "tblGrid")
+    try:
+        if grid is not None:
+            return int(grid.findall(W + "gridCol")[position].get(W + "w")) / 1440
+        width = cell.find(f"{W}tcPr/{W}tcW")
+        return int(width.get(W + "w")) / 1440 if width is not None and width.get(W + "type") in (None, "dxa") else 3.0
+    except (TypeError, ValueError, IndexError):
+        return 3.0
+
+
+def _logo_bottom_inches(doc) -> float | None:
+    """How far down the page the lowest picture floating *in front of* the text reaches (the company logo on the banner), or None.
+    A banner background floats behind the text and is not counted."""
+    bottom = None
+    for anchor in doc.element.body.iter(f"{{{WP_NS}}}anchor"):
+        if anchor.get("behindDoc") == "1":
+            continue
+        top = anchor.find(f"{{{WP_NS}}}positionV")
+        offset = top.find(f"{{{WP_NS}}}posOffset") if top is not None else None
+        extent = anchor.find(f"{{{WP_NS}}}extent")
+        if top is None or top.get("relativeFrom") != "page" or offset is None or extent is None:
+            continue
+        try:
+            end = (int(offset.text) + int(extent.get("cy"))) / EMU_PER_INCH
+        except (TypeError, ValueError):
+            continue
+        bottom = end if bottom is None else max(bottom, end)
+    return bottom
+
+
+def _space_below_logo_points(doc, cell) -> float:
+    """Space to put above the badges so they start under the company logo instead of on top of it (0 if there is no logo)."""
+    bottom = _logo_bottom_inches(doc)
+    if bottom is None or not doc.sections:
+        return 0.0
+    content_top = doc.sections[0].top_margin / EMU_PER_INCH + FIRST_LINE_INCHES + _margins_inches(cell)[1]
+    return round(min(72.0, max(0.0, (bottom + LOGO_GAP_INCHES - content_top) * 72)), 1)
+
+
+BADGE_ROOM = 0.8  # use at most this share of the cell: Word and other programs shrink a cell to fit its neighbours, and a wrapped row would push the banner's summary down
+
+
+def _badge_width_inches(cell, count: int) -> float:
+    available = (_cell_inches(cell) - _margins_inches(cell)[0]) * BADGE_ROOM
+    return max(BADGE_FLOOR_INCHES, min(BADGE_INCHES, (available - BADGE_GAP_INCHES * (count - 1)) / count))
+
+
+def _place_badges(doc, m: TemplateMap, badges) -> list[str]:
+    """Put the kept badge pictures, right-aligned and under the logo, in the template's empty header cell."""
+    if not badges:
+        return []
+    cell = _badge_cell(m)
+    paragraph_element = cell.find(W + "p") if cell is not None else None
+    if paragraph_element is None:
+        return ["badges: the template has no empty cell in its header for them, so the pictures were not included"]
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Inches, Pt
+    from docx.text.paragraph import Paragraph
+
+    for t in paragraph_element.iter(W + "t"):  # leading spaces would push right-aligned pictures off the edge
+        if not (t.text or "").strip():
+            t.text = ""
+    paragraph = Paragraph(paragraph_element, doc._body)
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    if before := _space_below_logo_points(doc, cell):
+        paragraph.paragraph_format.space_before = Pt(before)
+    width = _badge_width_inches(cell, len(badges))
+    for png, label in badges:
+        run = paragraph.add_run()
+        run.add_picture(io.BytesIO(png), width=Inches(width))
+        for inline in run._r.iter(f"{{{WP_NS}}}inline"):
+            for side in ("distT", "distB", "distL", "distR"):  # Word writes these as 0; without them LibreOffice adds about 0.125 inch each side
+                inline.set(side, "0")
+        if label:
+            for properties in run._r.iter(f"{{{WP_NS}}}docPr"):
+                properties.set("descr", _clean(label))
+    return []
+
+
 def _render_header(m: TemplateMap, resume: Resume, years_text: str, doc) -> list[str]:
     sample_height = height_of(m.summary, doc) if m.summary is not None else 0.0  # before the sample text is replaced
     _fill(m.name, [(resume.name, False)])
@@ -416,11 +534,13 @@ def _certifications_section(m: TemplateMap, entries: list, anchor, spacing: tupl
     return new
 
 
-def render_resume(template: bytes, resume: Resume, *, years_text: str = "") -> RenderResult:
+def render_resume(template: bytes, resume: Resume, *, years_text: str = "", badges=()) -> RenderResult:
+    """`badges` are (png bytes, label) pairs, already limited to the ones the associate kept."""
     doc, m = _load(template)
     problems: list[str] = []
     spacing = _blanks_around(m.education.heading if m.education is not None else m.skills.heading)  # before the sample is replaced
     problems += _render_header(m, resume, years_text, doc)
+    problems += _place_badges(doc, m, badges)
     sample = list(m.skills.region)
     for slot in (m.education, m.certifications):
         sample += list(slot.region) if slot is not None else []
@@ -466,15 +586,15 @@ def render_resume(template: bytes, resume: Resume, *, years_text: str = "") -> R
     return RenderResult(docx=out.getvalue(), problems=tuple(problems))
 
 
-def render_best(template: bytes, resume: Resume, *, years_text: str = "") -> RenderResult:
+def render_best(template: bytes, resume: Resume, *, years_text: str = "", badges=()) -> RenderResult:
     """Always produce a resume. If the template cannot be used (it has no recognisable sections, or is damaged), the
     standard layout is used instead and the result says so, so a mistake in a template never blocks an associate."""
     try:
-        return render_resume(template, resume, years_text=years_text)
+        return render_resume(template, resume, years_text=years_text, badges=badges)
     except TemplateError as e:
         from app.rmg.resume.demo_template import make_demo_template  # imported here: it is only needed on this path
 
-        standard = render_resume(make_demo_template(), resume, years_text=years_text)
+        standard = render_resume(make_demo_template(), resume, years_text=years_text, badges=badges)
         reason = f"it is missing {', '.join(e.missing)}" if e.missing else "it could not be read"
         return RenderResult(docx=standard.docx, used_standard_layout=True, problems=(
             f"The company template could not be used ({reason}), so the standard layout was used instead.", *standard.problems))

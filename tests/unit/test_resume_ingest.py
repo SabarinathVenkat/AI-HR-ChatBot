@@ -348,3 +348,18 @@ def test_a_line_break_inside_a_paragraph_starts_a_new_line_instead_of_gluing_the
     doc.save(buf)
 
     assert read_document("cv.docx", buf.getvalue()).text.splitlines() == ["First line", "Second line"]
+
+
+def test_a_word_file_saved_from_the_company_template_with_its_embedded_fonts_is_within_the_limit():
+    import os
+
+    sample = with_extra_entry(docx_bytes(["hi"]), "word/fonts/Merriweather-bold.ttf", os.urandom(5_300_000))  # about 5.3 MB, like a real one
+
+    assert len(sample) > 5_000_000
+    assert read_document("cv.docx", sample).text.strip() == "hi"
+
+
+def test_a_file_over_10_mb_is_still_rejected_before_it_is_parsed():
+    with pytest.raises(IngestError) as e:
+        read_document("cv.docx", b"x" * 10_000_001)
+    assert code_of(e) == "too_large"

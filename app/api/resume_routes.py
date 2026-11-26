@@ -16,7 +16,8 @@ from app.rmg.resume.filestore import FileStore
 from app import issue_log
 from app.rmg.resume.service import ResumeEngine, ResumeService, ServiceError
 
-MAX_RESUME_UPLOAD = 6_000_000
+MAX_RESUME_UPLOAD = 11_000_000  # a little above the 10 MB the reader accepts, so the reader's own message is the one shown
+MAX_JD_UPLOAD = 6_000_000
 MAX_TEMPLATE_UPLOAD = 41_000_000
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
@@ -43,6 +44,10 @@ class SkillEntry(BaseModel):
 
 class ConfirmSkillsBody(BaseModel):
     items: list[SkillEntry] = Field(min_length=1, max_length=30)
+
+
+class BadgeBody(BaseModel):
+    keep: bool
 
 
 class DecideBody(BaseModel):
@@ -147,7 +152,7 @@ def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Cal
     @app.post("/resume/jds")
     async def create_jd(request: Request, filename: str = "jd.txt", title: str | None = None,
                         svc: ResumeService = Depends(service)):
-        return svc.create_jd(filename, await read_upload(request, MAX_RESUME_UPLOAD), title)
+        return svc.create_jd(filename, await read_upload(request, MAX_JD_UPLOAD), title)
 
     def as_attachment(result: tuple[str, bytes, str]) -> Response:
         name, data, media_type = result
@@ -205,6 +210,10 @@ def register_resume_routes(app: FastAPI, *, get_conn, current_employee, now: Cal
     @app.post("/resume/requests/{request_id}/skills/confirm")
     def confirm_skills(request_id: int, body: ConfirmSkillsBody, svc: ResumeService = Depends(service)):
         return svc.confirm_skills(request_id, [e.model_dump() for e in body.items])
+
+    @app.post("/resume/requests/{request_id}/badges/{index}")
+    def set_badge(request_id: int, index: int, body: BadgeBody, svc: ResumeService = Depends(service)):
+        return svc.set_badge(request_id, index, body.keep)
 
     @app.post("/resume/requests/{request_id}/edit")
     def edit(request_id: int, body: EditCommand, svc: ResumeService = Depends(service)):

@@ -15,7 +15,7 @@ from typing import Literal
 from docx import Document
 from pypdf import PasswordType, PdfReader
 
-MAX_BYTES = 5_000_000
+MAX_BYTES = 10_000_000  # a Word file saved from the company template carries its embedded fonts (about 5 MB)
 MAX_UNCOMPRESSED = 50_000_000
 MAX_ENTRIES = 1000
 MAX_PAGES = 10  # an RMG decision: a resume is at most ten pages

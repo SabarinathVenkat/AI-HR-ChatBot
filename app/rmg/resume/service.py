@@ -21,6 +21,7 @@ from datetime import date, datetime, timedelta
 
 from app import issue_log
 from app.db.repositories import Employee
+from app.rmg.resume.badges import extract_badges, thumbnail_data_url
 from app.rmg.resume.briefing import Briefing, briefings_for, plain_briefing
 from app.rmg.resume.changelog import build_change_log
 from app.rmg.resume.conformance import WARN, Check, Report, check_conformance
@@ -37,13 +38,13 @@ from app.rmg.resume.grounding import check_grounding
 from app.rmg.resume.ingest import IngestError, read_document
 from app.rmg.resume.jd import JobDescription, jd_to_docx
 from app.rmg.resume.match import build_match_plan
-from app.rmg.resume.model import Resume
+from app.rmg.resume.model import Badge, Resume
 from app.rmg.resume.people import lead_of, roles_of
 from app.rmg.resume.pipeline import PipelineDeps, PipelineError, PipelineRequest, run_pipeline
 from app.rmg.resume.render import TemplateError, check_template, render_best, template_gaps, template_warning
 
 # A job description is short: it keeps the limits it always had, whatever a resume is allowed.
-JD_LIMITS = dict(max_pages=5, max_text_chars=20_000)
+JD_LIMITS = dict(max_bytes=5_000_000, max_pages=5, max_text_chars=20_000)
 PREVIEW_TEXT_CHARS = 8000  # how much of a job description's own text the preview shows
 TEMPLATE_LIMITS = dict(max_bytes=40_000_000, max_uncompressed=150_000_000, max_entries=2000, max_pages=50,
                        max_text_chars=200_000)
@@ -444,6 +445,9 @@ class ResumeService:
         except Exception as e:  # noqa: BLE001 - recorded with its traceback, then handled as an unexpected error
             self._log("build_crashed", "error", error=e, duration_ms=round((time.perf_counter() - started) * 1000), **context)
             raise
+        badges = self._badges_of_upload(row)  # pictures kept in the header of the uploaded Word file
+        original = result.original.model_copy(update={"badges": badges})
+        tailored = result.tailored.model_copy(update={"badges": badges})
         years = result.experience.describe() if result.experience.months else ""
         self.conn.execute(
             "INSERT INTO resume_drafts (request_id, base_json, working_json, undo_json, warnings_json, years_text,"
@@ -452,17 +456,58 @@ class ResumeService:
             " undo_json = '[]', warnings_json = excluded.warnings_json, years_text = excluded.years_text,"
             " read_coverage = excluded.read_coverage, template_id = excluded.template_id, mode = excluded.mode,"
             " updated_at = excluded.updated_at",
-            (request_id, result.original.model_dump_json(), result.tailored.model_dump_json(), json.dumps(result.warnings),
+            (request_id, original.model_dump_json(), tailored.model_dump_json(), json.dumps(result.warnings),
              years, result.read_coverage, template["id"], result.mode, self._iso()))
         self._set_status(request_id, "in_progress")
         self._audit("resume_built", {"request_id": request_id, "forced": force, "mode": result.mode})
         self.conn.commit()
-        self._log("build_succeeded", request_id=request_id, mode=result.mode, duration_ms=round((time.perf_counter() - started) * 1000),
+        self._log("build_succeeded", request_id=request_id, mode=result.mode, badges=len(badges), duration_ms=round((time.perf_counter() - started) * 1000),
                   read_coverage=result.read_coverage, warnings=len(result.warnings), projects=len(result.tailored.projects),
                   highlights=len(result.tailored.highlights), missing_required=len(result.plan.missing_required))
         for warning in result.warnings:
             self._log("build_warning", "warning", request_id=request_id, message=warning)
         self._log_render(request_id, result.rendered, "build")
+        return self.detail(request_id)
+
+    def _badges_of_upload(self, row) -> list[Badge]:
+        """The badge pictures in the uploaded Word file, cleaned and stored. Never fails a build: no pictures is a normal case."""
+        if not (row["base_filename"] or "").lower().endswith(".docx"):
+            return []
+        try:
+            return [Badge(key=self.files.put(b.png, ".png"), label=b.label) for b in extract_badges(self.files.get(row["base_file_key"]))]
+        except Exception:  # noqa: BLE001
+            return []
+
+    def _badge_images(self, resume: Resume) -> list[tuple[bytes, str | None]]:
+        """The pictures to place on download: the kept ones whose file is still there."""
+        images = []
+        for badge in resume.badges:
+            if badge.keep:
+                try:
+                    images.append((self.files.get(badge.key), badge.label))
+                except (FileNotFoundError, OSError):
+                    continue
+        return images
+
+    def _badge_view(self, resume: Resume) -> list[dict]:
+        out = []
+        for index, badge in enumerate(resume.badges):
+            try:
+                thumb = thumbnail_data_url(self.files.get(badge.key))
+            except (FileNotFoundError, OSError):
+                thumb = None
+            out.append({"index": index, "label": badge.label, "keep": badge.keep, "thumb": thumb})
+        return out
+
+    def set_badge(self, request_id: int, index: int, keep: bool) -> dict:
+        """The associate keeps a badge picture in the Word file, or leaves it out. Reversible with undo."""
+        draft, _, working, _ = self._editing(request_id)  # only the associate, and only while the draft is theirs to write
+        if not 0 <= index < len(working.badges):
+            raise ServiceError("edit_no_such_item", "That picture does not exist.", 422)
+        badges = [b.model_copy(update={"keep": keep}) if n == index else b for n, b in enumerate(working.badges)]
+        self._store(request_id, draft, working.model_copy(update={"badges": badges}))
+        self._audit("badge_changed", {"request_id": request_id, "index": index, "keep": keep})
+        self.conn.commit()
         return self.detail(request_id)
 
     # ------------------------------------------------------------------------------------ viewing
@@ -505,7 +550,7 @@ class ResumeService:
             "associate": {"id": row["associate_id"], "name": self._name(row["associate_id"])},
             "lead": {"id": row["lead_id"], "name": self._lead_name(row)},
             "review_by": "Competency Lead" if row["lead_id"] else "RMG",
-            "resume": None, "changelog": None, "warnings": [], "years_text": "", "read_coverage": None, "render_notes": [], "mode": None,
+            "resume": None, "changelog": None, "warnings": [], "years_text": "", "read_coverage": None, "render_notes": [], "mode": None, "badges": [],
             "versions": [dict(v) for v in self.conn.execute(
                 "SELECT version, kind, created_at FROM resume_versions WHERE request_id = ? ORDER BY version", (request_id,))],
             "can": self._can(row, relations, draft is not None),
@@ -514,7 +559,7 @@ class ResumeService:
             log, _ = self._changelog(row, draft)
             view.update(resume=json.loads(draft["working_json"]), changelog=asdict(log), warnings=json.loads(draft["warnings_json"]),
                         years_text=draft["years_text"], read_coverage=draft["read_coverage"], render_notes=self._render_notes(draft),
-                        mode=draft["mode"])
+                        mode=draft["mode"], badges=self._badge_view(Resume.model_validate_json(draft["working_json"])))
         return view
 
     def _render_notes(self, draft) -> list[str]:
@@ -854,7 +899,7 @@ class ResumeService:
             raise ServiceError("no_template", "The resume template is not available.", 409)
         resume = Resume.model_validate_json(source["resume_json"] if approved is not None else draft["working_json"])
         template_bytes = self.files.get(template["file_key"])
-        rendered = render_best(template_bytes, resume, years_text=source["years_text"])
+        rendered = render_best(template_bytes, resume, years_text=source["years_text"], badges=self._badge_images(resume))
         return row, approved is not None, resume, template_bytes, rendered
 
     def _check(self, request_id: int, resume, template_bytes: bytes, rendered, where: str):

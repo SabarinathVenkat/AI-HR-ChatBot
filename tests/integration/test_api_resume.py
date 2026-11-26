@@ -17,6 +17,7 @@ from app.rmg.resume.service import ResumeEngine
 from tests.integration.conftest import SECRET, auth_headers
 from tests.unit.resume_fakes import FakeJDExtractor, FakeResumeExtractor, keep_as_written
 from tests.unit.resume_templates import make_template
+from tests.unit.test_resume_badges import docx_with, picture
 from tests.unit.test_resume_deep import deep_drafter
 
 HEAD, STAFF, LEAD, RAVI, DIVYA, SANJAY = "Nancy", "Shadrach", "Veera", "Ravi Kumar", "Divya Menon", "Sanjay Patel"
@@ -181,7 +182,7 @@ def test_uploads_are_size_limited_and_must_not_be_empty(client):
     ravi = hdr(client, RAVI)
 
     assert client.post(f"/resume/requests/{request_id}/resume?filename=cv.txt", content=b"", headers=ravi).status_code == 422
-    big = client.post(f"/resume/requests/{request_id}/resume?filename=cv.txt", content=b"x" * 6_100_000, headers=ravi)
+    big = client.post(f"/resume/requests/{request_id}/resume?filename=cv.txt", content=b"x" * 11_100_000, headers=ravi)
     assert big.status_code == 413 and big.json()["error"]["code"] == "too_large"
 
 
@@ -652,3 +653,135 @@ def test_a_job_description_from_before_briefings_still_gets_one_when_read(client
     briefing = client.get(f"/resume/requests/{request_id}", headers=hdr(client, RAVI)).json()["jd"]["briefing"]
 
     assert briefing["points"]
+
+
+# --- badges: pictures kept from the header of an uploaded Word file ----------------------------------------------------
+
+def badge_template_bytes() -> bytes:
+    out = io.BytesIO()
+    make_template(header_in_table=True, header_cols=2).save(out)
+    return out.getvalue()
+
+
+def request_with_badge_template(client):
+    """Like tagged_request, but the company template has an empty header cell for badges. Returns the request id."""
+    assert client.post("/resume/template?filename=t.docx", content=badge_template_bytes(), headers=hdr(client, HEAD)).status_code == 200
+    jd_id = client.get("/resume/jds", headers=hdr(client, STAFF)).json()["jds"][0]["id"]
+    ravi_id = next(a["id"] for a in client.get("/resume/associates", headers=hdr(client, STAFF)).json()["associates"] if a["name"] == RAVI)
+    return client.post(f"/resume/jds/{jd_id}/tag", json={"associate_ids": [ravi_id]}, headers=hdr(client, STAFF)).json()["created"][0]["request_id"]
+
+
+def upload_docx_with_badges(client, request_id, count=2):
+    pictures = [picture(color=(40 * (n + 1), 20, 20)) for n in range(count)]
+    labels = ["AWS Certified AI Practitioner", "Databricks GenAI Fundamentals", "AWS Solutions Architect"][:count]
+    sent = client.post(f"/resume/requests/{request_id}/resume?filename=cv.docx", content=docx_with(pictures, labels=labels), headers=hdr(client, RAVI))
+    assert sent.status_code == 200, sent.text
+
+
+def badge_pictures_in_download(client, request_id) -> int:
+    from docx import Document
+
+    response = client.get(f"/resume/requests/{request_id}/download", headers=hdr(client, STAFF))
+    assert response.status_code == 200, response.text
+    cell = Document(io.BytesIO(response.content)).tables[0].cell(0, 1)
+    return len(list(cell._tc.iter("{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}inline")))
+
+
+def test_a_resume_with_badges_builds_with_them_offered_and_they_are_in_the_download(client):
+    request_id = request_with_badge_template(client)
+    upload_docx_with_badges(client, request_id)
+
+    built = client.post(f"/resume/requests/{request_id}/build", headers=hdr(client, RAVI)).json()
+
+    assert [(b["label"], b["keep"]) for b in built["badges"]] == [("AWS Certified AI Practitioner", True), ("Databricks GenAI Fundamentals", True)]
+    assert all(b["thumb"].startswith("data:image/png;base64,") for b in built["badges"])
+    assert badge_pictures_in_download(client, request_id) == 2
+
+
+def test_the_associate_can_leave_a_badge_out_and_put_it_back(client):
+    request_id = request_with_badge_template(client)
+    upload_docx_with_badges(client, request_id)
+    client.post(f"/resume/requests/{request_id}/build", headers=hdr(client, RAVI))
+
+    off = client.post(f"/resume/requests/{request_id}/badges/0", json={"keep": False}, headers=hdr(client, RAVI)).json()
+    assert [b["keep"] for b in off["badges"]] == [False, True] and badge_pictures_in_download(client, request_id) == 1
+
+    on = client.post(f"/resume/requests/{request_id}/badges/0", json={"keep": True}, headers=hdr(client, RAVI)).json()
+    assert [b["keep"] for b in on["badges"]] == [True, True] and badge_pictures_in_download(client, request_id) == 2
+
+
+def test_changing_a_badge_can_be_undone(client):
+    request_id = request_with_badge_template(client)
+    upload_docx_with_badges(client, request_id)
+    client.post(f"/resume/requests/{request_id}/build", headers=hdr(client, RAVI))
+    client.post(f"/resume/requests/{request_id}/badges/0", json={"keep": False}, headers=hdr(client, RAVI))
+
+    client.post(f"/resume/requests/{request_id}/edit", json={"action": "undo"}, headers=hdr(client, RAVI))
+
+    assert badge_pictures_in_download(client, request_id) == 2
+
+
+def test_only_the_associate_can_change_a_badge_and_a_missing_one_is_refused(client):
+    request_id = request_with_badge_template(client)
+    upload_docx_with_badges(client, request_id)
+    client.post(f"/resume/requests/{request_id}/build", headers=hdr(client, RAVI))
+
+    assert client.post(f"/resume/requests/{request_id}/badges/0", json={"keep": False}, headers=hdr(client, LEAD)).status_code in (403, 404)
+    assert client.post(f"/resume/requests/{request_id}/badges/0", json={"keep": False}, headers=hdr(client, DIVYA)).status_code in (403, 404)
+    assert client.post(f"/resume/requests/{request_id}/badges/9", json={"keep": False}, headers=hdr(client, RAVI)).status_code == 422
+    assert client.post(f"/resume/requests/{request_id}/badges/0", json={}, headers=hdr(client, RAVI)).status_code == 422
+
+
+def test_the_approved_resume_keeps_the_badges_the_associate_chose(client):
+    request_id = request_with_badge_template(client)
+    upload_docx_with_badges(client, request_id)
+    client.post(f"/resume/requests/{request_id}/build", headers=hdr(client, RAVI))
+    client.post(f"/resume/requests/{request_id}/badges/1", json={"keep": False}, headers=hdr(client, RAVI))
+    client.post(f"/resume/requests/{request_id}/submit", headers=hdr(client, RAVI))
+
+    approved = client.post(f"/resume/requests/{request_id}/decide", json={"decision": "approve"}, headers=hdr(client, LEAD))
+
+    assert approved.status_code == 200, approved.text
+    assert badge_pictures_in_download(client, request_id) == 1  # the final file has what the associate chose
+
+
+def test_a_resume_that_is_not_a_word_file_has_no_badges(client):
+    request_id = request_with_badge_template(client)
+    client.post(f"/resume/requests/{request_id}/resume?filename=cv.txt", content=b"Ravi Kumar backend engineer", headers=hdr(client, RAVI))
+
+    built = client.post(f"/resume/requests/{request_id}/build", headers=hdr(client, RAVI)).json()
+
+    assert built["badges"] == [] and badge_pictures_in_download(client, request_id) == 0
+
+
+def test_rebuilding_picks_the_badges_up_again_from_the_upload(client):
+    request_id = request_with_badge_template(client)
+    upload_docx_with_badges(client, request_id)
+    client.post(f"/resume/requests/{request_id}/build", headers=hdr(client, RAVI))
+    client.post(f"/resume/requests/{request_id}/badges/0", json={"keep": False}, headers=hdr(client, RAVI))
+
+    rebuilt = client.post(f"/resume/requests/{request_id}/build", json={"force": True}, headers=hdr(client, RAVI)).json()
+
+    assert [b["keep"] for b in rebuilt["badges"]] == [True, True]  # a rebuild starts again from the upload
+
+
+def test_a_template_with_no_header_cell_for_badges_still_offers_them_and_the_download_works(client):
+    request_id = tagged_request(client)  # the default test template has no empty header cell
+    upload_docx_with_badges(client, request_id)
+
+    built = client.post(f"/resume/requests/{request_id}/build", headers=hdr(client, RAVI)).json()
+    downloaded = client.get(f"/resume/requests/{request_id}/download", headers=hdr(client, STAFF))
+
+    assert len(built["badges"]) == 2 and downloaded.status_code == 200
+
+
+# --- upload size ------------------------------------------------------------------------------------------------------
+
+def test_a_resume_between_5_and_10_mb_passes_the_size_check_but_a_job_description_keeps_its_5_mb_limit(client):
+    request_id = tagged_request(client)
+
+    big_resume = client.post(f"/resume/requests/{request_id}/resume?filename=cv.txt", content=b"x" * 5_500_000, headers=hdr(client, RAVI))
+    big_jd = client.post("/resume/jds?filename=jd.txt", content=b"x" * 5_500_000, headers=hdr(client, STAFF))
+
+    assert big_resume.status_code == 422 and big_resume.json()["error"]["code"] == "text_too_long"  # past the size check, stopped by the text limit
+    assert big_jd.status_code == 422 and big_jd.json()["error"]["code"] == "too_large"

@@ -5,6 +5,7 @@ import re
 from playwright.sync_api import expect
 
 from tests.unit.resume_templates import make_template
+from tests.unit.test_resume_badges import docx_with, picture
 
 
 def template_bytes() -> bytes:
@@ -707,7 +708,7 @@ def test_confirming_with_nothing_ticked_asks_to_tick_first_and_changes_nothing(p
 
 # --- the build popup, the briefing, Save version and the template check -----------------------------------------------
 
-def open_ravis_request(page, server):
+def open_ravis_request(page, server, upload=None):
     """Everything is set up and Ravi has uploaded his resume, but has not built yet."""
     open_builder(page, server, "Nancy")
     page.get_by_role("button", name="Setup").click()
@@ -724,7 +725,7 @@ def open_ravis_request(page, server):
     sign_out(page)
     open_builder(page, server, "Ravi Kumar")
     page.get_by_role("button", name="Open").first.click()
-    page.locator("#resume-file").set_input_files({"name": "cv.txt", "mimeType": "text/plain", "buffer": b"Ravi"})
+    page.locator("#resume-file").set_input_files(upload or {"name": "cv.txt", "mimeType": "text/plain", "buffer": b"Ravi"})
     page.locator("#upload-resume").click()
     expect(page.locator("#build")).to_be_visible()
 
@@ -828,3 +829,39 @@ def test_save_version_says_when_nothing_changed_and_lists_each_version_with_a_ti
     expect(page.locator("text=/^v2: /")).to_have_count(1)
     versions = page.locator("text=/^v[0-9]+: /").all_inner_texts()
     assert len(versions) == 2 and versions[0].startswith("v1: saved, ") and any(c.isdigit() for c in versions[0].split(", ", 1)[1])
+
+
+def test_the_associate_sees_the_badge_pictures_from_the_upload_and_chooses_which_go_in_the_word_file(page, start_server):
+    server = start_server([], resume=True)
+    word = docx_with([picture(color=(200, 30, 30)), picture(color=(30, 30, 200))], labels=["AWS Certified AI Practitioner", "Databricks GenAI"])
+    open_ravis_request(page, server, upload={"name": "cv.docx", "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "buffer": word})
+
+    build_and_confirm(page)
+
+    section = page.locator("#badges-section")
+    expect(section).to_be_visible()
+    expect(section.locator(".rb-badge")).to_have_count(2)
+    expect(section.locator("img").first).to_have_attribute("src", re.compile(r"^data:image/png;base64,"))
+    expect(section.locator("img").first).to_have_attribute("alt", "AWS Certified AI Practitioner")
+    expect(page.locator("#badge-0")).to_be_checked()  # on by default
+    expect(page.locator("#badge-1")).to_be_checked()
+
+    page.locator("#badge-0").uncheck()
+
+    expect(page.locator("#badge-0")).not_to_be_checked()  # kept after the page refreshes
+    expect(page.locator("#badge-1")).to_be_checked()
+    box = page.evaluate("""() => {
+        const r = document.querySelector('#badges-section .rb-badge').getBoundingClientRect();
+        const c = document.querySelector('#badge-0').getBoundingClientRect();
+        return { cardH: Math.round(r.height), cardW: Math.round(r.width), boxW: Math.round(c.width) };
+    }""")
+    assert box["cardH"] < 90 and box["boxW"] <= 24, box  # a compact card with a normal checkbox, not a stretched one
+
+
+def test_a_resume_without_pictures_shows_no_badges_card(page, start_server):
+    server = start_server([], resume=True)
+    open_ravis_request(page, server)
+
+    build_and_confirm(page)
+
+    expect(page.locator("#badges-section")).to_have_count(0)
