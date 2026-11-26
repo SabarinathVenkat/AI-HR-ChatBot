@@ -278,7 +278,7 @@ def test_mirror_has_no_target_and_still_lists_what_is_evidenced_and_what_to_ask(
     result = levels.plan("Java, PostgreSQL, Jenkins", ["Java", "SQL", "Kafka"], ["AWS"], "mirror")
 
     assert result["target_percent"] is None and result["needed_more"] == 0 and result["reached_with_evidence"] is True
-    assert list(result["evidence"]) == ["SQL"] and result["ask_the_candidate"] == ["Kafka", "AWS"]
+    assert list(result["evidence"]) == ["SQL"] and result["no_evidence"] == ["Kafka", "AWS"]
 
 
 def test_summit_counts_how_many_more_must_haves_are_needed(levels):
@@ -293,7 +293,8 @@ def test_evidence_can_reach_a_level_but_a_gap_with_no_evidence_never_counts(leve
 
     assert reachable["reached_with_evidence"] is True and reachable["percent_with_evidence"] == 75
     assert stuck["reached_with_evidence"] is False and stuck["percent_with_evidence"] == 20
-    assert stuck["must_haves_the_candidate_would_have_to_confirm"] == 3 and set(stuck["ask_the_candidate"]) == {"Kafka", "Terraform", "FHIR", "AWS"}
+    assert stuck["needed_without_evidence"] == 3 and stuck["add_if_no_answer"] == ["Kafka", "Terraform", "FHIR"]  # only what is needed, must-haves in JD order
+    assert set(stuck["no_evidence"]) == {"Kafka", "Terraform", "FHIR", "AWS"}
 
 
 def test_a_skill_the_candidate_confirmed_counts_as_shown(levels):
@@ -328,8 +329,34 @@ def test_the_evidence_list_is_strict_about_what_it_implies(levels):
     assert related.evidence_for("Kafka", "RabbitMQ") == []
 
 
-def test_the_level_instructions_say_what_to_do_when_the_target_cannot_be_reached_honestly():
-    text = (SKILL / "reference" / "match-levels.md").read_text(encoding="utf-8")
+def test_mirror_adds_nothing_while_bridge_and_summit_warn_and_record_every_addition():
+    text = " ".join((SKILL / "reference" / "match-levels.md").read_text(encoding="utf-8").split())  # the file wraps its lines
+    body = " ".join((SKILL / "SKILL.md").read_text(encoding="utf-8").split())
 
     assert all(name in text for name in ("Mirror", "Bridge", "Summit"))
-    assert "do not add the skills" in text.lower() and "not reached" in text.lower()
+    assert "No skill is added that the resume does not show" in text  # Mirror is the way back
+    assert "Warn first" in text and "Rebuild in Mirror to undo" in text
+    assert "Added for the match, not in the original resume" in text and "candidate must approve" in text
+    assert "Never invent facts" in body and "employer, job title, date, certification, number or result" in body  # these stay forbidden
+
+
+def test_a_skill_added_for_the_match_is_accepted_only_when_listed_and_comes_with_a_warning(checker, capsys, tmp_path):
+    original = "Built services with Java and Spring Boot."
+    tailored = "Built Java services and deployed them on Kubernetes."
+
+    assert checker.check(original, tailored, ["Kubernetes"], [], added=["Kubernetes"]) == []
+    assert [p["detail"] for p in checker.check(original, tailored, ["Kubernetes"], [])] == ["Kubernetes"]  # not listed: refused as before
+
+    (tmp_path / "o.txt").write_text(original, encoding="utf-8")
+    (tmp_path / "t.txt").write_text(tailored, encoding="utf-8")
+    code = checker.main(["--original", str(tmp_path / "o.txt"), "--tailored", str(tmp_path / "t.txt"), "--required", "Kubernetes",
+                         "--added", "Kubernetes"])
+    out = capsys.readouterr().out
+    assert code == 0 and "WARNING added for the match" in out and "Kubernetes" in out and "approve" in out
+
+
+def test_added_skills_do_not_excuse_a_made_up_number_or_term(checker):
+    problems = checker.check("Built Java services.", "Built Java services on Kubernetes serving 5 million users with Zorblax.",
+                             ["Kubernetes"], [], added=["Kubernetes"])
+
+    assert {p["kind"] for p in problems} == {"new_number", "new_term"}

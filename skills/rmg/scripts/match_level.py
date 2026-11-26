@@ -8,9 +8,9 @@ The levels (each has its own name):
 For the level asked, this prints the percentage now, how many more must-have skills are needed, and for every gap:
   - EVIDENCE: the resume already contains something that really shows the skill (Spring Boot shows Spring), and in which lines.
               You may write the skill into the project where that evidence is, and must list it as "inferred" in the note.
-  - ASK: nothing in the resume shows it. Only the candidate can claim it: it becomes a question.
-Nothing here ever adds a skill. If the level cannot be reached with evidence alone, it says so and says how many skills the
-candidate would have to confirm.
+  - NO EVIDENCE: nothing in the resume shows it. Ask the candidate first; if there is no answer, Bridge and Summit may add it with a
+              warning and a note (see reference/match-levels.md). Mirror never adds it.
+This script only reads and reports: it never changes a resume. It says how many skills the level still needs after the evidence.
 
 Usage:
   python match_level.py --resume resume.docx --required "A, B, C" --nice "D, E" --level summit [--confirmed "X"] [--json]
@@ -49,11 +49,11 @@ def plan(text: str, required: list[str], nice: list[str], level: str, confirmed:
     reachable_percent = round(100 * reachable / len(required)) if required else None
     return {
         "level": level, "target_percent": target, "required_total": len(required), "required_percent": percent,
-        "needed_more": needed, "evidence": {s: with_evidence[s] for s in gaps if with_evidence[s]}, "ask_the_candidate": ask,
+        "needed_more": needed, "evidence": {s: with_evidence[s] for s in gaps if with_evidence[s]}, "no_evidence": ask,
         "percent_with_evidence": reachable_percent,
         "reached_with_evidence": target is None or (reachable_percent is not None and reachable_percent >= target),
-        "must_haves_the_candidate_would_have_to_confirm": (
-            0 if target is None or not required else max(0, needed - len(mappable))),
+        "needed_without_evidence": 0 if target is None or not required else max(0, needed - len(mappable)),
+        "add_if_no_answer": [s for s in required if s in ask][: 0 if target is None else max(0, needed - len(mappable))],
     }
 
 
@@ -82,14 +82,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  Needed to reach it: {result['needed_more']} more must-have skill(s).")
     for skill, found in result["evidence"].items():
         print(f"  EVIDENCE {skill}: the resume shows {', '.join(found)}. May be written in as 'inferred'.")
-    for skill in result["ask_the_candidate"]:
-        print(f"  ASK      {skill}: nothing in the resume shows it. Ask the candidate; do not add it.")
+    for skill in result["no_evidence"]:
+        print(f"  NO EVIDENCE {skill}: nothing in the resume shows it. Ask the candidate first.")
     if result["target_percent"]:
         if result["reached_with_evidence"]:
             print(f"With the evidence-backed skills the level is reachable ({result['percent_with_evidence']} percent).")
         else:
-            print(f"With evidence alone the best is {result['percent_with_evidence']} percent: the target is NOT reachable honestly. "
-                  f"The candidate would have to confirm {result['must_haves_the_candidate_would_have_to_confirm']} more must-have(s).")
+            print(f"With evidence alone the best is {result['percent_with_evidence']} percent. The level still needs "
+                  f"{result['needed_without_evidence']} must-have(s) with no evidence: ask the candidate; if no answer, Bridge and Summit may add "
+                  f"{', '.join(result['add_if_no_answer'])} with the warning.")
     return 0
 
 

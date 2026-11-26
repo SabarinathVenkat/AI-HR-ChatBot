@@ -48,7 +48,8 @@ The limits on the file: `name` up to 64 characters, lowercase letters, numbers a
 
 ## Why scripts? Instructions are not enough
 
-`SKILL.md` says "never invent a skill". That is a request. A model asked nicely can still slip. So the Skill also carries
+`SKILL.md` says what may not be claimed (in Mirror, no skill the resume lacks; in every level, no invented employer, date, number
+or certification). That is a request. A model asked nicely can still slip. So the Skill also carries
 `check_claims.py`, a small program that reads the original and the tailored resume and reports any skill, number or
 technology-looking word that the original does not support. The instructions tell Claude to run it and to fix whatever it
 reports before showing you anything. That is the same idea as the app, where the check is code that always runs. (In the app
@@ -109,7 +110,8 @@ zero data retention**, which matters because resumes are personal data.
 
 ## The Skill and the app: how they relate
 
-They follow the same rules (never invent; only the candidate claims a skill; gaps become questions), written once as app code and
+They follow the same core rules (never invent employers, dates, numbers or certifications; gaps become questions). The Skill's
+Bridge and Summit levels go further than the app: they may add skills with a warning and a note, and the candidate approves first, written once as app code and
 once as Skill instructions plus scripts.
 
 - **Use the app** for the real workflow: associates edit their own resumes, a Competency Lead or RMG reviews and approves, RMG
